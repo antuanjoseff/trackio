@@ -1,3 +1,4 @@
+import 'dart:math'; // Afegit per a la generació de colors aleatoris real
 import 'package:trackio/models/track_model.dart';
 import 'package:xml/xml.dart';
 
@@ -12,26 +13,28 @@ class GpxParser {
     final List<WaypointModel> trackWaypoints = [];
 
     // 2. EXTRACCIÓ DE LA LÍNIA DEL TRACK (<trkpt>)
-    // Busquem tots els elements de punt de track dins del fitxer
     final trkPoints = document.findAllElements('trkpt');
     for (final element in trkPoints) {
       final latAttr = element.getAttribute('lat');
       final lonAttr = element.getAttribute('lon');
 
       if (latAttr != null && lonAttr != null) {
-        final double lat = double.parse(latAttr);
-        final double lon = double.parse(lonAttr);
+        final double? lat = double.tryParse(latAttr);
+        final double? lon = double.tryParse(lonAttr);
 
-        // Busquem l'etiqueta opcional d'altitud <ele>
+        // Si les coordenades base no són vàlides, saltem el punt
+        if (lat == null || lon == null) continue;
+
+        // Busquem l'etiqueta opcional d'altitud <ele> amb tryParse segur
         final eleElement = element.findElements('ele').firstOrNull;
         final double? elevation = eleElement != null
-            ? double.parse(eleElement.innerText)
+            ? double.tryParse(eleElement.innerText)
             : null;
 
         // Busquem l'etiqueta opcional de temps <time>
         final timeElement = element.findElements('time').firstOrNull;
         final DateTime? timestamp = timeElement != null
-            ? DateTime.parse(timeElement.innerText)
+            ? DateTime.tryParse(timeElement.innerText)
             : null;
 
         routePoints.add(
@@ -46,21 +49,22 @@ class GpxParser {
     }
 
     // 3. EXTRACCIÓ DE FITES I WAYPOINTS (<wpt>)
-    // Busquem punts d'interès independents que acompanyin el track
     final wptElements = document.findAllElements('wpt');
     for (final element in wptElements) {
       final latAttr = element.getAttribute('lat');
       final lonAttr = element.getAttribute('lon');
 
       if (latAttr != null && lonAttr != null) {
-        final double lat = double.parse(latAttr);
-        final double lon = double.parse(lonAttr);
+        final double? lat = double.tryParse(latAttr);
+        final double? lon = double.tryParse(lonAttr);
 
-        // Nom del waypoint (ex: <name>Font del Grill</name>)
+        if (lat == null || lon == null) continue;
+
+        // Nom del waypoint
         final nameElement = element.findElements('name').firstOrNull;
         final String? name = nameElement?.innerText;
 
-        // Comentari o descripció (ex: <desc>Aigua potable</desc>)
+        // Comentari o descripció
         final descElement =
             element.findElements('desc').firstOrNull ??
             element.findElements('cmt').firstOrNull;
@@ -69,7 +73,7 @@ class GpxParser {
         // Altitud opcional del waypoint
         final eleElement = element.findElements('ele').firstOrNull;
         final double? elevation = eleElement != null
-            ? double.parse(eleElement.innerText)
+            ? double.tryParse(eleElement.innerText)
             : null;
 
         trackWaypoints.add(
@@ -85,8 +89,17 @@ class GpxParser {
     }
 
     // 4. RETORNEM EL TRACK FORMATAT COM A CAPA INDEPENDENT
-    // Si el fitxer GPX conté un nom intern (<name>), el fem servir; si no, usem el nom del fitxer
-    final gpxNameElement = document.findAllElements('name').firstOrNull;
+    // Busquem el nom específic de la ruta (<trk> -> <name>) per evitar duplicats amb fites
+    final trkNameElement = document
+        .findAllElements('trk')
+        .firstOrNull
+        ?.findElements('name')
+        .firstOrNull;
+
+    // Si no existeix, busquem un <name> global que estigui directament sota l'arrel <gpx>
+    final gpxNameElement =
+        trkNameElement ?? document.rootElement.findElements('name').firstOrNull;
+
     final String trackName =
         (gpxNameElement != null && gpxNameElement.innerText.trim().isNotEmpty)
         ? gpxNameElement.innerText.trim()
@@ -95,23 +108,23 @@ class GpxParser {
     return TrackModel(
       name: trackName,
       isVisible: true,
-      hexColor:
-          _generateRandomColor(), // Li assignem un color automàtic per distingir-lo
+      hexColor: _generateRandomColor(),
       points: routePoints,
       waypoints: trackWaypoints,
     );
   }
 
-  /// Utilitat interna per assignar colors diferents a cada track en importar-los en massa
+  /// Utilitat interna millorada amb Random per evitar colors idèntics en execucions en paral·lel
   static String _generateRandomColor() {
     final colors = [
       '#007AFF', // Blau
       '#34C759', // Verd
       '#FF9500', // Taronja
       '#FF3B30', // Vermell
-      '#AF52DE', // LILA
+      '#AF52DE', // Lila
       '#5AC8FA', // Cian
     ];
-    return colors[DateTime.now().microsecondsSinceEpoch % colors.length];
+    final random = Random();
+    return colors[random.nextInt(colors.length)];
   }
 }

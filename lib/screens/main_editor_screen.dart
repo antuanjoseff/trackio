@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -102,43 +101,11 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
                   zoom: 13.0,
                 ),
                 onStyleLoadedCallback: () {
-                  final controller = ref.read(gpxEditorProvider).mapController!;
-
-                  controller.addSource(
-                    "source_range",
-                    const GeojsonSourceProperties(
-                      data: {"type": "FeatureCollection", "features": []},
-                    ),
-                  );
-
-                  controller.addLineLayer(
-                    "source_range",
-                    "layer_range_white",
-                    const LineLayerProperties(
-                      lineColor: "#FFFFFF",
-                      lineWidth: 6.0,
-                      lineJoin: "round",
-                      lineCap: "round",
-                    ),
-                  );
-
-                  controller.addLineLayer(
-                    "source_range",
-                    "layer_range_orange",
-                    const LineLayerProperties(
-                      lineColor: "#FF8800",
-                      lineWidth: 3.0,
-                      lineDasharray: [2, 2],
-                      lineJoin: "round",
-                      lineCap: "round",
-                    ),
-                  );
-
+                  // Executem de manera directa l'ordre sequencial net de la pila gràfica de dalt
                   ref
                       .read(gpxEditorProvider.notifier)
                       .selectTrackAndFocus(editorState.selectedTrackId);
                 },
-
                 onMapCreated: (MapLibreMapController controller) {
                   ref
                       .read(gpxEditorProvider.notifier)
@@ -150,12 +117,6 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
 
               if (isRangeMapMode && !editorState.forceHideReticle)
                 const Center(child: _FixedReticleWidget()),
-
-              if (isRangeMapMode && editorState.snappedPoint != null)
-                _SnappedPointCircleOverlay(
-                  controller: editorState.mapController!,
-                  point: editorState.snappedPoint!,
-                ),
 
               if (isRangeMapMode &&
                   editorState.isMapIdle &&
@@ -562,13 +523,44 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
         ? state.snappedPointIndex
         : state.selectionEndIndex;
 
-    // Estructura estàndard per netejar la línia de la GPU
     const Map<String, dynamic> emptyCollection = {
       "type": "FeatureCollection",
       "features": [],
     };
 
-    if (start == null || end == null || end < 0) {
+    // 1️⃣ ACTUALITZACIÓ NATIVA DEL CERCLE BLAU (SNAPPED POINT)
+    if (state.activeTool == 'range_map' && state.snappedPoint != null) {
+      final sPoint = state.snappedPoint!;
+      if (sPoint.longitude != null && sPoint.latitude != null) {
+        final Map<String, dynamic> pointGeoJson = {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": {},
+              "geometry": {
+                "type": "Point",
+                "coordinates": [sPoint.longitude!, sPoint.latitude!],
+              },
+            },
+          ],
+        };
+        try {
+          controller.setGeoJsonSource("source_snapped_point", pointGeoJson);
+        } catch (_) {}
+      }
+    } else {
+      try {
+        controller.setGeoJsonSource("source_snapped_point", emptyCollection);
+      } catch (_) {}
+    }
+
+    // 2️⃣ ACTUALITZACIÓ NATIVA DE LA LÍNIA DEL TRAM (RANG TARONJA)
+    if (start == null ||
+        end == null ||
+        end < 0 ||
+        start >= points.length ||
+        end >= points.length) {
       try {
         controller.setGeoJsonSource("source_range", emptyCollection);
       } catch (_) {}
@@ -578,23 +570,20 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     final int lo = start < end ? start : end;
     final int hi = start < end ? end : start;
 
-    // 🔒 PROTECCIÓ CONTRA CRASHES: Evita errors si el track canvia asíncronament
-    if (hi >= points.length) return;
+    final List<List<double>> segment = [];
+    for (int i = lo; i <= hi; i++) {
+      final p = points[i];
+      if (p.longitude != null && p.latitude != null) {
+        segment.add([p.longitude!, p.latitude!]);
+      }
+    }
 
-    final segment = points
-        .sublist(lo, hi + 1)
-        .where((p) => p.latitude != null && p.longitude != null)
-        .map((p) => [p.longitude!, p.latitude!])
-        .toList();
-
-    // 🚀 GEOJSON VÀLID: Envolcallat en FeatureCollection i amb "properties" obligatòries
     final Map<String, dynamic> cleanGeoJson = {
       "type": "FeatureCollection",
       "features": [
         {
           "type": "Feature",
-          "properties":
-              {}, // 🔥 INDISPENSABLE: Sense això MapLibre no dibuixa res
+          "properties": {},
           "geometry": {"type": "LineString", "coordinates": segment},
         },
       ],
@@ -678,49 +667,6 @@ class _FixedReticleWidget extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SnappedPointCircleOverlay extends StatelessWidget {
-  const _SnappedPointCircleOverlay({
-    required this.controller,
-    required this.point,
-  });
-
-  final MapLibreMapController controller;
-  final TrackPointModel point;
-
-  @override
-  Widget build(BuildContext context) {
-    final lat = point.latitude;
-    final lng = point.longitude;
-    if (lat == null || lng == null) return const SizedBox.shrink();
-
-    return FutureBuilder<Point<num>>(
-      future: controller.toScreenLocation(LatLng(lat, lng)),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
-
-        final pos = snapshot.data!;
-        const size = 18.0;
-
-        return Positioned(
-          left: pos.x.toDouble() - size / 2,
-          top: pos.y.toDouble() - size / 2,
-          child: IgnorePointer(
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.blue.withOpacity(0.35),
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

@@ -1,27 +1,108 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:latlong2/latlong.dart' as geo;
 import 'package:trackio/models/track_model.dart';
+import 'package:trackio/providers/gpx_editor_notifier.dart';
 
-class ElevationChartWidget extends StatelessWidget {
+class ElevationChartWidget extends ConsumerStatefulWidget {
   final TrackModel track;
-
-  // ⏱️ VARIABLE DE CONTROL PERSISTENTE: Guarda la marca de agua temporal en la memoria RAM
-  // para aplicar el Throttle entre redibujados sin perder el estado del temporizador.
-  static int _lastUpdateTimestamp = 0;
 
   const ElevationChartWidget({super.key, required this.track});
 
   @override
-  Widget build(BuildContext context) {
-    final validPoints = track.points
+  ConsumerState<ElevationChartWidget> createState() =>
+      _ElevationChartWidgetState();
+}
+
+class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
+  List<TrackPointModel> _validPoints = [];
+  List<FlSpot> _spots = [];
+  List<double> _distances = [];
+  double _minAlt = 0.0;
+  double _maxAlt = 0.0;
+  int _lastUpdateTimestamp = 0;
+  int? _lastSentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _precomputeChartData();
+  }
+
+  @override
+  void didUpdateWidget(covariant ElevationChartWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.track.id != oldWidget.track.id ||
+        widget.track.points.length != oldWidget.track.points.length) {
+      _precomputeChartData();
+    }
+  }
+
+  /// 🏎️ CÀLCUL EN MEMÒRIA (S'executa una sola vegada per track)
+  void _precomputeChartData() {
+    _validPoints = widget.track.points
         .where(
           (p) =>
               p.elevation != null && p.latitude != null && p.longitude != null,
         )
         .toList();
 
-    if (validPoints.isEmpty) {
+    if (_validPoints.isEmpty) return;
+
+    final List<FlSpot> localSpots = [];
+    final List<double> localDistances = [];
+    double totalDistanceMeters = 0.0;
+    double minAlt = double.infinity;
+    double maxAlt = -double.infinity;
+
+    const geo.Distance distanceCalculator = geo.Distance();
+    final int len = _validPoints.length;
+
+    // Reduïm dinàmicament el nombre d'spots visualitzats si passem de 2.000 punts
+    // per evitar que fl_chart saturi la GPU en entorn web
+    int step = 1;
+    if (len > 2000) {
+      step = (len / 2000).ceil();
+    }
+
+    for (int i = 0; i < len; i++) {
+      final double alt = _validPoints[i].elevation!;
+
+      if (i > 0) {
+        totalDistanceMeters += distanceCalculator.as(
+          geo.LengthUnit.Meter,
+          geo.LatLng(
+            _validPoints[i - 1].latitude!,
+            _validPoints[i - 1].longitude!,
+          ),
+          geo.LatLng(_validPoints[i].latitude!, _validPoints[i].longitude!),
+        );
+      }
+
+      // Mantenim l'índex real 'i' com a propietat X de l'spot gràfic!
+      // Així l'eix X del mapa i de la gràfica coincideixen al 100% de manera nativa.
+      if (i % step == 0 || i == len - 1) {
+        localDistances.add(totalDistanceMeters);
+        localSpots.add(FlSpot(i.toDouble(), alt));
+
+        if (alt < minAlt) minAlt = alt;
+        if (alt > maxAlt) maxAlt = alt;
+      }
+    }
+
+    setState(() {
+      _spots = localSpots;
+      _distances = localDistances;
+      _minAlt = (minAlt - 20).clamp(0, double.infinity);
+      _maxAlt = maxAlt + 20;
+      _lastSentIndex = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_validPoints.isEmpty) {
       return const Center(
         child: Text(
           "Aquest track no conté dades d'altitud",
@@ -30,76 +111,43 @@ class ElevationChartWidget extends StatelessWidget {
       );
     }
 
-    final List<FlSpot> spots = [];
-    final List<double> distances = [];
-
-    double totalDistanceMeters = 0.0;
-    double minAlt = double.infinity;
-    double maxAlt = -double.infinity;
-
-    final geo.Distance distanceCalculator = const geo.Distance();
-
-    for (int i = 0; i < validPoints.length; i++) {
-      final double alt = validPoints[i].elevation!;
-
-      if (i > 0) {
-        final double segment = distanceCalculator.as(
-          geo.LengthUnit.Meter,
-          geo.LatLng(
-            validPoints[i - 1].latitude!,
-            validPoints[i - 1].longitude!,
-          ),
-          geo.LatLng(validPoints[i].latitude!, validPoints[i].longitude!),
-        );
-        totalDistanceMeters += segment;
-      }
-
-      distances.add(totalDistanceMeters);
-      spots.add(FlSpot(i.toDouble(), alt));
-
-      if (alt < minAlt) minAlt = alt;
-      if (alt > maxAlt) maxAlt = alt;
-    }
-
-    minAlt = (minAlt - 20).clamp(0, double.infinity);
-    maxAlt = maxAlt + 20;
+    final int trackColorValue = int.parse(
+      widget.track.hexColor.replaceFirst('#', '0xFF'),
+    );
+    final Color trackColor = Color(trackColorValue);
 
     return Padding(
       padding: const EdgeInsets.only(top: 20, right: 24, left: 12, bottom: 8),
       child: LineChart(
         LineChartData(
-          // 🛠️ CONFIGURACIÓN DEL INTERACTIVO CON THROTTLE DE ALTA VELOCIDAD
           lineTouchData: LineTouchData(
-            // El callback se ejecuta cada vez que el usuario desliza el cursor por encima del gráfico
             touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
-              // 1. Si no hay interacción real, cancelamos la evaluación
               if (touchResponse == null || touchResponse.lineBarSpots == null)
                 return;
 
-              // 2. FILTRO THROTTLE: Evaluamos si han pasado menos de 30 milisegundos desde el último evento
+              // ⏱️ THROTTLE DE RENDIMENT PER A JAVASCRIPT/CHROME
               final int currentTimestamp =
                   DateTime.now().millisecondsSinceEpoch;
-              if (currentTimestamp - _lastUpdateTimestamp < 30) {
-                // Descartamos pacíficamente la petición masiva para no ahogar los hilos de Chrome
-                return;
-              }
-
-              // 3. Si pasa el filtro, actualizamos la marca de tiempo con el milisegundo actual
+              if (currentTimestamp - _lastUpdateTimestamp < 30) return;
               _lastUpdateTimestamp = currentTimestamp;
 
-              // 4. Capturamos el punto exacto donde se encuentra el cursor del usuario
               final spots = touchResponse.lineBarSpots!;
               if (spots.isNotEmpty) {
-                final int pointIndex = spots.first.x.toInt();
-                if (pointIndex >= 0 && pointIndex < validPoints.length) {
-                  final targetPoint = validPoints[pointIndex];
+                // L'índex X ja és directament l'índex real de la llista de 50.000 punts
+                final int realPointsIndex = spots.first.x.toInt();
 
-                  // Traza de depuración en consola para ver la optimización del corte de tasa de refresco
-                  debugPrint(
-                    "⏱️ [THROTTLE] Enviando actualización al mapa: Punto #$pointIndex - Lat: ${targetPoint.latitude}",
-                  );
+                if (realPointsIndex >= 0 &&
+                    realPointsIndex < _validPoints.length) {
+                  if (_lastSentIndex == realPointsIndex) return;
+                  _lastSentIndex = realPointsIndex;
 
-                  // Aquí conectaremos en el siguiente paso el envío de coordenadas al mapa de MapLibre
+                  // Sincronització instantània i directa amb MapLibre
+                  ref
+                      .read(gpxEditorProvider.notifier)
+                      .updateSnappedPoint(
+                        _validPoints[realPointsIndex],
+                        realPointsIndex,
+                      );
                 }
               }
             },
@@ -108,9 +156,18 @@ class ElevationChartWidget extends StatelessWidget {
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
                 return touchedSpots.map((LineBarSpot touchedSpot) {
                   final int index = touchedSpot.x.toInt();
-                  if (index >= distances.length) return null;
 
-                  final double metersAccumulated = distances[index];
+                  // Per evitar desbordaments, busquem el valor de distància més proper indexat
+                  if (_distances.isEmpty) return null;
+
+                  // Busquem una aproximació ràpida de la distància acumulada
+                  final int distanceIndex =
+                      ((index / (_validPoints.length - 1)) *
+                              (_distances.length - 1))
+                          .clamp(0, _distances.length - 1)
+                          .toInt();
+                  final double metersAccumulated = _distances[distanceIndex];
+
                   final int km = (metersAccumulated / 1000).floor();
                   final int m = (metersAccumulated % 1000).round();
 
@@ -135,8 +192,10 @@ class ElevationChartWidget extends StatelessWidget {
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            getDrawingHorizontalLine: (value) =>
-                FlLine(color: Colors.grey.withOpacity(0.15), strokeWidth: 1),
+            getDrawingHorizontalLine: (value) => FlLine(
+              color: Colors.grey.withValues(alpha: 0.15),
+              strokeWidth: 1,
+            ),
           ),
           titlesData: FlTitlesData(
             show: true,
@@ -152,7 +211,7 @@ class ElevationChartWidget extends StatelessWidget {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 40,
+                reservedSize: 45,
                 getTitlesWidget: (value, meta) {
                   return Text(
                     "${value.toStringAsFixed(0)}m",
@@ -168,22 +227,21 @@ class ElevationChartWidget extends StatelessWidget {
           ),
           borderData: FlBorderData(show: false),
           minX: 0,
-          maxX: (validPoints.length - 1).toDouble(),
-          minY: minAlt,
-          maxY: maxAlt,
+          maxX: (_validPoints.length - 1)
+              .toDouble(), // 🚀 RETORNAT: El mateix rang exacte de coordenades de la llista original
+          minY: _minAlt,
+          maxY: _maxAlt,
           lineBarsData: [
             LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              color: Color(int.parse(track.hexColor.replaceAll('#', '0xFF'))),
-              barWidth: 2.5,
+              spots: _spots,
+              isCurved: false,
+              color: trackColor,
+              barWidth: 2.0,
               isStrokeCapRound: true,
               dotData: const FlDotData(show: false),
               belowBarData: BarAreaData(
                 show: true,
-                color: Color(
-                  int.parse(track.hexColor.replaceAll('#', '0xFF')),
-                ).withOpacity(0.12),
+                color: trackColor.withValues(alpha: 0.1),
               ),
             ),
           ],

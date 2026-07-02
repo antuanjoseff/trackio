@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:trackio/models/track_model.dart';
@@ -14,6 +13,8 @@ class GpxEditor extends _$GpxEditor {
   GpxEditorState build() {
     return GpxEditorState.initial();
   }
+
+  final Set<int> _deployedTrackIds = {};
 
   /// Guarda el controlador del mapa en el estado global
   void setMapController(MapLibreMapController controller) {
@@ -258,7 +259,7 @@ class GpxEditor extends _$GpxEditor {
   }
 
   // =========================================================================
-  // ALGORITMES DE RECONSTRUCCIÓ GEOJSON (PINTAT)
+  // ALGORITMES DE RECONSTRUCCIÓ GEOJSON (PINTAT OPTIMITZAT)
   // =========================================================================
 
   /// INVERTIR TRACK SELECCIONAT
@@ -268,10 +269,8 @@ class GpxEditor extends _$GpxEditor {
     state = state.copyWith(
       tracks: state.tracks.map((track) {
         if (track.id == state.selectedTrackId) {
-          final reversedPoints = List<TrackPointModel>.from(
-            track.points.reversed,
-          );
-          track.points = reversedPoints;
+          // Creem una nova instància del model per respectar la immutabilitat d'Isar
+          return track.copyWith(points: track.points.reversed.toList());
         }
         return track;
       }).toList(),
@@ -292,26 +291,32 @@ class GpxEditor extends _$GpxEditor {
     );
     if (trackIndex == -1) return;
 
-    final targetTrack = updatedTracks[trackIndex];
-    if (cutIndex <= 0 || cutIndex >= targetTrack.points.length - 1) return;
+    final originalTrack = updatedTracks[trackIndex];
+    if (cutIndex <= 0 || cutIndex >= originalTrack.points.length - 1) return;
 
-    final pointsPartA = targetTrack.points.sublist(0, cutIndex + 1);
-    final pointsPartB = targetTrack.points.sublist(cutIndex);
+    final pointsPartA = originalTrack.points.sublist(0, cutIndex + 1);
+    final pointsPartB = originalTrack.points.sublist(cutIndex);
 
-    final trackPartB = TrackModel(
-      name: "${targetTrack.name} (Parte B)",
-      hexColor: "#AF52DE",
-      points: pointsPartB,
-      waypoints: [],
-    )..id = DateTime.now().millisecondsSinceEpoch;
+    // Modificació segura creant instàncies netes
+    originalTrack.name = "${originalTrack.name} (Parte A)";
+    originalTrack.points = pointsPartA;
 
-    targetTrack.name = "${targetTrack.name} (Parte A)";
-    targetTrack.points = pointsPartA;
+    final trackPartB =
+        TrackModel(
+            name:
+                "${originalTrack.name.replaceAll(' (Parte A)', '')} (Parte B)",
+            hexColor: "#AF52DE",
+            points: pointsPartB,
+            waypoints: [],
+          )
+          ..id = DateTime.now()
+              .microsecondsSinceEpoch; // microsegons eviten IDs duplicats
+
     updatedTracks.add(trackPartB);
 
     state = state.copyWith(
       tracks: updatedTracks,
-      selectedTrackId: targetTrack.id,
+      selectedTrackId: originalTrack.id,
       snappedPoint: null,
       snappedPointIndex: null,
     );
@@ -333,15 +338,12 @@ class GpxEditor extends _$GpxEditor {
     final trackA = updatedTracks[indexA];
     final trackB = updatedTracks[indexB];
 
-    final combinedPoints = <TrackPointModel>[
-      ...trackA.points,
-      ...trackB.points,
-    ];
-    final combinedWaypoints = <WaypointModel>[
-      ...trackA.waypoints,
-      ...trackB.waypoints,
-    ];
+    // Combinació eficient de llistes
+    trackA.points = [...trackA.points, ...trackB.points];
+    trackA.waypoints = [...trackA.waypoints, ...trackB.waypoints];
+    trackA.name = "${trackA.name} + ${trackB.name}";
 
+    // Netegem la capa del track que desapareix abans de treure'l de la llista
     if (state.mapController != null) {
       try {
         state.mapController!.removeLayer("layer_${trackB.id}");
@@ -349,9 +351,6 @@ class GpxEditor extends _$GpxEditor {
       } catch (_) {}
     }
 
-    trackA.points = combinedPoints;
-    trackA.waypoints = combinedWaypoints;
-    trackA.name = "${trackA.name} + ${trackB.name}";
     updatedTracks.removeAt(indexB);
 
     state = state.copyWith(
@@ -363,12 +362,27 @@ class GpxEditor extends _$GpxEditor {
   }
 
   void addImportedTracks(List<TrackModel> newTracks) {
+    print(
+      "📥 [IMPORT] addImportedTracks cridat amb ${newTracks.length} tracks.",
+    );
+    for (var t in newTracks) {
+      print(
+        "   ↳ Track detectat: '${t.name}' amb ${t.points.length} punts. ID: ${t.id}",
+      );
+    }
+
     state = state.copyWith(
       tracks: [...state.tracks, ...newTracks],
       selectedTrackId:
           state.selectedTrackId ??
           (newTracks.isNotEmpty ? newTracks.first.id : null),
     );
+
+    print(
+      "📥 [IMPORT] Estat de Riverpod actualitzat. selectedTrackId actual: ${state.selectedTrackId}",
+    );
+
+    // Cridem directament sense retards per veure la traça immediata
     _updateMapLayers();
   }
 
@@ -376,7 +390,7 @@ class GpxEditor extends _$GpxEditor {
     final controller = state.mapController;
     if (controller == null) return;
 
-    // 1️⃣ NETEJA TOTAL: Borrem qualsevol rastre previ dels tracks per evitar duplicats
+    // 1️⃣ Esborrem totes les capes d'estat
     for (final track in state.tracks) {
       final String layerId = "layer_${track.id}";
       final String sourceId = "source_${track.id}";
@@ -387,8 +401,23 @@ class GpxEditor extends _$GpxEditor {
         controller.removeSource(sourceId);
       } catch (_) {}
     }
+    try {
+      controller.removeLayer("layer_range_white");
+    } catch (_) {}
+    try {
+      controller.removeLayer("layer_range_orange");
+    } catch (_) {}
+    try {
+      controller.removeSource("source_range");
+    } catch (_) {}
+    try {
+      controller.removeLayer("layer_snapped_circle");
+    } catch (_) {}
+    try {
+      controller.removeSource("source_snapped_point");
+    } catch (_) {}
 
-    // 2️⃣ RE-PINTAT AMB ORDRE CONTROLAT (belowLayerId)
+    // 2️⃣ Dibuixem els tracks base visibles
     for (final track in state.tracks) {
       if (!track.isVisible || track.points.isEmpty) continue;
 
@@ -409,27 +438,123 @@ class GpxEditor extends _$GpxEditor {
 
       try {
         final bool isSelected = track.id == state.selectedTrackId;
-
         controller.addSource(sourceId, GeojsonSourceProperties(data: geojson));
-
-        // 🔥 LA SOLUCIÓ REAL: Utilitzem el paràmetre 'belowLayerId'.
-        // Forcem a MapLibre a injectar la línia del track original JUST A SOTA
-        // de la capa del tram seleccionat. Si la capa de rang encara no existeix,
-        // s'afegirà al capdamunt de manera normal.
         controller.addLayer(
           sourceId,
           layerId,
           LineLayerProperties(
             lineColor: track.hexColor,
-            lineWidth: isSelected ? 5.0 : 3.0,
+            lineWidth: isSelected ? 5.5 : 3.0,
             lineJoin: "round",
             lineCap: "round",
           ),
-          belowLayerId:
-              "layer_range_white", // 👈 Paràmetre oficial de maplibre_gl
+          // ✅ CORREGIT: Eliminem 'belowLayerId' perquè MapLibre web pugui dibuixar la línia neta a l'acte
         );
       } catch (e) {
-        debugPrint("Error inyectando capa nativa: $e");
+        print("Error injectant track original: $e");
+      }
+    }
+
+    // 3️⃣ Dibuixem el tram seleccionat dinàmic
+    final trackId = state.selectedTrackId;
+    final int? start = state.selectionStartIndex;
+    final bool isSelecting = state.isSelectingRange;
+    final int? end = isSelecting
+        ? state.snappedPointIndex
+        : state.selectionEndIndex;
+
+    if (trackId != null && start != null && end != null && end >= 0) {
+      final track = state.tracks.firstWhere((t) => t.id == trackId);
+      final int lo = start < end ? start : end;
+      final int hi = start < end ? end : start;
+
+      if (hi < track.points.length) {
+        final List<List<double>> segment = [];
+        for (int i = lo; i <= hi; i++) {
+          final p = track.points[i];
+          if (p.longitude != null && p.latitude != null) {
+            segment.add([p.longitude!, p.latitude!]);
+          }
+        }
+
+        final Map<String, dynamic> rangeGeoJson = {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": {},
+              "geometry": {"type": "LineString", "coordinates": segment},
+            },
+          ],
+        };
+
+        try {
+          controller.addSource(
+            "source_range",
+            GeojsonSourceProperties(data: rangeGeoJson),
+          );
+          controller.addLineLayer(
+            "source_range",
+            "layer_range_white",
+            const LineLayerProperties(
+              lineColor: "#FFFFFF",
+              lineWidth: 7.0,
+              lineJoin: "round",
+              lineCap: "round",
+            ),
+          );
+          controller.addLineLayer(
+            "source_range",
+            "layer_range_orange",
+            const LineLayerProperties(
+              lineColor: "#FF8800",
+              lineWidth: 3.5,
+              lineDasharray: [2, 2],
+              lineJoin: "round",
+              lineCap: "round",
+            ),
+          );
+        } catch (e) {
+          print("Error creant capa de selecció: $e");
+        }
+      }
+    }
+
+    // 4️⃣ CAPA SUPERIOR (A DALT DE TOT): EL CERCLE BLAU DE SNAPPING
+    if (state.activeTool == 'range_map' && state.snappedPoint != null) {
+      final sPoint = state.snappedPoint!;
+      if (sPoint.longitude != null && sPoint.latitude != null) {
+        final Map<String, dynamic> pointGeoJson = {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": {},
+              "geometry": {
+                "type": "Point",
+                "coordinates": [sPoint.longitude!, sPoint.latitude!],
+              },
+            },
+          ],
+        };
+
+        try {
+          controller.addSource(
+            "source_snapped_point",
+            GeojsonSourceProperties(data: pointGeoJson),
+          );
+          controller.addCircleLayer(
+            "source_snapped_point",
+            "layer_snapped_circle",
+            const CircleLayerProperties(
+              circleColor: "#007AFF",
+              circleRadius: 8.0,
+              circleStrokeColor: "#FFFFFF",
+              circleStrokeWidth: 2.0,
+              circleOpacity: 0.9,
+            ),
+          );
+        } catch (_) {}
       }
     }
   }
@@ -441,19 +566,16 @@ class GpxEditor extends _$GpxEditor {
   ) {
     if (state.tracks.isEmpty) return;
 
-    // 🏎️ DINÀMICA DE SALTS SEGONS EL ZOOM
-    // Si el zoom és petit (allunyat), saltem molts punts perquè no cal precisió.
-    // Si el zoom és gran (apropat), mirem cada punt (step = 1).
     int step = 1;
     if (currentZoom < 9) {
-      step = 16; // Molt allunyat: mirem 1 de cada 16 punts
+      step = 16;
     } else if (currentZoom < 11) {
-      step = 8; // Allunyat: mirem 1 de cada 8 punts
+      step = 8;
     } else if (currentZoom < 13) {
-      step = 4; // Mitjà: mirem 1 de cada 4 punts
+      step = 4;
     } else if (currentZoom < 15) {
-      step = 2; // Proper: mirem 1 de cada 2 punts
-    } // Si el zoom és >= 15, step = 1 (precisió màxima)
+      step = 2;
+    }
 
     const double maxToleranceDegrees = 0.0018;
     final double maxToleranceSquared =
@@ -475,7 +597,6 @@ class GpxEditor extends _$GpxEditor {
       final points = activeTrack.points;
       final int pointsLength = points.length;
 
-      // 🔥 L'OPTIMITZACIÓ BRUTA: El bucle ara incrementa sumant el 'step' dinàmic
       for (int i = 0; i < pointsLength; i += step) {
         final point = points[i];
         if (point.latitude == null || point.longitude == null) continue;
@@ -511,10 +632,10 @@ class GpxEditor extends _$GpxEditor {
     state = state.copyWith(
       tracks: state.tracks.map((track) {
         if (track.id == trackId) {
-          track.isVisible = !track.isVisible;
+          track.isVisible = !track.isVisible; // Modifica el color
         }
         return track;
-      }).toList(),
+      }).toList(), // Força a crear una llista totalment nova a la memòria
     );
     _updateMapLayers();
   }
@@ -523,10 +644,10 @@ class GpxEditor extends _$GpxEditor {
     state = state.copyWith(
       tracks: state.tracks.map((track) {
         if (track.id == trackId) {
-          track.hexColor = hexColor;
+          track.hexColor = hexColor; // Modifica la visibilitat
         }
         return track;
-      }).toList(),
+      }).toList(), // Força a crear una llista totalment nova a la memòria
     );
     _updateMapLayers();
   }
