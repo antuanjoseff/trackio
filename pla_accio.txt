@@ -1,0 +1,38 @@
+# PLAN DE ACCIÓN DE DESARROLLO: TRACKIO
+
+Actúa como un ingeniero experto en Flutter y arquitectura limpia. Vamos a seguir el plan de desarrollo secuencial para "Trackio", una aplicación de edición masiva de archivos GPX (Web, Android, iOS) usando MapLibre GL, Riverpod e Isar DB. El entorno de desarrollo es VS Code bajo Ubuntu, con soporte multiidioma activo (ca, es, en).
+
+Debes seguir y desglosar las fases estrictamente en este orden:
+
+## FASE 1: ARQUITECTURA DE DATOS Y PERSISTENCIA LOCAL (ISAR DB)
+*   **Paso 1.1:** Crear el modelo de datos embebido para Isar (`TrackPointModel`) que almacene latitud, longitud, elevación y tiempo.
+*   **Paso 1.2:** Crear el modelo principal de Isar (`TrackModel`) con ID único, nombre, visibilidad (bool), color (String hexadecimal), timestamp y la lista embebida de puntos.
+*   **Paso 1.3:** Implementar la utilidad de importación (`GpxParser`) usando el paquete `xml` para parsear colecciones masivas de archivos GPX de forma asíncrona y transformarlas en objetos listos para guardar en Isar.
+*   **Paso 1.4:** Ejecutar el build_runner para consolidar la generación de código de Isar.
+
+## FASE 2: EL CEREBRO DE TRACKIO (GESTIÓN DE ESTADO CON RIVERPOD)
+*   **Paso 2.1:** Diseñar `TrackioEditorState` para controlar reactivamente variables críticas: lista de tracks cargados, ID del track activo seleccionado, coordenadas del punto imantado (*snappedPoint*), índice del punto imantado, herramienta activa actual y estado del movimiento del mapa.
+*   **Paso 2.2:** Programar el `TrackioEditorNotifier` de Riverpod con las funciones 'core' de manipulación de arrays en Dart:
+    *   *Invertir:* Dar la vuelta exacta a la lista de coordenadas preservando la integridad de los datos.
+    *   *Unir (Merge):* Fusionar dos trazos secuencialmente uniendo el final del primero con el inicio del segundo.
+    *   *Cortar (Split):* Dividir el array en dos usando un índice matemático rápido de corte.
+
+## FASE 3: LAYOUT ADAPTATIVO MULTIPLATAFORMA (RESPONSIVE UI)
+*   **Paso 3.1:** Crear la pantalla principal `MainEditorScreen` usando `LayoutBuilder` para discriminar por ancho de pantalla (Breakpoint de escritorio vs. móvil).
+*   **Paso 3.2:** *Diseño Web:* Implementar el panel lateral izquierdo permanente (25% de ancho) para el gestor de capas de tracks/herramientas, dejando el resto de la pantalla para el mapa y el gráfico.
+*   **Paso 3.3:** *Diseño Móvil:* Configurar el sistema de `PersistentBottomSheet` deslizante inferior para cambiar dinámicamente entre la lista de capas y las opciones de edición con gestos táctiles.
+
+## FASE 4: INTEGRACIÓN DEL MAPA (MAPLIBRE GL) Y HERRAMIENTAS VIVAS
+*   **Paso 4.1:** Inicializar `MapLibreMap` en un `Stack` e inyectar dinámicamente los tracks activos de Isar en formato GeoJSON interactivo.
+*   **Paso 4.2:** Dibujar el widget de la **Retícula fija en el centro de la pantalla** superpuesta sobre el mapa.
+*   **Paso 4.3:** Vincular `onCameraMove` con el algoritmo de distancia plana euclidiana rápida en tiempo real para proyectar el nodo imantado sobre el track.
+*   **Paso 4.4:** Vincular `onCameraIdle` para disparar la aparición animada del botón flotante contextual ("Cortar aquí" / "Confirmar Unión") justo debajo del centro.
+
+## FASE 5: GRÁFICO DE ELEVACIONES (FL_CHART) Y SELECCIÓN DE TRAMOS
+*   **Paso 5.1:** Crear el panel inferior del perfil de montaña usando `LineChart` de `fl_chart`.
+*   **Paso 5.2:** Implementar la interactividad horizontal: arrastrar el dedo por el gráfico pinta un cursor de posición síncrono sobre la línea del mapa.
+*   **Paso 5.3:** Diseñar e integrar la franja horizontal translúcida flotante superior para renderizar las métricas dinámicas del tramo seleccionado (Distancia, Desnivel +, Desnivel - y tiempo).
+
+---
+
+Dime por qué paso concreto de qué fase quieres que empecemos a escribir código limpio y estructurado en Dart.

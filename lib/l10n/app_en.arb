@@ -1,0 +1,8 @@
+{
+  "appTitle": "Trackio",
+  "importGpx": "Import GPX",
+  "toolSplit": "Split track",
+  "toolMerge": "Merge tracks",
+  "toolInverse": "Reverse direction",
+  "confirmSplit": "Split here"
+}
