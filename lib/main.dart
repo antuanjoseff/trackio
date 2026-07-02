@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
       ],
 
       // 🚀 PANTALLA D'INICI: Apuntem directament al Layout responsive adaptatiu
-      home: const MainEditorScreen(),
+      home: MainEditorScreen(),
     );
   }
 }

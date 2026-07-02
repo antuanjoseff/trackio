@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -11,34 +13,15 @@ import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/widgets/elevation_chart_widget.dart';
 
-class MainEditorScreen extends ConsumerWidget {
+class MainEditorScreen extends ConsumerStatefulWidget {
   const MainEditorScreen({super.key});
 
-  /// 🛠️ OBJETO DE ESTILO OSM NATIVO PARA MAPLIBRE GL
-  /// Define la fuente raster oficial de OpenStreetMap para renderizar a 60 fps.
-  static String get _osmStyleJson {
-    final Map<String, dynamic> style = {
-      "version": 8,
-      "sources": {
-        "osm-raster-tiles": {
-          "type": "raster",
-          "tiles": ["https://openstreetmap.org{z}/{x}/{y}.png"],
-          "tileSize": 256,
-          "attribution": "© OpenStreetMap contributors",
-        },
-      },
-      "layers": [
-        {
-          "id": "osm-raster-layer",
-          "type": "raster",
-          "source": "osm-raster-tiles",
-          "minzoom": 0,
-          "maxzoom": 19,
-        },
-      ],
-    };
-    return jsonEncode(style);
-  }
+  @override
+  ConsumerState<MainEditorScreen> createState() => _MainEditorScreenState();
+}
+
+class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
+  Timer? _throttleTimer;
 
   Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
     final FilePickerResult? result = await FilePicker.pickFiles(
@@ -76,13 +59,23 @@ class MainEditorScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final editorState = ref.watch(gpxEditorProvider);
 
-    final bool isToolActive =
-        editorState.activeTool == 'split' || editorState.activeTool == 'merge';
-    final bool isCuttingMode = editorState.activeTool == 'split';
+    // Escoltem canvis d'estat i forcem el dibuix del rang un cop Flutter ha acabat el frame
+    ref.listen(
+      gpxEditorProvider.select(
+        (s) => [s.selectionStartIndex, s.selectionEndIndex, s.isSelectingRange],
+      ),
+      (previous, next) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _updateRange(ref);
+        });
+      },
+    );
+
+    final bool isRangeMapMode = editorState.activeTool == 'range_map';
 
     return Scaffold(
       appBar: AppBar(
@@ -99,88 +92,107 @@ class MainEditorScreen extends ConsumerWidget {
         builder: (context, constraints) {
           final bool isDesktop = constraints.maxWidth > 800;
 
-          // 🏗️ MÓDULO DEL MAPA (STACK)
           final Widget mapModule = Stack(
             children: [
               MapLibreMap(
-                // 🆕 CARGA DE OSM: Inyectamos la cadena JSON del mapa base
+                trackCameraPosition: true,
                 styleString: "assets/map/style.json",
                 initialCameraPosition: const CameraPosition(
                   target: LatLng(41.98311, 2.82493),
                   zoom: 13.0,
                 ),
                 onStyleLoadedCallback: () {
-                  debugPrint(
-                    "🗺️ [TRACKIO] El mapa está totalmente cargado y listo para recibir capas.",
+                  final controller = ref.read(gpxEditorProvider).mapController!;
+
+                  controller.addSource(
+                    "source_range",
+                    const GeojsonSourceProperties(
+                      data: {"type": "FeatureCollection", "features": []},
+                    ),
                   );
+
+                  controller.addLineLayer(
+                    "source_range",
+                    "layer_range_white",
+                    const LineLayerProperties(
+                      lineColor: "#FFFFFF",
+                      lineWidth: 6.0,
+                      lineJoin: "round",
+                      lineCap: "round",
+                    ),
+                  );
+
+                  controller.addLineLayer(
+                    "source_range",
+                    "layer_range_orange",
+                    const LineLayerProperties(
+                      lineColor: "#FF8800",
+                      lineWidth: 3.0,
+                      lineDasharray: [2, 2],
+                      lineJoin: "round",
+                      lineCap: "round",
+                    ),
+                  );
+
                   ref
                       .read(gpxEditorProvider.notifier)
                       .selectTrackAndFocus(editorState.selectedTrackId);
                 },
+
                 onMapCreated: (MapLibreMapController controller) {
                   ref
                       .read(gpxEditorProvider.notifier)
                       .setMapController(controller);
                 },
-                onCameraMove: (CameraPosition position) {
-                  if (isToolActive) {
-                    ref.read(gpxEditorProvider.notifier).setMapIdle(false);
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .calculateSnapping(
-                          position.target.latitude,
-                          position.target.longitude,
-                        );
-                  }
-                },
-                onCameraIdle: () {
-                  if (isToolActive) {
-                    ref.read(gpxEditorProvider.notifier).setMapIdle(true);
-                  }
-                },
+                onCameraMove: (pos) => _onCameraMove(pos, ref),
+                onCameraIdle: () => _onCameraIdle(ref),
               ),
-              if (isToolActive) const Center(child: _FixedReticleWidget()),
-              if (isToolActive &&
+
+              if (isRangeMapMode && !editorState.forceHideReticle)
+                const Center(child: _FixedReticleWidget()),
+
+              if (isRangeMapMode && editorState.snappedPoint != null)
+                _SnappedPointCircleOverlay(
+                  controller: editorState.mapController!,
+                  point: editorState.snappedPoint!,
+                ),
+
+              if (isRangeMapMode &&
                   editorState.isMapIdle &&
                   editorState.snappedPoint != null)
-                Positioned(
-                  top: constraints.maxHeight / 2 + 30,
-                  left:
-                      (isDesktop
-                              ? (constraints.maxWidth * 0.75)
-                              : constraints.maxWidth) /
-                          2 -
-                      75,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: isCuttingMode
-                          ? Colors.red.shade700
-                          : Colors.blue.shade700,
-                      elevation: 6,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                Center(
+                  child: Transform.translate(
+                    offset: const Offset(0, 60),
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.orange.shade700,
+                        elevation: 6,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
-                    ),
-                    icon: Icon(isCuttingMode ? Icons.content_cut : Icons.link),
-                    label: Text(isCuttingMode ? t.confirmSplit : "Unir rutas"),
-                    onPressed: () {
-                      if (isCuttingMode) {
+                      icon: const Icon(Icons.add_location_alt),
+                      label: const Text("Confirmar punt"),
+                      onPressed: () {
+                        if (editorState.snappedPointIndex == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "Apunta amb la retícula a un punt del track",
+                              ),
+                            ),
+                          );
+                          return;
+                        }
                         ref
                             .read(gpxEditorProvider.notifier)
-                            .splitCurrentTrack();
-                      } else {
-                        final int? secondTrackId = ref
-                            .read(gpxEditorProvider)
-                            .snappedPointIndex;
-                        if (secondTrackId != null) {
-                          ref
-                              .read(gpxEditorProvider.notifier)
-                              .mergeTracks(secondTrackId);
-                        }
-                      }
-                    },
+                            .handleMapPointSelection();
+
+                        _updateRange(ref);
+                      },
+                    ),
                   ),
                 ),
             ],
@@ -189,73 +201,91 @@ class MainEditorScreen extends ConsumerWidget {
           if (isDesktop) {
             return Row(
               children: [
+                // Barra lateral fixa a l'esquerra
                 Container(
                   width: constraints.maxWidth * 0.25,
                   color: Colors.grey.shade100,
                   child: _buildLayersSidebar(context, ref, editorState, t),
                 ),
-                Navigator.of(context).canPop() ||
-                        true // Evita que se queje la estructura flex
-                    ? Expanded(
-                        child: Column(
-                          children: [
-                            Expanded(child: mapModule),
-                            Container(
-                              height: 180,
-                              color: Colors.white,
-                              child:
-                                  editorState.selectedTrackId == null ||
-                                      editorState.tracks.isEmpty
-                                  ? const Center(
-                                      child: Text(
-                                        "Selecciona un track per veure el perfil d'altituds",
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    )
-                                  : ElevationChartWidget(
-                                      track: editorState.tracks.firstWhere(
-                                        (t) =>
-                                            t.id == editorState.selectedTrackId,
-                                      ),
-                                    ),
+
+                // Zona principal de treball (Mapa + Gràfic contextual)
+                Expanded(
+                  child: Column(
+                    children: [
+                      // El mapa ocupa tot l'espai restant de forma dinàmica
+                      Expanded(child: mapModule),
+
+                      if (editorState.showElevationChart)
+                        Container(
+                          height: 180,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border(
+                              top: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
                             ),
-                          ],
+                          ),
+                          child:
+                              editorState.selectedTrackId == null ||
+                                  editorState.tracks.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    "Selecciona un track per veure el perfil d'altituds",
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                )
+                              : ElevationChartWidget(
+                                  track: editorState.tracks.firstWhere(
+                                    (t) => t.id == editorState.selectedTrackId,
+                                    orElse: () => editorState.tracks.first,
+                                  ),
+                                ),
                         ),
-                      )
-                    : const SizedBox.shrink(),
+                    ],
+                  ),
+                ),
               ],
             );
           } else {
+            // LAYOUT MÒBIL CORREGIT
             return Stack(
               children: [
                 Column(
                   children: [
                     Expanded(child: mapModule),
-                    Container(
-                      height: 140,
-                      color: Colors.white,
-                      child:
-                          editorState.selectedTrackId == null ||
-                              editorState.tracks.isEmpty
-                          ? const Center(
-                              child: Text(
-                                "Selecciona un track",
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
+
+                    // 🔥 AFEGIR TAMBÉ AQUÍ LA CONDICIÓ DEL TOGGLE
+                    if (editorState.showElevationChart)
+                      Container(
+                        height: 140,
+                        color: Colors.white,
+                        child:
+                            editorState.selectedTrackId == null ||
+                                editorState.tracks.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  "Selecciona un track",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              )
+                            : ElevationChartWidget(
+                                // 🔒 PROTECCIÓ AFÈGIDA: Evita el crash en mòbils utilitzant l'orElse
+                                track: editorState.tracks.firstWhere(
+                                  (t) => t.id == editorState.selectedTrackId,
+                                  orElse: () => editorState.tracks.first,
                                 ),
                               ),
-                            )
-                          : ElevationChartWidget(
-                              track: editorState.tracks.firstWhere(
-                                (t) => t.id == editorState.selectedTrackId,
-                              ),
-                            ),
-                    ),
+                      ),
                   ],
                 ),
                 Positioned(
-                  bottom: 160,
+                  // dynamic bottom: Si el gràfic està obert, pugem el botó perquè no el tapi
+                  bottom: editorState.showElevationChart ? 160 : 20,
                   right: 16,
                   child: FloatingActionButton(
                     child: const Icon(Icons.layers),
@@ -449,6 +479,46 @@ class MainEditorScreen extends ConsumerWidget {
                       state.activeTool == 'merge' ? 'none' : 'merge',
                     ),
               ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(40),
+                  backgroundColor: state.activeTool == 'range_map'
+                      ? Colors.orange.shade50
+                      : null,
+                ),
+                icon: const Icon(Icons.analytics_outlined),
+                label: Text(
+                  state.activeTool == 'range_map'
+                      ? "Aturar Tram"
+                      : "Seleccionar Tram",
+                ),
+                onPressed: () {
+                  ref
+                      .read(gpxEditorProvider.notifier)
+                      .setActiveTool(
+                        state.activeTool == 'range_map' ? 'none' : 'range_map',
+                      );
+                },
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(36),
+                ),
+                icon: Icon(
+                  state.showElevationChart
+                      ? Icons.expand_more
+                      : Icons.expand_less,
+                ),
+                label: Text(
+                  state.showElevationChart
+                      ? "Amagar perfil d'altituds"
+                      : "Mostrar perfil d'altituds",
+                ),
+                onPressed: () =>
+                    ref.read(gpxEditorProvider.notifier).toggleElevationChart(),
+              ),
             ],
           ),
         ],
@@ -474,10 +544,116 @@ class MainEditorScreen extends ConsumerWidget {
       },
     );
   }
+
+  void _updateRange(WidgetRef ref) {
+    final state = ref.read(gpxEditorProvider);
+    final controller = state.mapController;
+    if (controller == null) return;
+
+    final trackId = state.selectedTrackId;
+    if (trackId == null) return;
+
+    final track = state.tracks.firstWhere((t) => t.id == trackId);
+    final points = track.points;
+
+    final int? start = state.selectionStartIndex;
+    final bool isSelecting = state.isSelectingRange;
+    final int? end = isSelecting
+        ? state.snappedPointIndex
+        : state.selectionEndIndex;
+
+    // Estructura estàndard per netejar la línia de la GPU
+    const Map<String, dynamic> emptyCollection = {
+      "type": "FeatureCollection",
+      "features": [],
+    };
+
+    if (start == null || end == null || end < 0) {
+      try {
+        controller.setGeoJsonSource("source_range", emptyCollection);
+      } catch (_) {}
+      return;
+    }
+
+    final int lo = start < end ? start : end;
+    final int hi = start < end ? end : start;
+
+    // 🔒 PROTECCIÓ CONTRA CRASHES: Evita errors si el track canvia asíncronament
+    if (hi >= points.length) return;
+
+    final segment = points
+        .sublist(lo, hi + 1)
+        .where((p) => p.latitude != null && p.longitude != null)
+        .map((p) => [p.longitude!, p.latitude!])
+        .toList();
+
+    // 🚀 GEOJSON VÀLID: Envolcallat en FeatureCollection i amb "properties" obligatòries
+    final Map<String, dynamic> cleanGeoJson = {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "properties":
+              {}, // 🔥 INDISPENSABLE: Sense això MapLibre no dibuixa res
+          "geometry": {"type": "LineString", "coordinates": segment},
+        },
+      ],
+    };
+
+    try {
+      controller.setGeoJsonSource("source_range", cleanGeoJson);
+    } catch (e) {
+      debugPrint("Error crític enviant GeoJSON a MapLibre: $e");
+    }
+  }
+
+  void _onCameraMove(CameraPosition pos, WidgetRef ref) {
+    final notifier = ref.read(gpxEditorProvider.notifier);
+    final state = ref.read(gpxEditorProvider);
+
+    if (state.activeTool != 'range_map') return;
+
+    notifier.setMapIdle(false);
+
+    // 🚀 THROTTLE PUR: Si el temporitzador ja està actiu, el deixem passar.
+    // Així executem el snapping exactament cada 60ms (~16 FPS) de manera sostinguda,
+    // evitant congelar la pantalla però actualitzant el rang "en viu" mentre mous el mapa.
+    if (_throttleTimer?.isActive ?? false) return;
+
+    _throttleTimer = Timer(const Duration(milliseconds: 60), () {
+      // Passem la latitud, longitud i el ZOOM actual (pos.zoom)
+      notifier.calculateSnapping(
+        pos.target.latitude,
+        pos.target.longitude,
+        pos.zoom,
+      );
+      _updateRange(ref);
+    });
+  }
+
+  void _onCameraIdle(WidgetRef ref) {
+    final state = ref.read(gpxEditorProvider);
+    if (state.activeTool == 'range_map') {
+      final pos = state.mapController?.cameraPosition;
+      if (pos != null) {
+        // En aturar-se el mapa completament, calculem l'snap definitiu amb precisió de zoom
+        ref
+            .read(gpxEditorProvider.notifier)
+            .calculateSnapping(
+              pos.target.latitude,
+              pos.target.longitude,
+              pos.zoom,
+            );
+      }
+      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      _updateRange(ref); // Assegurem que el rang queda perfectament clavat
+    }
+  }
 }
 
 class _FixedReticleWidget extends StatelessWidget {
   const _FixedReticleWidget();
+
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
@@ -502,6 +678,49 @@ class _FixedReticleWidget extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SnappedPointCircleOverlay extends StatelessWidget {
+  const _SnappedPointCircleOverlay({
+    required this.controller,
+    required this.point,
+  });
+
+  final MapLibreMapController controller;
+  final TrackPointModel point;
+
+  @override
+  Widget build(BuildContext context) {
+    final lat = point.latitude;
+    final lng = point.longitude;
+    if (lat == null || lng == null) return const SizedBox.shrink();
+
+    return FutureBuilder<Point<num>>(
+      future: controller.toScreenLocation(LatLng(lat, lng)),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final pos = snapshot.data!;
+        const size = 18.0;
+
+        return Positioned(
+          left: pos.x.toDouble() - size / 2,
+          top: pos.y.toDouble() - size / 2,
+          child: IgnorePointer(
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.blue.withOpacity(0.35),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
