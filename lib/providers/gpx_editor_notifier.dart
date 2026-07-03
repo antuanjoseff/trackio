@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:trackio/models/track_model.dart';
@@ -390,39 +391,22 @@ class GpxEditor extends _$GpxEditor {
     final controller = state.mapController;
     if (controller == null) return;
 
-    // 1️⃣ Esborrem totes les capes d'estat
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1️⃣ REFRESC INTEL·LIGENT DE TRACKS BASE (NOMÉS S'EDITA EL QUE CAMBIA)
+    // ─────────────────────────────────────────────────────────────────────────
     for (final track in state.tracks) {
-      final String layerId = "layer_${track.id}";
-      final String sourceId = "source_${track.id}";
-      try {
-        controller.removeLayer(layerId);
-      } catch (_) {}
-      try {
-        controller.removeSource(sourceId);
-      } catch (_) {}
-    }
-    try {
-      controller.removeLayer("layer_range_white");
-    } catch (_) {}
-    try {
-      controller.removeLayer("layer_range_orange");
-    } catch (_) {}
-    try {
-      controller.removeSource("source_range");
-    } catch (_) {}
-    try {
-      controller.removeLayer("layer_snapped_circle");
-    } catch (_) {}
-    try {
-      controller.removeSource("source_snapped_point");
-    } catch (_) {}
-
-    // 2️⃣ Dibuixem els tracks base visibles
-    for (final track in state.tracks) {
-      if (!track.isVisible || track.points.isEmpty) continue;
-
       final String sourceId = "source_${track.id}";
       final String layerId = "layer_${track.id}";
+
+      // Si s'amaga o s'esborra, el netegem immediatament
+      if (!track.isVisible || track.points.isEmpty) {
+        try {
+          controller.removeLayer(layerId);
+          controller.removeSource(sourceId);
+        } catch (_) {}
+        _deployedTrackIds.remove(track.id);
+        continue;
+      }
 
       final geojson = {
         "type": "Feature",
@@ -436,26 +420,43 @@ class GpxEditor extends _$GpxEditor {
         },
       };
 
+      // 🟢 CONTROL DE LÒGICA ÒPTIMA:
+      // Si el track ja existia al mapa, NO el tornem a pintar ni a re-estilar.
+      // Això evita que en seleccionar un tram o fer moure la retícula es toquin les altres capes.
+      if (_deployedTrackIds.contains(track.id)) {
+        // ✂️ CAS QUIRÚRGIC: Només si l'usuari ha invertit o tallat EL TRACK ACTIU,
+        // refresquem la seva geometria vector a la GPU per reflectir els nous punts.
+        if (track.id == state.selectedTrackId &&
+            (state.activeTool == 'split' || state.activeTool == 'none')) {
+          try {
+            controller.setGeoJsonSource(sourceId, geojson);
+          } catch (_) {}
+        }
+        continue; // Saltem olímpicament la resta de tracks del mapa. No es consumeix CPU!
+      }
+
+      // 🔴 CAS PRIMER COP: Si el track no existia (importació o tros nou del split), s'injecta de zero
       try {
-        final bool isSelected = track.id == state.selectedTrackId;
         controller.addSource(sourceId, GeojsonSourceProperties(data: geojson));
         controller.addLayer(
           sourceId,
           layerId,
           LineLayerProperties(
             lineColor: track.hexColor,
-            lineWidth: isSelected ? 5.5 : 3.0,
+            lineWidth: 4.0, // Gruix estàndard fix per evitar bugs a la web
             lineJoin: "round",
             lineCap: "round",
           ),
-          // ✅ CORREGIT: Eliminem 'belowLayerId' perquè MapLibre web pugui dibuixar la línia neta a l'acte
         );
+        _deployedTrackIds.add(track.id);
       } catch (e) {
-        print("Error injectant track original: $e");
+        debugPrint("Error injectant capa de fons: $e");
       }
     }
 
-    // 3️⃣ Dibuixem el tram seleccionat dinàmic
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2️⃣ DIBUIXEM EL TRAM SELECCIONAT DINÀMIC (RANG TARONJA)
+    // ─────────────────────────────────────────────────────────────────────────
     final trackId = state.selectedTrackId;
     final int? start = state.selectionStartIndex;
     final bool isSelecting = state.isSelectingRange;
@@ -463,8 +464,16 @@ class GpxEditor extends _$GpxEditor {
         ? state.snappedPointIndex
         : state.selectionEndIndex;
 
+    const Map<String, dynamic> emptyCollection = {
+      "type": "FeatureCollection",
+      "features": [],
+    };
+
     if (trackId != null && start != null && end != null && end >= 0) {
-      final track = state.tracks.firstWhere((t) => t.id == trackId);
+      final track = state.tracks.firstWhere(
+        (t) => t.id == trackId,
+        orElse: () => state.tracks.first,
+      );
       final int lo = start < end ? start : end;
       final int hi = start < end ? end : start;
 
@@ -472,9 +481,8 @@ class GpxEditor extends _$GpxEditor {
         final List<List<double>> segment = [];
         for (int i = lo; i <= hi; i++) {
           final p = track.points[i];
-          if (p.longitude != null && p.latitude != null) {
+          if (p.longitude != null && p.latitude != null)
             segment.add([p.longitude!, p.latitude!]);
-          }
         }
 
         final Map<String, dynamic> rangeGeoJson = {
@@ -488,39 +496,51 @@ class GpxEditor extends _$GpxEditor {
           ],
         };
 
-        try {
-          controller.addSource(
-            "source_range",
-            GeojsonSourceProperties(data: rangeGeoJson),
-          );
-          controller.addLineLayer(
-            "source_range",
-            "layer_range_white",
-            const LineLayerProperties(
-              lineColor: "#FFFFFF",
-              lineWidth: 7.0,
-              lineJoin: "round",
-              lineCap: "round",
-            ),
-          );
-          controller.addLineLayer(
-            "source_range",
-            "layer_range_orange",
-            const LineLayerProperties(
-              lineColor: "#FF8800",
-              lineWidth: 3.5,
-              lineDasharray: [2, 2],
-              lineJoin: "round",
-              lineCap: "round",
-            ),
-          );
-        } catch (e) {
-          print("Error creant capa de selecció: $e");
+        if (_deployedTrackIds.contains(-1)) {
+          try {
+            controller.setGeoJsonSource("source_range", rangeGeoJson);
+          } catch (_) {}
+        } else {
+          try {
+            controller.addSource(
+              "source_range",
+              GeojsonSourceProperties(data: rangeGeoJson),
+            );
+            controller.addLineLayer(
+              "source_range",
+              "layer_range_white",
+              const LineLayerProperties(
+                lineColor: "#FFFFFF",
+                lineWidth: 7.0,
+                lineJoin: "round",
+                lineCap: "round",
+              ),
+            );
+            controller.addLineLayer(
+              "source_range",
+              "layer_range_orange",
+              const LineLayerProperties(
+                lineColor: "#FF8800",
+                lineWidth: 3.5,
+                lineDasharray: [2, 2],
+                lineJoin: "round",
+                lineCap: "round",
+              ),
+            );
+            _deployedTrackIds.add(-1);
+          } catch (_) {}
         }
       }
+    } else {
+      try {
+        if (_deployedTrackIds.contains(-1))
+          controller.setGeoJsonSource("source_range", emptyCollection);
+      } catch (_) {}
     }
 
-    // 4️⃣ CAPA SUPERIOR (A DALT DE TOT): EL CERCLE BLAU DE SNAPPING
+    // ─────────────────────────────────────────────────────────────────────────
+    // 3️⃣ CAPA SUPERIOR: EL CERCLE BLAU DE SNAPPING
+    // ─────────────────────────────────────────────────────────────────────────
     if (state.activeTool == 'range_map' && state.snappedPoint != null) {
       final sPoint = state.snappedPoint!;
       if (sPoint.longitude != null && sPoint.latitude != null) {
@@ -538,24 +558,36 @@ class GpxEditor extends _$GpxEditor {
           ],
         };
 
-        try {
-          controller.addSource(
-            "source_snapped_point",
-            GeojsonSourceProperties(data: pointGeoJson),
-          );
-          controller.addCircleLayer(
-            "source_snapped_point",
-            "layer_snapped_circle",
-            const CircleLayerProperties(
-              circleColor: "#007AFF",
-              circleRadius: 8.0,
-              circleStrokeColor: "#FFFFFF",
-              circleStrokeWidth: 2.0,
-              circleOpacity: 0.9,
-            ),
-          );
-        } catch (_) {}
+        if (_deployedTrackIds.contains(-2)) {
+          try {
+            controller.setGeoJsonSource("source_snapped_point", pointGeoJson);
+          } catch (_) {}
+        } else {
+          try {
+            controller.addSource(
+              "source_snapped_point",
+              GeojsonSourceProperties(data: pointGeoJson),
+            );
+            controller.addCircleLayer(
+              "source_snapped_point",
+              "layer_snapped_circle",
+              const CircleLayerProperties(
+                circleColor: "#007AFF",
+                circleRadius: 8.0,
+                circleStrokeColor: "#FFFFFF",
+                circleStrokeWidth: 2.0,
+                circleOpacity: 0.9,
+              ),
+            );
+            _deployedTrackIds.add(-2);
+          } catch (_) {}
+        }
       }
+    } else {
+      try {
+        if (_deployedTrackIds.contains(-2))
+          controller.setGeoJsonSource("source_snapped_point", emptyCollection);
+      } catch (_) {}
     }
   }
 
