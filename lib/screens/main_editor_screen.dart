@@ -124,8 +124,13 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
                 },
 
                 onStyleLoadedCallback: () async {
-                  await _createGlobalLayers();
+                  // 1) Primer pintar els tracks → queden a sota
                   await _paintTracks(ref.read(gpxEditorProvider).tracks);
+
+                  // 2) Després crear les capes globals → queden a sobre
+                  await _createGlobalLayers();
+
+                  // 3) Finalment centrar la càmera
                   await _focusTrack(
                     ref.read(gpxEditorProvider).selectedTrackId,
                     ref.read(gpxEditorProvider).tracks,
@@ -731,6 +736,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           lineWidth: 4.0,
           lineOpacity: track.isVisible ? 1.0 : 0.0,
         ),
+        belowLayerId: "layer_range_white",
       );
     }
   }
