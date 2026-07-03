@@ -17,12 +17,6 @@ class GpxEditor extends _$GpxEditor {
 
   final Set<int> _deployedTrackIds = {};
 
-  /// Guarda el controlador del mapa en el estado global
-  void setMapController(MapLibreMapController controller) {
-    state = state.copyWith(mapController: controller);
-    _updateMapLayers();
-  }
-
   /// Seleccionar un track de la llista per activar-lo al mapa
   void selectTrack(int? trackId) {
     state = state.copyWith(
@@ -35,13 +29,12 @@ class GpxEditor extends _$GpxEditor {
       forceHideReticle: false,
       isMapIdle: false,
     );
-    _updateMapLayers();
   }
 
   /// Seleccionar track, engrosar visualmente su línea y enfocar la cámara
-  void selectTrackAndFocus(int? trackId) {
+  void selectTrackAndFocus(int? trackId, MapLibreMapController controller) {
     selectTrack(trackId);
-    if (trackId == null || state.mapController == null) return;
+    if (trackId == null) return;
 
     final track = state.tracks.firstWhere((t) => t.id == trackId);
     if (track.points.isEmpty) return;
@@ -59,13 +52,12 @@ class GpxEditor extends _$GpxEditor {
     }
 
     if (validPoints > 0) {
-      state.mapController!.animateCamera(
+      controller.animateCamera(
         CameraUpdate.newLatLng(
           LatLng(sumLat / validPoints, sumLng / validPoints),
         ),
       );
     }
-    _updateMapLayers();
   }
 
   /// TOGGLE DEL GRÀFIC D'ELEVACIONS
@@ -85,7 +77,6 @@ class GpxEditor extends _$GpxEditor {
       forceHideReticle: false,
       isMapIdle: false,
     );
-    _updateMapLayers();
   }
 
   void setMapIdle(bool isIdle) {
@@ -103,7 +94,6 @@ class GpxEditor extends _$GpxEditor {
   /// SELECCIÓ DES DEL GRÀFIC (Click & Drag en Web o LongPress en Mòbils)
   void setRangeFromChart(int start, int end) {
     state = state.copyWith(selectionStartIndex: start, selectionEndIndex: end);
-    _updateMapLayers();
   }
 
   /// REACCIONS AL MOVIMENT DEL MAPA (Muestra la retícula oculta)
@@ -139,7 +129,7 @@ class GpxEditor extends _$GpxEditor {
       print(
         "➡️ Nou estat: start=${state.selectionStartIndex}, isSelecting=${state.isSelectingRange}",
       );
-      _updateMapLayers();
+
       return;
     }
 
@@ -162,7 +152,7 @@ class GpxEditor extends _$GpxEditor {
       print(
         "➡️ Nou estat: start=${state.selectionStartIndex}, end=${state.selectionEndIndex}, isSelecting=${state.isSelectingRange}",
       );
-      _updateMapLayers();
+
       return;
     }
 
@@ -180,7 +170,7 @@ class GpxEditor extends _$GpxEditor {
       print(
         "➡️ Nou estat: start=${state.selectionStartIndex}, end=${state.selectionEndIndex}, isSelecting=${state.isSelectingRange}",
       );
-      _updateMapLayers();
+
       return;
     }
 
@@ -231,7 +221,6 @@ class GpxEditor extends _$GpxEditor {
       selectionEndIndex: -1,
       activeTool: 'none',
     );
-    _updateMapLayers();
   }
 
   /// ACCIÓN: INVERTIR SENTIDO ÚNICAMENTE DEL TRAMO SELECCIONADO
@@ -256,7 +245,6 @@ class GpxEditor extends _$GpxEditor {
         return track;
       }).toList(),
     );
-    _updateMapLayers();
   }
 
   // =========================================================================
@@ -276,7 +264,6 @@ class GpxEditor extends _$GpxEditor {
         return track;
       }).toList(),
     );
-    _updateMapLayers();
   }
 
   /// CORTAR TRACK (SPLIT)
@@ -321,7 +308,6 @@ class GpxEditor extends _$GpxEditor {
       snappedPoint: null,
       snappedPointIndex: null,
     );
-    _updateMapLayers();
   }
 
   /// UNIR DOS TRACKS (MERGE)
@@ -344,14 +330,6 @@ class GpxEditor extends _$GpxEditor {
     trackA.waypoints = [...trackA.waypoints, ...trackB.waypoints];
     trackA.name = "${trackA.name} + ${trackB.name}";
 
-    // Netegem la capa del track que desapareix abans de treure'l de la llista
-    if (state.mapController != null) {
-      try {
-        state.mapController!.removeLayer("layer_${trackB.id}");
-        state.mapController!.removeSource("source_${trackB.id}");
-      } catch (_) {}
-    }
-
     updatedTracks.removeAt(indexB);
 
     state = state.copyWith(
@@ -359,7 +337,6 @@ class GpxEditor extends _$GpxEditor {
       selectedTrackId: trackA.id,
       activeTool: 'none',
     );
-    _updateMapLayers();
   }
 
   void addImportedTracks(List<TrackModel> newTracks) {
@@ -384,211 +361,6 @@ class GpxEditor extends _$GpxEditor {
     );
 
     // Cridem directament sense retards per veure la traça immediata
-    _updateMapLayers();
-  }
-
-  void _updateMapLayers() {
-    final controller = state.mapController;
-    if (controller == null) return;
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // 1️⃣ REFRESC INTEL·LIGENT DE TRACKS BASE (NOMÉS S'EDITA EL QUE CAMBIA)
-    // ─────────────────────────────────────────────────────────────────────────
-    for (final track in state.tracks) {
-      final String sourceId = "source_${track.id}";
-      final String layerId = "layer_${track.id}";
-
-      // Si s'amaga o s'esborra, el netegem immediatament
-      if (!track.isVisible || track.points.isEmpty) {
-        try {
-          controller.removeLayer(layerId);
-          controller.removeSource(sourceId);
-        } catch (_) {}
-        _deployedTrackIds.remove(track.id);
-        continue;
-      }
-
-      final geojson = {
-        "type": "Feature",
-        "properties": {},
-        "geometry": {
-          "type": "LineString",
-          "coordinates": track.points
-              .where((p) => p.longitude != null && p.latitude != null)
-              .map((p) => [p.longitude!, p.latitude!])
-              .toList(),
-        },
-      };
-
-      // 🟢 CONTROL DE LÒGICA ÒPTIMA:
-      // Si el track ja existia al mapa, NO el tornem a pintar ni a re-estilar.
-      // Això evita que en seleccionar un tram o fer moure la retícula es toquin les altres capes.
-      if (_deployedTrackIds.contains(track.id)) {
-        // ✂️ CAS QUIRÚRGIC: Només si l'usuari ha invertit o tallat EL TRACK ACTIU,
-        // refresquem la seva geometria vector a la GPU per reflectir els nous punts.
-        if (track.id == state.selectedTrackId &&
-            (state.activeTool == 'split' || state.activeTool == 'none')) {
-          try {
-            controller.setGeoJsonSource(sourceId, geojson);
-          } catch (_) {}
-        }
-        continue; // Saltem olímpicament la resta de tracks del mapa. No es consumeix CPU!
-      }
-
-      // 🔴 CAS PRIMER COP: Si el track no existia (importació o tros nou del split), s'injecta de zero
-      try {
-        controller.addSource(sourceId, GeojsonSourceProperties(data: geojson));
-        controller.addLayer(
-          sourceId,
-          layerId,
-          LineLayerProperties(
-            lineColor: track.hexColor,
-            lineWidth: 4.0, // Gruix estàndard fix per evitar bugs a la web
-            lineJoin: "round",
-            lineCap: "round",
-          ),
-        );
-        _deployedTrackIds.add(track.id);
-      } catch (e) {
-        debugPrint("Error injectant capa de fons: $e");
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // 2️⃣ DIBUIXEM EL TRAM SELECCIONAT DINÀMIC (RANG TARONJA)
-    // ─────────────────────────────────────────────────────────────────────────
-    final trackId = state.selectedTrackId;
-    final int? start = state.selectionStartIndex;
-    final bool isSelecting = state.isSelectingRange;
-    final int? end = isSelecting
-        ? state.snappedPointIndex
-        : state.selectionEndIndex;
-
-    const Map<String, dynamic> emptyCollection = {
-      "type": "FeatureCollection",
-      "features": [],
-    };
-
-    if (trackId != null && start != null && end != null && end >= 0) {
-      final track = state.tracks.firstWhere(
-        (t) => t.id == trackId,
-        orElse: () => state.tracks.first,
-      );
-      final int lo = start < end ? start : end;
-      final int hi = start < end ? end : start;
-
-      if (hi < track.points.length) {
-        final List<List<double>> segment = [];
-        for (int i = lo; i <= hi; i++) {
-          final p = track.points[i];
-          if (p.longitude != null && p.latitude != null)
-            segment.add([p.longitude!, p.latitude!]);
-        }
-
-        final Map<String, dynamic> rangeGeoJson = {
-          "type": "FeatureCollection",
-          "features": [
-            {
-              "type": "Feature",
-              "properties": {},
-              "geometry": {"type": "LineString", "coordinates": segment},
-            },
-          ],
-        };
-
-        if (_deployedTrackIds.contains(-1)) {
-          try {
-            controller.setGeoJsonSource("source_range", rangeGeoJson);
-          } catch (_) {}
-        } else {
-          try {
-            controller.addSource(
-              "source_range",
-              GeojsonSourceProperties(data: rangeGeoJson),
-            );
-            controller.addLineLayer(
-              "source_range",
-              "layer_range_white",
-              const LineLayerProperties(
-                lineColor: "#FFFFFF",
-                lineWidth: 7.0,
-                lineJoin: "round",
-                lineCap: "round",
-              ),
-            );
-            controller.addLineLayer(
-              "source_range",
-              "layer_range_orange",
-              const LineLayerProperties(
-                lineColor: "#FF8800",
-                lineWidth: 3.5,
-                lineDasharray: [2, 2],
-                lineJoin: "round",
-                lineCap: "round",
-              ),
-            );
-            _deployedTrackIds.add(-1);
-          } catch (_) {}
-        }
-      }
-    } else {
-      try {
-        if (_deployedTrackIds.contains(-1))
-          controller.setGeoJsonSource("source_range", emptyCollection);
-      } catch (_) {}
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // 3️⃣ CAPA SUPERIOR: EL CERCLE BLAU DE SNAPPING
-    // ─────────────────────────────────────────────────────────────────────────
-    if (state.activeTool == 'range_map' && state.snappedPoint != null) {
-      final sPoint = state.snappedPoint!;
-      if (sPoint.longitude != null && sPoint.latitude != null) {
-        final Map<String, dynamic> pointGeoJson = {
-          "type": "FeatureCollection",
-          "features": [
-            {
-              "type": "Feature",
-              "properties": {},
-              "geometry": {
-                "type": "Point",
-                "coordinates": [sPoint.longitude!, sPoint.latitude!],
-              },
-            },
-          ],
-        };
-
-        if (_deployedTrackIds.contains(-2)) {
-          try {
-            controller.setGeoJsonSource("source_snapped_point", pointGeoJson);
-          } catch (_) {}
-        } else {
-          try {
-            controller.addSource(
-              "source_snapped_point",
-              GeojsonSourceProperties(data: pointGeoJson),
-            );
-            controller.addCircleLayer(
-              "source_snapped_point",
-              "layer_snapped_circle",
-              const CircleLayerProperties(
-                circleColor: "#007AFF",
-                circleRadius: 8.0,
-                circleStrokeColor: "#FFFFFF",
-                circleStrokeWidth: 2.0,
-                circleOpacity: 0.9,
-              ),
-            );
-            _deployedTrackIds.add(-2);
-          } catch (_) {}
-        }
-      }
-    } else {
-      try {
-        if (_deployedTrackIds.contains(-2))
-          controller.setGeoJsonSource("source_snapped_point", emptyCollection);
-      } catch (_) {}
-    }
   }
 
   void calculateSnapping(
@@ -669,7 +441,6 @@ class GpxEditor extends _$GpxEditor {
         return track;
       }).toList(), // Força a crear una llista totalment nova a la memòria
     );
-    _updateMapLayers();
   }
 
   void updateTrackColor(int trackId, String hexColor) {
@@ -681,6 +452,5 @@ class GpxEditor extends _$GpxEditor {
         return track;
       }).toList(), // Força a crear una llista totalment nova a la memòria
     );
-    _updateMapLayers();
   }
 }

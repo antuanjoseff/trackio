@@ -21,6 +21,7 @@ class MainEditorScreen extends ConsumerStatefulWidget {
 
 class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   Timer? _throttleTimer;
+  MapLibreMapController? _controller;
 
   Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
     final FilePickerResult? result = await FilePicker.pickFiles(
@@ -57,22 +58,40 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     }
   }
 
+  bool _listenersRegistered = false;
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+
     final editorState = ref.watch(gpxEditorProvider);
 
-    // Escoltem canvis d'estat i forcem el dibuix del rang un cop Flutter ha acabat el frame
-    ref.listen(
-      gpxEditorProvider.select(
-        (s) => [s.selectionStartIndex, s.selectionEndIndex, s.isSelectingRange],
-      ),
-      (previous, next) {
+    if (!_listenersRegistered) {
+      _listenersRegistered = true;
+
+      ref.listen<List<TrackModel>>(gpxEditorProvider.select((s) => s.tracks), (
+        previous,
+        next,
+      ) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _updateRange(ref);
+          _paintTracks(next);
         });
-      },
-    );
+      });
+
+      ref.listen(
+        gpxEditorProvider.select(
+          (s) => [
+            s.selectionStartIndex,
+            s.selectionEndIndex,
+            s.isSelectingRange,
+          ],
+        ),
+        (previous, next) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _updateRange(ref);
+          });
+        },
+      );
+    }
 
     final bool isRangeMapMode = editorState.activeTool == 'range_map';
 
@@ -94,30 +113,69 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           final Widget mapModule = Stack(
             children: [
               MapLibreMap(
-                trackCameraPosition: true,
                 styleString: "assets/map/style.json",
                 initialCameraPosition: const CameraPosition(
                   target: LatLng(41.98311, 2.82493),
                   zoom: 13.0,
                 ),
-                onStyleLoadedCallback: () {
-                  // Executem de manera directa l'ordre sequencial net de la pila gràfica de dalt
-                  ref
-                      .read(gpxEditorProvider.notifier)
-                      .selectTrackAndFocus(editorState.selectedTrackId);
+
+                onMapCreated: (c) {
+                  _controller = c;
                 },
-                onMapCreated: (MapLibreMapController controller) {
-                  ref
-                      .read(gpxEditorProvider.notifier)
-                      .setMapController(controller);
+
+                onStyleLoadedCallback: () async {
+                  await _createGlobalLayers();
+                  await _paintTracks(ref.read(gpxEditorProvider).tracks);
+                  await _focusTrack(
+                    ref.read(gpxEditorProvider).selectedTrackId,
+                    ref.read(gpxEditorProvider).tracks,
+                  );
                 },
-                onCameraMove: (pos) => _onCameraMove(pos, ref),
-                onCameraIdle: () => _onCameraIdle(ref),
+
+                onCameraMove: (pos) {
+                  final editor = ref.read(gpxEditorProvider);
+                  if (editor.activeTool != 'range_map') return;
+
+                  if (_throttleTimer?.isActive ?? false) return;
+
+                  _throttleTimer = Timer(const Duration(milliseconds: 60), () {
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .calculateSnapping(
+                          pos.target.latitude,
+                          pos.target.longitude,
+                          pos.zoom,
+                        );
+
+                    _paintRange(ref.read(gpxEditorProvider));
+                  });
+                },
+
+                onCameraIdle: () {
+                  final editor = ref.read(gpxEditorProvider);
+                  if (editor.activeTool != 'range_map') return;
+
+                  final pos = _controller?.cameraPosition;
+                  if (pos != null) {
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .calculateSnapping(
+                          pos.target.latitude,
+                          pos.target.longitude,
+                          pos.zoom,
+                        );
+                  }
+
+                  ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+                  _updateRange(ref);
+                },
               ),
 
+              // RETÍCULA
               if (isRangeMapMode && !editorState.forceHideReticle)
                 const Center(child: _FixedReticleWidget()),
 
+              // BOTÓ CONFIRMAR PUNT
               if (isRangeMapMode &&
                   editorState.isMapIdle &&
                   editorState.snappedPoint != null)
@@ -137,28 +195,16 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
                       icon: const Icon(Icons.add_location_alt),
                       label: const Text("Confirmar punt"),
                       onPressed: () {
-                        if (editorState.snappedPointIndex == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "Apunta amb la retícula a un punt del track",
-                              ),
-                            ),
-                          );
-                          return;
-                        }
                         ref
                             .read(gpxEditorProvider.notifier)
                             .handleMapPointSelection();
-
-                        _updateRange(ref);
+                        _paintRange(ref.read(gpxEditorProvider));
                       },
                     ),
                   ),
                 ),
             ],
           );
-
           if (isDesktop) {
             return Row(
               children: [
@@ -327,6 +373,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
                             ref
                                 .read(gpxEditorProvider.notifier)
                                 .updateTrackColor(track.id, newColor);
+                            _paintTracks(ref.read(gpxEditorProvider).tracks);
                           },
                           child: Container(
                             width: 16,
@@ -373,9 +420,18 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
                                 .toggleTrackVisibility(track.id);
                           },
                         ),
-                        onTap: () => ref
-                            .read(gpxEditorProvider.notifier)
-                            .selectTrackAndFocus(track.id),
+                        onTap: () async {
+                          // només estat
+                          ref
+                              .read(gpxEditorProvider.notifier)
+                              .selectTrack(track.id);
+
+                          // mapa (UI)
+                          await _focusTrack(
+                            track.id,
+                            ref.read(gpxEditorProvider).tracks,
+                          );
+                        },
                       );
                     },
                   ),
@@ -508,8 +564,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
 
   void _updateRange(WidgetRef ref) {
     final state = ref.read(gpxEditorProvider);
-    final controller = state.mapController;
-    if (controller == null) return;
+    if (_controller == null) return;
 
     final trackId = state.selectedTrackId;
     if (trackId == null) return;
@@ -528,49 +583,42 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
       "features": [],
     };
 
-    // 1️⃣ ACTUALITZACIÓ NATIVA DEL CERCLE BLAU (SNAPPED POINT)
+    // SNAPPED POINT
     if (state.activeTool == 'range_map' && state.snappedPoint != null) {
-      final sPoint = state.snappedPoint!;
-      if (sPoint.longitude != null && sPoint.latitude != null) {
-        final Map<String, dynamic> pointGeoJson = {
+      final p = state.snappedPoint!;
+      if (p.longitude != null && p.latitude != null) {
+        final geo = {
           "type": "FeatureCollection",
           "features": [
             {
               "type": "Feature",
-              "properties": {},
               "geometry": {
                 "type": "Point",
-                "coordinates": [sPoint.longitude!, sPoint.latitude!],
+                "coordinates": [p.longitude!, p.latitude!],
               },
             },
           ],
         };
-        try {
-          controller.setGeoJsonSource("source_snapped_point", pointGeoJson);
-        } catch (_) {}
+        _controller!.setGeoJsonSource("source_snapped_point", geo);
       }
     } else {
-      try {
-        controller.setGeoJsonSource("source_snapped_point", emptyCollection);
-      } catch (_) {}
+      _controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
     }
 
-    // 2️⃣ ACTUALITZACIÓ NATIVA DE LA LÍNIA DEL TRAM (RANG TARONJA)
+    // RANGE LINE
     if (start == null ||
         end == null ||
         end < 0 ||
         start >= points.length ||
         end >= points.length) {
-      try {
-        controller.setGeoJsonSource("source_range", emptyCollection);
-      } catch (_) {}
+      _controller!.setGeoJsonSource("source_range", emptyCollection);
       return;
     }
 
-    final int lo = start < end ? start : end;
-    final int hi = start < end ? end : start;
+    final lo = start < end ? start : end;
+    final hi = start < end ? end : start;
 
-    final List<List<double>> segment = [];
+    final segment = <List<double>>[];
     for (int i = lo; i <= hi; i++) {
       final p = points[i];
       if (p.longitude != null && p.latitude != null) {
@@ -578,65 +626,240 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
       }
     }
 
-    final Map<String, dynamic> cleanGeoJson = {
+    final geo = {
       "type": "FeatureCollection",
       "features": [
         {
           "type": "Feature",
-          "properties": {},
           "geometry": {"type": "LineString", "coordinates": segment},
         },
       ],
     };
 
-    try {
-      controller.setGeoJsonSource("source_range", cleanGeoJson);
-    } catch (e) {
-      debugPrint("Error crític enviant GeoJSON a MapLibre: $e");
+    _controller!.setGeoJsonSource("source_range", geo);
+  }
+
+  Future<void> _createGlobalLayers() async {
+    if (_controller == null) return;
+
+    await _controller!.addSource(
+      "source_range",
+      const GeojsonSourceProperties(
+        data: {"type": "FeatureCollection", "features": []},
+      ),
+    );
+
+    await _controller!.addLineLayer(
+      "source_range",
+      "layer_range_white",
+      const LineLayerProperties(lineColor: "#FFFFFF", lineWidth: 7.0),
+    );
+
+    await _controller!.addLineLayer(
+      "source_range",
+      "layer_range_orange",
+      const LineLayerProperties(
+        lineColor: "#FF8800",
+        lineWidth: 3.5,
+        lineDasharray: [2, 2],
+      ),
+    );
+
+    await _controller!.addSource(
+      "source_snapped_point",
+      const GeojsonSourceProperties(
+        data: {"type": "FeatureCollection", "features": []},
+      ),
+    );
+
+    await _controller!.addCircleLayer(
+      "source_snapped_point",
+      "layer_snapped_circle",
+      const CircleLayerProperties(
+        circleColor: "#007AFF",
+        circleRadius: 8.0,
+        circleStrokeColor: "#FFFFFF",
+        circleStrokeWidth: 2.0,
+      ),
+    );
+  }
+
+  Future<void> _paintTracks(List<TrackModel> tracks) async {
+    if (_controller == null) return;
+
+    for (final track in tracks) {
+      final sourceId = "source_${track.id}";
+      final layerId = "layer_${track.id}";
+
+      final coords = track.points
+          .where((p) => p.latitude != null && p.longitude != null)
+          .map((p) => [p.longitude!, p.latitude!])
+          .toList();
+
+      final geojson = {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {"type": "LineString", "coordinates": coords},
+          },
+        ],
+      };
+
+      // 1) Primer eliminar el layer (si existeix)
+      try {
+        await _controller!.removeLayer(layerId);
+      } catch (_) {}
+
+      // 2) Després eliminar el source (si existeix)
+      try {
+        await _controller!.removeSource(sourceId);
+      } catch (_) {}
+
+      // 3) Crear el source
+      await _controller!.addSource(
+        sourceId,
+        GeojsonSourceProperties(data: geojson),
+      );
+
+      // 4) Crear el layer
+      await _controller!.addLineLayer(
+        sourceId,
+        layerId,
+        LineLayerProperties(
+          lineColor: track.hexColor,
+          lineWidth: 4.0,
+          lineOpacity: track.isVisible ? 1.0 : 0.0,
+        ),
+      );
     }
   }
 
-  void _onCameraMove(CameraPosition pos, WidgetRef ref) {
-    final notifier = ref.read(gpxEditorProvider.notifier);
-    final state = ref.read(gpxEditorProvider);
+  // Future<void> _paintTracks(List<TrackModel> tracks) async {
+  //   if (_controller == null) return;
 
-    if (state.activeTool != 'range_map') return;
+  //   for (final track in tracks) {
+  //     final sourceId = "source_${track.id}";
+  //     final layerId = "layer_${track.id}";
 
-    notifier.setMapIdle(false);
+  //     final coords = track.points
+  //         .where((p) => p.latitude != null && p.longitude != null)
+  //         .map((p) => [p.longitude!, p.latitude!])
+  //         .toList();
 
-    // 🚀 THROTTLE PUR: Si el temporitzador ja està actiu, el deixem passar.
-    // Així executem el snapping exactament cada 60ms (~16 FPS) de manera sostinguda,
-    // evitant congelar la pantalla però actualitzant el rang "en viu" mentre mous el mapa.
-    if (_throttleTimer?.isActive ?? false) return;
+  //     final geojson = {
+  //       "type": "FeatureCollection",
+  //       "features": [
+  //         {
+  //           "type": "Feature",
+  //           "geometry": {"type": "LineString", "coordinates": coords},
+  //         },
+  //       ],
+  //     };
 
-    _throttleTimer = Timer(const Duration(milliseconds: 60), () {
-      // Passem la latitud, longitud i el ZOOM actual (pos.zoom)
-      notifier.calculateSnapping(
-        pos.target.latitude,
-        pos.target.longitude,
-        pos.zoom,
-      );
-      _updateRange(ref);
+  //     // 🔥 1) Elimina el source si existeix (Web no té getSources → fem try/catch)
+  //     try {
+  //       await _controller!.removeSource(sourceId);
+  //     } catch (_) {}
+
+  //     // 🔥 2) Elimina el layer si existeix
+  //     try {
+  //       await _controller!.removeLayer(layerId);
+  //     } catch (_) {}
+
+  //     // 🔥 3) Crea el source sempre
+  //     await _controller!.addSource(
+  //       sourceId,
+  //       GeojsonSourceProperties(data: geojson),
+  //     );
+
+  //     // 🔥 4) Crea el layer sempre
+  //     await _controller!.addLineLayer(
+  //       sourceId,
+  //       layerId,
+  //       LineLayerProperties(
+  //         lineColor: track.hexColor,
+  //         lineWidth: 4.0,
+  //         lineOpacity: track.isVisible ? 1.0 : 0.0,
+  //       ),
+  //     );
+  //   }
+  // }
+
+  Future<void> _paintRange(GpxEditorState state) async {
+    if (_controller == null) return;
+
+    final trackId = state.selectedTrackId;
+    if (trackId == null) {
+      await _controller!.setGeoJsonSource("source_range", {
+        "type": "FeatureCollection",
+        "features": [],
+      });
+      return;
+    }
+
+    final track = state.tracks.firstWhere((t) => t.id == trackId);
+    final start = state.selectionStartIndex;
+    final end = state.isSelectingRange
+        ? state.snappedPointIndex
+        : state.selectionEndIndex;
+
+    if (start == null || end == null || end < 0) {
+      await _controller!.setGeoJsonSource("source_range", {
+        "type": "FeatureCollection",
+        "features": [],
+      });
+      return;
+    }
+
+    final lo = start < end ? start : end;
+    final hi = start < end ? end : start;
+
+    final segment = <List<double>>[];
+    for (int i = lo; i <= hi; i++) {
+      final p = track.points[i];
+      if (p.latitude != null && p.longitude != null) {
+        segment.add([p.longitude!, p.latitude!]);
+      }
+    }
+
+    await _controller!.setGeoJsonSource("source_range", {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {"type": "LineString", "coordinates": segment},
+        },
+      ],
     });
   }
 
-  void _onCameraIdle(WidgetRef ref) {
-    final state = ref.read(gpxEditorProvider);
-    if (state.activeTool == 'range_map') {
-      final pos = state.mapController?.cameraPosition;
-      if (pos != null) {
-        // En aturar-se el mapa completament, calculem l'snap definitiu amb precisió de zoom
-        ref
-            .read(gpxEditorProvider.notifier)
-            .calculateSnapping(
-              pos.target.latitude,
-              pos.target.longitude,
-              pos.zoom,
-            );
+  Future<void> _focusTrack(int? trackId, List<TrackModel> tracks) async {
+    if (_controller == null || trackId == null) return;
+
+    final track = tracks.firstWhere(
+      (t) => t.id == trackId,
+      orElse: () => tracks.first,
+    );
+    if (track.points.isEmpty) return;
+
+    double sumLat = 0;
+    double sumLng = 0;
+    int n = 0;
+
+    for (final p in track.points) {
+      if (p.latitude != null && p.longitude != null) {
+        sumLat += p.latitude!;
+        sumLng += p.longitude!;
+        n++;
       }
-      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
-      _updateRange(ref); // Assegurem que el rang queda perfectament clavat
     }
+
+    if (n == 0) return;
+
+    await _controller!.animateCamera(
+      CameraUpdate.newLatLng(LatLng(sumLat / n, sumLng / n)),
+    );
   }
 }
 

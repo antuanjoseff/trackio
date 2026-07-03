@@ -14,7 +14,6 @@ class GpxEditorState {
 
   // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map'
   final String activeTool;
-  final MapLibreMapController? mapController;
 
   // ↕️ NUEVO: Control de visibilidad del panel inferior (Toggle)
   final bool showElevationChart;
@@ -35,7 +34,7 @@ class GpxEditorState {
     this.snappedPointIndex,
     this.isMapIdle = false,
     this.activeTool = 'none',
-    this.mapController,
+
     this.showElevationChart = true, // El gráfico se muestra abierto por defecto
     this.selectionStartIndex,
     this.selectionEndIndex,
@@ -84,9 +83,6 @@ class GpxEditorState {
           : snappedPointIndex as int?,
       isMapIdle: isMapIdle ?? this.isMapIdle,
       activeTool: activeTool ?? this.activeTool,
-      mapController: identical(mapController, _noChange)
-          ? this.mapController
-          : mapController as MapLibreMapController?,
       showElevationChart: showElevationChart ?? this.showElevationChart,
       selectionStartIndex: identical(selectionStartIndex, _noChange)
           ? this.selectionStartIndex
