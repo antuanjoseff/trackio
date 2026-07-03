@@ -340,27 +340,15 @@ class GpxEditor extends _$GpxEditor {
   }
 
   void addImportedTracks(List<TrackModel> newTracks) {
-    print(
-      "📥 [IMPORT] addImportedTracks cridat amb ${newTracks.length} tracks.",
-    );
-    for (var t in newTracks) {
-      print(
-        "   ↳ Track detectat: '${t.name}' amb ${t.points.length} punts. ID: ${t.id}",
-      );
-    }
+    final fixed = newTracks.map((t) {
+      t.id = DateTime.now().microsecondsSinceEpoch;
+      return t;
+    }).toList();
 
     state = state.copyWith(
-      tracks: [...state.tracks, ...newTracks],
-      selectedTrackId:
-          state.selectedTrackId ??
-          (newTracks.isNotEmpty ? newTracks.first.id : null),
+      tracks: [...state.tracks, ...fixed],
+      selectedTrackId: state.selectedTrackId ?? fixed.first.id,
     );
-
-    print(
-      "📥 [IMPORT] Estat de Riverpod actualitzat. selectedTrackId actual: ${state.selectedTrackId}",
-    );
-
-    // Cridem directament sense retards per veure la traça immediata
   }
 
   void calculateSnapping(

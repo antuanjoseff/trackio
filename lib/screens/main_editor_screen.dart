@@ -54,7 +54,9 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     }
 
     if (parsedTracks.isNotEmpty) {
+      // ref.read(gpxEditorProvider.notifier).addImportedTracks(parsedTracks);
       ref.read(gpxEditorProvider.notifier).addImportedTracks(parsedTracks);
+      _paintTracks(ref.read(gpxEditorProvider).tracks);
     }
   }
 
@@ -65,33 +67,17 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
 
     final editorState = ref.watch(gpxEditorProvider);
 
-    if (!_listenersRegistered) {
-      _listenersRegistered = true;
+    // if (!_listenersRegistered) {
+    //   _listenersRegistered = true;
 
-      ref.listen<List<TrackModel>>(gpxEditorProvider.select((s) => s.tracks), (
-        previous,
-        next,
-      ) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _paintTracks(next);
-        });
-      });
-
-      ref.listen(
-        gpxEditorProvider.select(
-          (s) => [
-            s.selectionStartIndex,
-            s.selectionEndIndex,
-            s.isSelectingRange,
-          ],
-        ),
-        (previous, next) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _updateRange(ref);
-          });
-        },
-      );
-    }
+    //   // Listener del range (això ja estava bé)
+    //   ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
+    //     print("🟦 listener → repintant tracks: ${next.tracks.length}");
+    //     WidgetsBinding.instance.addPostFrameCallback((_) {
+    //       _paintTracks(next.tracks);
+    //     });
+    //   });
+    // }
 
     final bool isRangeMapMode = editorState.activeTool == 'range_map';
 
@@ -423,6 +409,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
                             ref
                                 .read(gpxEditorProvider.notifier)
                                 .toggleTrackVisibility(track.id);
+                            _paintTracks(ref.read(gpxEditorProvider).tracks);
                           },
                         ),
                         onTap: () async {
@@ -692,14 +679,24 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   Future<void> _paintTracks(List<TrackModel> tracks) async {
     if (_controller == null) return;
 
+    print("🟦 _paintTracks() → rebuts ${tracks.length} tracks");
+
     for (final track in tracks) {
+      print(
+        "   ↳ TRACK id=${track.id} visible=${track.isVisible} punts=${track.points.length}",
+      );
+
       final sourceId = "source_${track.id}";
       final layerId = "layer_${track.id}";
+
+      print("      · sourceId=$sourceId layerId=$layerId");
 
       final coords = track.points
           .where((p) => p.latitude != null && p.longitude != null)
           .map((p) => [p.longitude!, p.latitude!])
           .toList();
+
+      print("      · coords vàlids=${coords.length}");
 
       final geojson = {
         "type": "FeatureCollection",
@@ -711,23 +708,27 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
         ],
       };
 
-      // 1) Primer eliminar el layer (si existeix)
       try {
+        print("      · removeLayer($layerId)");
         await _controller!.removeLayer(layerId);
-      } catch (_) {}
+      } catch (_) {
+        print("      · removeLayer → no existia");
+      }
 
-      // 2) Després eliminar el source (si existeix)
       try {
+        print("      · removeSource($sourceId)");
         await _controller!.removeSource(sourceId);
-      } catch (_) {}
+      } catch (_) {
+        print("      · removeSource → no existia");
+      }
 
-      // 3) Crear el source
+      print("      · addSource($sourceId)");
       await _controller!.addSource(
         sourceId,
         GeojsonSourceProperties(data: geojson),
       );
 
-      // 4) Crear el layer
+      print("      · addLineLayer($layerId)");
       await _controller!.addLineLayer(
         sourceId,
         layerId,
@@ -738,59 +739,10 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
         ),
         belowLayerId: "layer_range_white",
       );
+
+      print("      ✔ LAYER CREAT: $layerId");
     }
   }
-
-  // Future<void> _paintTracks(List<TrackModel> tracks) async {
-  //   if (_controller == null) return;
-
-  //   for (final track in tracks) {
-  //     final sourceId = "source_${track.id}";
-  //     final layerId = "layer_${track.id}";
-
-  //     final coords = track.points
-  //         .where((p) => p.latitude != null && p.longitude != null)
-  //         .map((p) => [p.longitude!, p.latitude!])
-  //         .toList();
-
-  //     final geojson = {
-  //       "type": "FeatureCollection",
-  //       "features": [
-  //         {
-  //           "type": "Feature",
-  //           "geometry": {"type": "LineString", "coordinates": coords},
-  //         },
-  //       ],
-  //     };
-
-  //     // 🔥 1) Elimina el source si existeix (Web no té getSources → fem try/catch)
-  //     try {
-  //       await _controller!.removeSource(sourceId);
-  //     } catch (_) {}
-
-  //     // 🔥 2) Elimina el layer si existeix
-  //     try {
-  //       await _controller!.removeLayer(layerId);
-  //     } catch (_) {}
-
-  //     // 🔥 3) Crea el source sempre
-  //     await _controller!.addSource(
-  //       sourceId,
-  //       GeojsonSourceProperties(data: geojson),
-  //     );
-
-  //     // 🔥 4) Crea el layer sempre
-  //     await _controller!.addLineLayer(
-  //       sourceId,
-  //       layerId,
-  //       LineLayerProperties(
-  //         lineColor: track.hexColor,
-  //         lineWidth: 4.0,
-  //         lineOpacity: track.isVisible ? 1.0 : 0.0,
-  //       ),
-  //     );
-  //   }
-  // }
 
   Future<void> _paintRange(GpxEditorState state) async {
     if (_controller == null) return;
