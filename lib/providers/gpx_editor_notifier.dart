@@ -454,4 +454,15 @@ class GpxEditor extends _$GpxEditor {
       }).toList(), // Força a crear una llista totalment nova a la memòria
     );
   }
+
+  void reorderTracks(int oldIndex, int newIndex) {
+    final list = List<TrackModel>.from(state.tracks);
+
+    if (newIndex > oldIndex) newIndex -= 1;
+
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+
+    state = state.copyWith(tracks: list);
+  }
 }

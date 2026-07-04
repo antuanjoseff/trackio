@@ -10,6 +10,8 @@ import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
+import 'package:trackio/vars/track_colors.dart';
+import 'package:trackio/widgets/color_palette_dialog.dart';
 import 'package:trackio/widgets/elevation_chart_widget.dart';
 
 class MainEditorScreen extends ConsumerStatefulWidget {
@@ -344,88 +346,136 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           Expanded(
             child: state.tracks.isEmpty
                 ? const Center(child: Text("Sense tracks carregats"))
-                : ListView.builder(
+                : ReorderableListView.builder(
+                    buildDefaultDragHandles: false,
                     itemCount: state.tracks.length,
+                    onReorder: (oldIndex, newIndex) {
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .reorderTracks(oldIndex, newIndex);
+
+                      _paintTracks(ref.read(gpxEditorProvider).tracks);
+                    },
                     itemBuilder: (context, index) {
                       final track = state.tracks[index];
                       final bool isSelected = track.id == state.selectedTrackId;
-                      return ListTile(
-                        selected: isSelected,
-                        leading: GestureDetector(
-                          onTap: () {
-                            final randomColors = [
-                              '#FF3B30',
-                              '#34C759',
-                              '#FF9500',
-                              '#AF52DE',
-                              '#007AFF',
-                            ];
-                            final newColor =
-                                randomColors[DateTime.now().millisecond %
-                                    randomColors.length];
-                            ref
-                                .read(gpxEditorProvider.notifier)
-                                .updateTrackColor(track.id, newColor);
-                            _paintTracks(ref.read(gpxEditorProvider).tracks);
-                          },
-                          child: Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(
-                                int.parse(
-                                  track.hexColor.replaceAll('#', '0xFF'),
-                                ),
-                              ),
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 1.5,
-                              ),
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black26, blurRadius: 2),
-                              ],
+
+                      return Container(
+                        key: ValueKey(track.id),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.grey.shade300,
+                              width: 1,
                             ),
                           ),
                         ),
-                        title: Text(
-                          track.name,
-                          style: TextStyle(
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: track.isVisible
-                                ? Colors.black87
-                                : Colors.grey.shade400,
-                            decoration: track.isVisible
-                                ? TextDecoration.none
-                                : TextDecoration.lineThrough,
+                        child: ListTile(
+                          selected: isSelected,
+
+                          // 🔥 HANDLE DE DRAG (tres punts verticals)
+                          leading: ReorderableDragStartListener(
+                            index: index,
+                            child: const Icon(
+                              Icons.more_vert,
+                              size: 22,
+                              color: Colors.grey,
+                            ),
                           ),
-                        ),
-                        trailing: Checkbox(
-                          value: track.isVisible,
-                          activeColor: Color(
-                            int.parse(track.hexColor.replaceAll('#', '0xFF')),
+
+                          // 🔥 NOM DEL TRACK
+                          title: Text(
+                            track.name,
+                            style: TextStyle(
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: track.isVisible
+                                  ? Colors.black87
+                                  : Colors.grey.shade400,
+                              decoration: track.isVisible
+                                  ? TextDecoration.none
+                                  : TextDecoration.lineThrough,
+                            ),
                           ),
-                          onChanged: (bool? val) {
+
+                          // 🔥 COLOR + VISIBILITAT
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 🎨 COLOR PICKER
+                              GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => ColorPaletteDialog(
+                                      onColorSelected: (hex) {
+                                        ref
+                                            .read(gpxEditorProvider.notifier)
+                                            .updateTrackColor(track.id, hex);
+
+                                        _paintTracks(
+                                          ref.read(gpxEditorProvider).tracks,
+                                        );
+                                      },
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: TrackColors.fromHex(track.hexColor),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black26,
+                                        blurRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 12),
+
+                              // 👁️ VISIBILITAT
+                              Checkbox(
+                                value: track.isVisible,
+                                activeColor: Color(
+                                  int.parse(
+                                    track.hexColor.replaceAll('#', '0xFF'),
+                                  ),
+                                ),
+                                onChanged: (bool? val) {
+                                  ref
+                                      .read(gpxEditorProvider.notifier)
+                                      .toggleTrackVisibility(track.id);
+
+                                  _paintTracks(
+                                    ref.read(gpxEditorProvider).tracks,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+
+                          // 🔥 SELECCIÓ DEL TRACK
+                          onTap: () async {
                             ref
                                 .read(gpxEditorProvider.notifier)
-                                .toggleTrackVisibility(track.id);
-                            _paintTracks(ref.read(gpxEditorProvider).tracks);
+                                .selectTrack(track.id);
+
+                            await _focusTrack(
+                              track.id,
+                              ref.read(gpxEditorProvider).tracks,
+                            );
                           },
                         ),
-                        onTap: () async {
-                          // només estat
-                          ref
-                              .read(gpxEditorProvider.notifier)
-                              .selectTrack(track.id);
-
-                          // mapa (UI)
-                          await _focusTrack(
-                            track.id,
-                            ref.read(gpxEditorProvider).tracks,
-                          );
-                        },
                       );
                     },
                   ),
