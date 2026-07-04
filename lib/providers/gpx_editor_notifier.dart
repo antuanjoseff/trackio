@@ -253,6 +253,11 @@ class GpxEditor extends _$GpxEditor {
 
   /// INVERTIR TRACK SELECCIONAT
   void reverseCurrentTrack() {
+    reverseCurrentTrackWithCleanState();
+  }
+
+  /// INVERTIR TRACK SELECCIONAT I NETEJAR ESTAT D'EINES VISUALS
+  void reverseCurrentTrackWithCleanState() {
     if (state.selectedTrackId == null) return;
 
     state = state.copyWith(
@@ -263,6 +268,14 @@ class GpxEditor extends _$GpxEditor {
         }
         return track;
       }).toList(),
+      selectionStartIndex: null,
+      selectionEndIndex: -1,
+      snappedPoint: null,
+      snappedPointIndex: null,
+      activeTool: 'none',
+      forceHideReticle: true,
+      isSelectingRange: false,
+      isMapIdle: false,
     );
   }
 

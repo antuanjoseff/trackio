@@ -33,10 +33,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   @override
   void didUpdateWidget(covariant ElevationChartWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.track.id != oldWidget.track.id ||
-        widget.track.points.length != oldWidget.track.points.length) {
-      _precomputeChartData();
-    }
+    _precomputeChartData(); // 🔥 també es recalcula quan només s’inverteix l’ordre dels punts
   }
 
   /// 🏎️ CÀLCUL EN MEMÒRIA (S'executa una sola vegada per track)

@@ -22,6 +22,8 @@ class MainEditorScreen extends ConsumerStatefulWidget {
 class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   Timer? _throttleTimer;
   MapLibreMapController? _controller;
+  bool _isReverseAnimating = false;
+  static const Duration reverseAnimationDuration = Duration(seconds: 1);
 
   Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
     final FilePickerResult? result = await FilePicker.pickFiles(
@@ -439,9 +441,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                       ),
-                      onPressed: () => ref
-                          .read(gpxEditorProvider.notifier)
-                          .reverseCurrentTrack(),
+                      onPressed: () => _reverseSelectedTrackWithAnimation(ref),
                       child: Text(
                         t.toolInverse,
                         textAlign: TextAlign.center,
@@ -629,6 +629,104 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     };
 
     _controller!.setGeoJsonSource("source_range", geo);
+  }
+
+  Future<void> _clearTrackAndToolOverlays(int trackId) async {
+    if (_controller == null) return;
+
+    const Map<String, dynamic> emptyCollection = {
+      "type": "FeatureCollection",
+      "features": [],
+    };
+
+    await _controller!.setGeoJsonSource("source_$trackId", emptyCollection);
+    await _controller!.setGeoJsonSource("source_range", emptyCollection);
+    await _controller!.setGeoJsonSource(
+      "source_snapped_point",
+      emptyCollection,
+    );
+  }
+
+  Future<void> _animateTrackRedraw(TrackModel track) async {
+    if (_controller == null) return;
+
+    final sourceId = "source_${track.id}";
+    final validCoords = track.points
+        .where((p) => p.latitude != null && p.longitude != null)
+        .map((p) => [p.longitude!, p.latitude!])
+        .toList();
+
+    if (validCoords.isEmpty) return;
+
+    // Nombre de frames de l’animació (configurable)
+    const int framesCount = 60;
+    final Duration perFrameDelay =
+        reverseAnimationDuration ~/ framesCount; // ~1s total
+
+    final progressive = <List<double>>[];
+
+    // Si hi ha molts punts, en saltem alguns per mantenir 1s
+    final int step = (validCoords.length / framesCount).ceil();
+
+    for (int i = 0; i < validCoords.length; i += step) {
+      if (!mounted || _controller == null) return;
+
+      progressive.add(validCoords[i]);
+
+      final geojson = {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "LineString",
+              "coordinates": List<List<double>>.from(progressive),
+            },
+          },
+        ],
+      };
+
+      await _controller!.setGeoJsonSource(sourceId, geojson);
+      await Future.delayed(perFrameDelay);
+    }
+
+    // Al final, assegurem que totes les coordenades queden dibuixades
+    final finalGeojson = {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {"type": "LineString", "coordinates": validCoords},
+        },
+      ],
+    };
+    await _controller!.setGeoJsonSource(sourceId, finalGeojson);
+  }
+
+  Future<void> _reverseSelectedTrackWithAnimation(WidgetRef ref) async {
+    if (_controller == null || _isReverseAnimating) return;
+
+    final before = ref.read(gpxEditorProvider);
+    final selectedTrackId = before.selectedTrackId;
+    if (selectedTrackId == null) return;
+
+    _isReverseAnimating = true;
+    try {
+      await _clearTrackAndToolOverlays(selectedTrackId);
+
+      ref.read(gpxEditorProvider.notifier).reverseCurrentTrackWithCleanState();
+
+      final after = ref.read(gpxEditorProvider);
+      final trackIndex = after.tracks.indexWhere(
+        (t) => t.id == selectedTrackId,
+      );
+      if (trackIndex == -1) return;
+
+      await _animateTrackRedraw(after.tracks[trackIndex]);
+    } finally {
+      _isReverseAnimating = false;
+      setState(() {});
+    }
   }
 
   Future<void> _createGlobalLayers() async {
