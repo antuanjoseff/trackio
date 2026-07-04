@@ -6,11 +6,9 @@ part of 'gpx_editor_notifier.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$gpxEditorHash() => r'c265c85f236cfbec494cec6674eb03eac80da294';
+String _$gpxEditorHash() => r'dbaf14c5232d2e058cb0950990f5bd28ff073677';
 
-/// 🧠 CONTROLADOR EN RIVERPOD 2: Gestiona la lògica de negoci de Trackio
-///
-/// Copied from [GpxEditor].
+/// See also [GpxEditor].
 @ProviderFor(GpxEditor)
 final gpxEditorProvider =
     AutoDisposeNotifierProvider<GpxEditor, GpxEditorState>.internal(

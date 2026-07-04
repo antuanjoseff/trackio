@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 
-// Indispensable per a la generació de codi de Riverpod 2
 part 'gpx_editor_notifier.g.dart';
 
-/// 🧠 CONTROLADOR EN RIVERPOD 2: Gestiona la lògica de negoci, retícula i talls de Trackio
 @riverpod
 class GpxEditor extends _$GpxEditor {
   @override
@@ -15,57 +12,20 @@ class GpxEditor extends _$GpxEditor {
     return GpxEditorState.initial();
   }
 
-  final Set<int> _deployedTrackIds = {};
-
-  /// Seleccionar un track de la llista per activar-lo al mapa
+  /// Selecciona el track en el estado global.
   void selectTrack(int? trackId) {
     state = state.copyWith(
       selectedTrackId: trackId,
       snappedPoint: null,
       snappedPointIndex: null,
       selectionStartIndex: null,
-      selectionEndIndex: -1, // Reseteo explícito del tramo en el copyWith
+      selectionEndIndex: -1,
       isSelectingRange: false,
       forceHideReticle: false,
       isMapIdle: false,
     );
   }
 
-  /// Seleccionar track, engrosar visualmente su línea y enfocar la cámara
-  void selectTrackAndFocus(int? trackId, MapLibreMapController controller) {
-    selectTrack(trackId);
-    if (trackId == null) return;
-
-    final track = state.tracks.firstWhere((t) => t.id == trackId);
-    if (track.points.isEmpty) return;
-
-    double sumLat = 0;
-    double sumLng = 0;
-    int validPoints = 0;
-
-    for (final p in track.points) {
-      if (p.latitude != null && p.longitude != null) {
-        sumLat += p.latitude!;
-        sumLng += p.longitude!;
-        validPoints++;
-      }
-    }
-
-    if (validPoints > 0) {
-      controller.animateCamera(
-        CameraUpdate.newLatLng(
-          LatLng(sumLat / validPoints, sumLng / validPoints),
-        ),
-      );
-    }
-  }
-
-  /// TOGGLE DEL GRÀFIC D'ELEVACIONS
-  void toggleElevationChart() {
-    state = state.copyWith(showElevationChart: !state.showElevationChart);
-  }
-
-  /// Canviar d'eina activa (ej: 'split', 'merge', 'range_map', 'none')
   void setActiveTool(String tool) {
     state = state.copyWith(
       activeTool: tool,
@@ -87,111 +47,130 @@ class GpxEditor extends _$GpxEditor {
     state = state.copyWith(snappedPoint: point, snappedPointIndex: index);
   }
 
-  // =========================================================================
-  // 📏 LOGICA DE SELECCIÓN DE TRAMOS (MÁQUINA DE ESTADOS RECTÍCULA)
-  // =========================================================================
-
-  /// SELECCIÓ DES DEL GRÀFIC (Click & Drag en Web o LongPress en Mòbils)
-  void setRangeFromChart(int start, int end) {
-    state = state.copyWith(selectionStartIndex: start, selectionEndIndex: end);
+  void toggleElevationChart() {
+    state = state.copyWith(showElevationChart: !state.showElevationChart);
   }
 
-  /// REACCIONS AL MOVIMENT DEL MAPA (Muestra la retícula oculta)
-  void handleMapMovement() {
-    setMapIdle(false);
-    if (state.forceHideReticle) {
-      state = state.copyWith(forceHideReticle: false);
+  void toggleTrackVisibility(int trackId) {
+    state = state.copyWith(
+      tracks: state.tracks
+          .map((t) => t.id == trackId ? t.copyWith(isVisible: !t.isVisible) : t)
+          .toList(),
+    );
+  }
+
+  void updateTrackColor(int trackId, String hexColor) {
+    state = state.copyWith(
+      tracks: state.tracks
+          .map((t) => t.id == trackId ? t.copyWith(hexColor: hexColor) : t)
+          .toList(),
+    );
+  }
+
+  void reorderTracks(int oldIndex, int newIndex) {
+    final list = List<TrackModel>.from(state.tracks);
+    if (newIndex > oldIndex) newIndex -= 1;
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+    state = state.copyWith(tracks: list);
+  }
+
+  void addImportedTracks(List<TrackModel> newTracks) {
+    // 🔒 GENERACIÓ D'IDS SEGURS: Assegurem enters únics de 64 bits nets i forcem la instanciació de llista nova
+    final List<TrackModel> fixed = [];
+    int baseTimestamp = DateTime.now().microsecondsSinceEpoch;
+
+    for (int i = 0; i < newTracks.length; i++) {
+      final track = newTracks[i];
+      // Modifiquem l'ID creant una nova referència immutable transparent per a Isar i Riverpod
+      track.id = baseTimestamp + i;
+      fixed.add(track);
     }
-  }
 
-  /// SELECCIÓ DES DEL MAPA AMB RETÍCULA (Secuencia de 3 puntos)
-  void handleMapPointSelection() {
-    print(
-      "🟦 handleMapPointSelection() → snapped=${state.snappedPointIndex}, start=${state.selectionStartIndex}, end=${state.selectionEndIndex}, isSelecting=${state.isSelectingRange}",
+    // Actualitzem l'estat forçant a crear una llista totalment nova a la memòria
+    state = state.copyWith(
+      tracks: [...state.tracks, ...fixed],
+      // Seleccionem obligatòriament el primer track importat per activar la reactivitat visual de la llista
+      selectedTrackId: fixed.first.id,
     );
 
-    if (state.snappedPointIndex == null) {
-      print("❌ snappedPointIndex és null → no faig res");
-      return;
-    }
-
-    final int currentIndex = state.snappedPointIndex!;
-    print("🎯 currentIndex=$currentIndex");
-
-    // 1️⃣ Punt inicial
-    if (state.selectionStartIndex == null && !state.isSelectingRange) {
-      print("🟢 FASE 1 → Fixant punt inicial");
-      state = state.copyWith(
-        selectionStartIndex: currentIndex,
-        isSelectingRange: true,
-        forceHideReticle: false,
-      );
-      print(
-        "➡️ Nou estat: start=${state.selectionStartIndex}, isSelecting=${state.isSelectingRange}",
-      );
-
-      return;
-    }
-
-    // 2️⃣ Punt final
-    if (state.selectionStartIndex != null && state.isSelectingRange) {
-      print("🟠 FASE 2 → Fixant punt final");
-      final int start = state.selectionStartIndex!;
-      final int realStart = start < currentIndex ? start : currentIndex;
-      final int realEnd = start < currentIndex ? currentIndex : start;
-
-      print("📏 realStart=$realStart realEnd=$realEnd");
-
-      state = state.copyWith(
-        selectionStartIndex: realStart,
-        selectionEndIndex: realEnd,
-        isSelectingRange: false,
-        forceHideReticle: false,
-      );
-
-      print(
-        "➡️ Nou estat: start=${state.selectionStartIndex}, end=${state.selectionEndIndex}, isSelecting=${state.isSelectingRange}",
-      );
-
-      return;
-    }
-
-    // 3️⃣ Nou tram després de tenir un tram complet
-    if (state.selectionStartIndex != null &&
-        state.selectionEndIndex != null &&
-        !state.isSelectingRange) {
-      print("🔵 FASE 3 → Reiniciant per seleccionar un nou tram");
-      state = state.copyWith(
-        selectionStartIndex: currentIndex,
-        selectionEndIndex: -1,
-        isSelectingRange: true,
-        forceHideReticle: false,
-      );
-      print(
-        "➡️ Nou estat: start=${state.selectionStartIndex}, end=${state.selectionEndIndex}, isSelecting=${state.isSelectingRange}",
-      );
-
-      return;
-    }
-
-    print(
-      "⚪ No ha entrat en cap fase → estat actual: start=${state.selectionStartIndex}, end=${state.selectionEndIndex}, isSelecting=${state.isSelectingRange}",
+    // Print de depuració per confirmar que les dades entren correctament al proveïdor
+    debugPrint(
+      "📥 RIVERPOD: S'han afegit ${fixed.length} tracks a l'estat. Total actual: ${state.tracks.length}",
     );
   }
 
   // =========================================================================
-  // ✂️ ACCIONES DE EDICIÓN SOBRE EL TRAMO SELECCIONADO
+  // 📏 LÒGICA MATEMÀTICA DE SNAPPING (DINS DEL FITXER CENTRAL)
   // =========================================================================
+  void calculateSnapping(
+    double centerLat,
+    double centerLng,
+    double currentZoom,
+  ) {
+    if (state.tracks.isEmpty || state.selectedTrackId == null) return;
 
-  /// ACCIÓN: ELIMINAR EL TRAMO SELECCIONADO
-  void deleteSelectedRange() {
-    if (state.selectedTrackId == null ||
-        state.selectionStartIndex == null ||
-        state.selectionEndIndex == null)
+    final bool isSplitMode = state.activeTool == 'split';
+    final bool isRangeMapMode = state.activeTool == 'range_map';
+    if (!isSplitMode && !isRangeMapMode) return;
+
+    // 🔒 SENSE BLOCATGES: Deixem que el càlcul s'execute sempre en moure el mapa.
+    // Així el cercle blau reaccionarà sempre, tant per a 'split' com per a 'range_map' [1.1].
+    int step = 1;
+    if (currentZoom < 9)
+      step = 16;
+    else if (currentZoom < 11)
+      step = 8;
+    else if (currentZoom < 13)
+      step = 4;
+    else if (currentZoom < 15)
+      step = 2;
+
+    final int? activeTrackId = int.tryParse(state.selectedTrackId.toString());
+    final trackIndex = state.tracks.indexWhere((t) => t.id == activeTrackId);
+    if (trackIndex == -1) return;
+
+    final activeTrack = state.tracks[trackIndex];
+    final points = activeTrack.points;
+    if (points.isEmpty) return;
+
+    double minDistance = double.infinity;
+    TrackPointModel? closestPoint;
+    int closestIndex = -1;
+
+    for (int i = 0; i < points.length; i += step) {
+      final point = points[i];
+      if (point.latitude == null || point.longitude == null) continue;
+
+      final double dLat = point.latitude! - centerLat;
+      final double dLng = point.longitude! - centerLng;
+      final double distance = dLat * dLat + dLng * dLng;
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestPoint = point;
+        closestIndex = i;
+      }
+    }
+
+    if (closestPoint != null && closestIndex >= 0) {
+      state = state.copyWith(
+        snappedPoint: closestPoint,
+        snappedPointIndex: closestIndex,
+      );
+    } else {
+      state = state.copyWith(snappedPoint: null, snappedPointIndex: null);
+    }
+  }
+
+  // =========================================================================
+  // ✂️ LÒGICA D'ACCIONS: SPLIT I INVERSIÓ NETEJA (DINS DEL FITXER CENTRAL)
+  // =========================================================================
+  void executeTrackSplit() {
+    if (state.selectedTrackId == null || state.snappedPointIndex == null)
       return;
 
-    final int start = state.selectionStartIndex!;
-    final int end = state.selectionEndIndex!;
+    final int cutIndex = state.snappedPointIndex!;
     final List<TrackModel> updatedTracks = List.from(state.tracks);
 
     final trackIndex = updatedTracks.indexWhere(
@@ -199,71 +178,52 @@ class GpxEditor extends _$GpxEditor {
     );
     if (trackIndex == -1) return;
 
-    final targetTrack = updatedTracks[trackIndex];
-    final pointsPartA = targetTrack.points.sublist(0, start + 1);
-    final pointsPartB = targetTrack.points.sublist(end);
+    final originalTrack = updatedTracks[trackIndex];
+    if (cutIndex <= 0 || cutIndex >= originalTrack.points.length - 1) return;
 
-    targetTrack.name = "${targetTrack.name} (Part A)";
-    targetTrack.points = pointsPartA;
+    final pointsPart1 = originalTrack.points.sublist(0, cutIndex + 1);
+    final pointsPart2 = originalTrack.points.sublist(cutIndex);
+    final String baseName = originalTrack.name.replaceAll(
+      RegExp(r'_part\d+'),
+      '',
+    );
 
-    final trackPartB = TrackModel(
-      name: "${targetTrack.name} (Part B)",
-      hexColor: "#FF9500",
-      points: pointsPartB,
-    )..id = DateTime.now().millisecondsSinceEpoch;
+    final trackPart1 = TrackModel(
+      id: DateTime.now().microsecondsSinceEpoch,
+      name: "${baseName}_part1",
+      hexColor: originalTrack.hexColor,
+      points: pointsPart1,
+      waypoints: List.from(originalTrack.waypoints),
+    );
 
-    updatedTracks.add(trackPartB);
+    final trackPart2 = TrackModel(
+      id: DateTime.now().microsecondsSinceEpoch + 999,
+      name: "${baseName}_part2",
+      hexColor: "#AF52DE",
+      points: pointsPart2,
+      waypoints: [],
+    );
+
+    updatedTracks.removeAt(trackIndex);
+    updatedTracks.add(trackPart1);
+    updatedTracks.add(trackPart2);
 
     state = state.copyWith(
       tracks: updatedTracks,
-      selectedTrackId: targetTrack.id,
-      selectionStartIndex: null,
-      selectionEndIndex: -1,
+      selectedTrackId: trackPart1.id,
+      snappedPoint: null,
+      snappedPointIndex: null,
       activeTool: 'none',
     );
   }
 
-  /// ACCIÓN: INVERTIR SENTIDO ÚNICAMENTE DEL TRAMO SELECCIONADO
-  void reverseSelectedRange() {
-    if (state.selectedTrackId == null ||
-        state.selectionStartIndex == null ||
-        state.selectionEndIndex == null)
-      return;
-
-    final int start = state.selectionStartIndex!;
-    final int end = state.selectionEndIndex!;
-
-    state = state.copyWith(
-      tracks: state.tracks.map((track) {
-        if (track.id == state.selectedTrackId) {
-          final rangePoints = track.points.sublist(start, end + 1);
-          final reversedRange = List<TrackPointModel>.from(
-            rangePoints.reversed,
-          );
-          track.points.replaceRange(start, end + 1, reversedRange);
-        }
-        return track;
-      }).toList(),
-    );
-  }
-
-  // =========================================================================
-  // ALGORITMES DE RECONSTRUCCIÓ GEOJSON (PINTAT OPTIMITZAT)
-  // =========================================================================
-
-  /// INVERTIR TRACK SELECCIONAT
-  void reverseCurrentTrack() {
-    reverseCurrentTrackWithCleanState();
-  }
-
-  /// INVERTIR TRACK SELECCIONAT I NETEJAR ESTAT D'EINES VISUALS
+  // 🔥 AQUÍ ESTÀ EL MÈTODE QUE ET DEMANAVA LA UI REPARAT:
   void reverseCurrentTrackWithCleanState() {
     if (state.selectedTrackId == null) return;
 
     state = state.copyWith(
       tracks: state.tracks.map((track) {
         if (track.id == state.selectedTrackId) {
-          // Creem una nova instància del model per respectar la immutabilitat d'Isar
           return track.copyWith(points: track.points.reversed.toList());
         }
         return track;
@@ -279,190 +239,50 @@ class GpxEditor extends _$GpxEditor {
     );
   }
 
-  /// CORTAR TRACK (SPLIT)
-  void splitCurrentTrack() {
-    if (state.selectedTrackId == null || state.snappedPointIndex == null)
-      return;
+  // =========================================================================
+  // 📏 MÀQUINA D'ESTATS DE LA RETÍCULA (SELECCIÓ DE TRAMS DE 2 PUNTS)
+  // =========================================================================
+  void handleMapPointSelection() {
+    if (state.snappedPointIndex == null) return;
 
-    final int cutIndex = state.snappedPointIndex!;
-    final List<TrackModel> updatedTracks = List.from(state.tracks);
+    final int currentIndex = state.snappedPointIndex!;
 
-    final trackIndex = updatedTracks.indexWhere(
-      (t) => t.id == state.selectedTrackId,
-    );
-    if (trackIndex == -1) return;
-
-    final originalTrack = updatedTracks[trackIndex];
-    if (cutIndex <= 0 || cutIndex >= originalTrack.points.length - 1) return;
-
-    final pointsPartA = originalTrack.points.sublist(0, cutIndex + 1);
-    final pointsPartB = originalTrack.points.sublist(cutIndex);
-
-    // Modificació segura creant instàncies netes
-    originalTrack.name = "${originalTrack.name} (Parte A)";
-    originalTrack.points = pointsPartA;
-
-    final trackPartB =
-        TrackModel(
-            name:
-                "${originalTrack.name.replaceAll(' (Parte A)', '')} (Parte B)",
-            hexColor: "#AF52DE",
-            points: pointsPartB,
-            waypoints: [],
-          )
-          ..id = DateTime.now()
-              .microsecondsSinceEpoch; // microsegons eviten IDs duplicats
-
-    updatedTracks.add(trackPartB);
-
-    state = state.copyWith(
-      tracks: updatedTracks,
-      selectedTrackId: originalTrack.id,
-      snappedPoint: null,
-      snappedPointIndex: null,
-    );
-  }
-
-  /// UNIR DOS TRACKS (MERGE)
-  void mergeTracks(int secondTrackId) {
-    if (state.selectedTrackId == null || state.selectedTrackId == secondTrackId)
-      return;
-
-    final List<TrackModel> updatedTracks = List.from(state.tracks);
-    final indexA = updatedTracks.indexWhere(
-      (t) => t.id == state.selectedTrackId,
-    );
-    final indexB = updatedTracks.indexWhere((t) => t.id == secondTrackId);
-    if (indexA == -1 || indexB == -1) return;
-
-    final trackA = updatedTracks[indexA];
-    final trackB = updatedTracks[indexB];
-
-    // Combinació eficient de llistes
-    trackA.points = [...trackA.points, ...trackB.points];
-    trackA.waypoints = [...trackA.waypoints, ...trackB.waypoints];
-    trackA.name = "${trackA.name} + ${trackB.name}";
-
-    updatedTracks.removeAt(indexB);
-
-    state = state.copyWith(
-      tracks: updatedTracks,
-      selectedTrackId: trackA.id,
-      activeTool: 'none',
-    );
-  }
-
-  void addImportedTracks(List<TrackModel> newTracks) {
-    final fixed = newTracks.map((t) {
-      t.id = DateTime.now().microsecondsSinceEpoch;
-      return t;
-    }).toList();
-
-    state = state.copyWith(
-      tracks: [...state.tracks, ...fixed],
-      selectedTrackId: state.selectedTrackId ?? fixed.first.id,
-    );
-  }
-
-  void calculateSnapping(
-    double centerLat,
-    double centerLng,
-    double currentZoom,
-  ) {
-    if (state.tracks.isEmpty) return;
-
-    int step = 1;
-    if (currentZoom < 9) {
-      step = 16;
-    } else if (currentZoom < 11) {
-      step = 8;
-    } else if (currentZoom < 13) {
-      step = 4;
-    } else if (currentZoom < 15) {
-      step = 2;
-    }
-
-    const double maxToleranceDegrees = 0.0018;
-    final double maxToleranceSquared =
-        maxToleranceDegrees * maxToleranceDegrees;
-    final bool isRangeMapMode = state.activeTool == 'range_map';
-
-    if (state.activeTool == 'split' || isRangeMapMode) {
-      if (state.selectedTrackId == null) return;
-
-      final activeTrack = state.tracks.firstWhere(
-        (t) => t.id == state.selectedTrackId,
-        orElse: () => state.tracks.first,
+    // 1️⃣ Fase 1: Fixar el punt inicial del tram
+    if (state.selectionStartIndex == null && !state.isSelectingRange) {
+      state = state.copyWith(
+        selectionStartIndex: currentIndex,
+        isSelectingRange: true,
+        forceHideReticle: false,
       );
-
-      double minDistance = double.infinity;
-      TrackPointModel? closestPoint;
-      int closestIndex = -1;
-
-      final points = activeTrack.points;
-      final int pointsLength = points.length;
-
-      for (int i = 0; i < pointsLength; i += step) {
-        final point = points[i];
-        if (point.latitude == null || point.longitude == null) continue;
-
-        final double dLat = point.latitude! - centerLat;
-        final double dLng = point.longitude! - centerLng;
-        final double distance = dLat * dLat + dLng * dLng;
-
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestPoint = point;
-          closestIndex = i;
-        }
-      }
-
-      if (isRangeMapMode && closestPoint != null && closestIndex >= 0) {
-        state = state.copyWith(
-          snappedPoint: closestPoint,
-          snappedPointIndex: closestIndex,
-        );
-      } else if (minDistance < maxToleranceSquared) {
-        state = state.copyWith(
-          snappedPoint: closestPoint,
-          snappedPointIndex: closestIndex,
-        );
-      } else {
-        state = state.copyWith(snappedPoint: null, snappedPointIndex: null);
-      }
+      return;
     }
-  }
 
-  void toggleTrackVisibility(int trackId) {
-    state = state.copyWith(
-      tracks: state.tracks.map((track) {
-        if (track.id == trackId) {
-          track.isVisible = !track.isVisible; // Modifica el color
-        }
-        return track;
-      }).toList(), // Força a crear una llista totalment nova a la memòria
-    );
-  }
+    // 2️⃣ Fase 2: Fixar el punt final del tram
+    if (state.selectionStartIndex != null && state.isSelectingRange) {
+      final int start = state.selectionStartIndex!;
+      final int realStart = start < currentIndex ? start : currentIndex;
+      final int realEnd = start < currentIndex ? currentIndex : start;
 
-  void updateTrackColor(int trackId, String hexColor) {
-    state = state.copyWith(
-      tracks: state.tracks.map((track) {
-        if (track.id == trackId) {
-          track.hexColor = hexColor; // Modifica la visibilitat
-        }
-        return track;
-      }).toList(), // Força a crear una llista totalment nova a la memòria
-    );
-  }
+      state = state.copyWith(
+        selectionStartIndex: realStart,
+        selectionEndIndex: realEnd,
+        isSelectingRange: false,
+        forceHideReticle: false,
+      );
+      return;
+    }
 
-  void reorderTracks(int oldIndex, int newIndex) {
-    final list = List<TrackModel>.from(state.tracks);
-
-    if (newIndex > oldIndex) newIndex -= 1;
-
-    final item = list.removeAt(oldIndex);
-    list.insert(newIndex, item);
-
-    state = state.copyWith(tracks: list);
+    // 3️⃣ Fase 3: Reiniciar per poder seleccionar un nou tram lliure
+    if (state.selectionStartIndex != null &&
+        state.selectionEndIndex != null &&
+        !state.isSelectingRange) {
+      state = state.copyWith(
+        selectionStartIndex: currentIndex,
+        selectionEndIndex: -1,
+        isSelectingRange: true,
+        forceHideReticle: false,
+      );
+      return;
+    }
   }
 }

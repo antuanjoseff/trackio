@@ -70,11 +70,20 @@ class GpxEditorState {
       nextSelectionEndIndex = provided == -1 ? null : provided;
     }
 
+    // 🔒 PROTECCIÓ DE TIPUS: Blindem el selectedTrackId perquè sigui SEMPRE un int numèric net
+    final int? nextSelectedTrackId;
+    if (identical(selectedTrackId, _noChange)) {
+      nextSelectedTrackId = this.selectedTrackId;
+    } else if (selectedTrackId == null) {
+      nextSelectedTrackId = null;
+    } else {
+      nextSelectedTrackId = int.tryParse(selectedTrackId.toString());
+    }
+
     return GpxEditorState(
       tracks: tracks ?? this.tracks,
-      selectedTrackId: identical(selectedTrackId, _noChange)
-          ? this.selectedTrackId
-          : selectedTrackId as int?,
+      selectedTrackId:
+          nextSelectedTrackId, // 👈 Guardat amb èxit i format correcte
       snappedPoint: identical(snappedPoint, _noChange)
           ? this.snappedPoint
           : snappedPoint as TrackPointModel?,

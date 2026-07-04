@@ -10,9 +10,10 @@ import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
-import 'package:trackio/vars/track_colors.dart';
-import 'package:trackio/widgets/color_palette_dialog.dart';
-import 'package:trackio/widgets/elevation_chart_widget.dart';
+
+import 'package:trackio/widgets/editor_sidebar_widget.dart';
+import 'package:trackio/widgets/static_editor_map_widget.dart';
+import 'package:trackio/widgets/elevation_chart_panel.dart';
 
 class MainEditorScreen extends ConsumerStatefulWidget {
   const MainEditorScreen({super.key});
@@ -26,224 +27,100 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   MapLibreMapController? _controller;
   bool _isReverseAnimating = false;
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
+  final GlobalKey _mapKey = GlobalKey(debugLabel: "main_editor_map");
 
-  Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
-    final FilePickerResult? result = await FilePicker.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['gpx'],
-      withData: true,
-    );
-
-    if (result == null || result.files.isEmpty) return;
-
-    final List<TrackModel> parsedTracks = [];
-    for (final file in result.files) {
-      String gpxContent = "";
-      if (file.bytes != null) {
-        gpxContent = utf8.decode(file.bytes!);
-      } else if (file.path != null) {
-        final File ioFile = File(file.path!);
-        gpxContent = await ioFile.readAsString();
-      }
-
-      if (gpxContent.isNotEmpty) {
-        try {
-          final TrackModel track = GpxParser.parse(gpxContent, file.name);
-          parsedTracks.add(track);
-        } catch (e) {
-          debugPrint("Error parseando el archivo ${file.name}: $e");
-        }
-      }
-    }
-
-    if (parsedTracks.isNotEmpty) {
-      // ref.read(gpxEditorProvider.notifier).addImportedTracks(parsedTracks);
-      ref.read(gpxEditorProvider.notifier).addImportedTracks(parsedTracks);
-      _paintTracks(ref.read(gpxEditorProvider).tracks);
-    }
+  @override
+  void dispose() {
+    _throttleTimer?.cancel(); // Neteja el temporitzador de memòria en sortir
+    super.dispose();
   }
 
-  bool _listenersRegistered = false;
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
 
-    final editorState = ref.watch(gpxEditorProvider);
+    // 🔒 PAS 2: Filtrem l'estat. El build de la pantalla NOMÉS s'executarà si canvia l'eina o el gràfic.
+    // Ignorem el moviment continu de píxels de l'snap per salvar el mapa web.
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final showElevationChart = ref.watch(
+      gpxEditorProvider.select((s) => s.showElevationChart),
+    );
 
-    // if (!_listenersRegistered) {
-    //   _listenersRegistered = true;
+    final editorState = ref.read(gpxEditorProvider);
+    final bool isSplitMode = activeTool == 'split';
+    final bool isRangeMode = activeTool == 'range_map';
+    final bool showReticle = isSplitMode || isRangeMode;
 
-    //   // Listener del range (això ja estava bé)
-    //   ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
-    //     print("🟦 listener → repintant tracks: ${next.tracks.length}");
-    //     WidgetsBinding.instance.addPostFrameCallback((_) {
-    //       _paintTracks(next.tracks);
-    //     });
-    //   });
-    // }
+    // Invisible wire (ref.listen) que injecta dades directament a la GPU sense refer el widget
+    ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
+      if (previous?.selectedTrackId != next.selectedTrackId &&
+          next.selectedTrackId != null) {
+        _focusTrack(next.selectedTrackId, next.tracks);
+      }
+      if (previous?.tracks.length != next.tracks.length) {
+        _paintTracks(next.tracks);
+      }
+      if (previous?.snappedPointIndex != next.snappedPointIndex ||
+          previous?.snappedPoint != next.snappedPoint) {
+        _paintLiveOverlays(next);
+      }
+    });
 
-    final bool isRangeMapMode = editorState.activeTool == 'range_map';
+    final Widget mapModule = Stack(
+      children: [
+        StaticEditorMapWidget(
+          key: _mapKey,
+          onMapCreated: (c) => _controller = c,
+          onStyleLoaded: () async {
+            await _paintTracks(ref.read(gpxEditorProvider).tracks);
+            await _createGlobalLayers();
+            await _focusTrack(
+              ref.read(gpxEditorProvider).selectedTrackId,
+              ref.read(gpxEditorProvider).tracks,
+            );
+          },
+          onCameraMove: (pos) =>
+              _handleCameraMove(pos, ref.read(gpxEditorProvider)),
+          onCameraIdle: _handleCameraIdle,
+        ),
+
+        if (showReticle)
+          const Center(
+            child: Icon(Icons.add_circle_outline, size: 40, color: Colors.red),
+          ),
+
+        // 🎯 PAS 3: Invoquem el nou botó reactiu aïllat
+        const _ReactiveSplitButton(),
+        const _ReactiveRangeButton(),
+      ],
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(t.appTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.file_upload),
-            tooltip: t.importGpx,
-            onPressed: () => _importGpxFiles(context, ref),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(t.appTitle)),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final bool isDesktop = constraints.maxWidth > 800;
-
-          final Widget mapModule = Stack(
-            children: [
-              MapLibreMap(
-                styleString: "assets/map/style.json",
-                initialCameraPosition: const CameraPosition(
-                  target: LatLng(41.98311, 2.82493),
-                  zoom: 13.0,
-                ),
-
-                onMapCreated: (c) {
-                  _controller = c;
-                },
-
-                onStyleLoadedCallback: () async {
-                  // 1) Primer pintar els tracks → queden a sota
-                  await _paintTracks(ref.read(gpxEditorProvider).tracks);
-
-                  // 2) Després crear les capes globals → queden a sobre
-                  await _createGlobalLayers();
-
-                  // 3) Finalment centrar la càmera
-                  await _focusTrack(
-                    ref.read(gpxEditorProvider).selectedTrackId,
-                    ref.read(gpxEditorProvider).tracks,
-                  );
-                },
-
-                onCameraMove: (pos) {
-                  final editor = ref.read(gpxEditorProvider);
-                  if (editor.activeTool != 'range_map') return;
-
-                  if (_throttleTimer?.isActive ?? false) return;
-
-                  _throttleTimer = Timer(const Duration(milliseconds: 60), () {
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .calculateSnapping(
-                          pos.target.latitude,
-                          pos.target.longitude,
-                          pos.zoom,
-                        );
-
-                    _paintRange(ref.read(gpxEditorProvider));
-                  });
-                },
-
-                onCameraIdle: () {
-                  final editor = ref.read(gpxEditorProvider);
-                  if (editor.activeTool != 'range_map') return;
-
-                  final pos = _controller?.cameraPosition;
-                  if (pos != null) {
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .calculateSnapping(
-                          pos.target.latitude,
-                          pos.target.longitude,
-                          pos.zoom,
-                        );
-                  }
-
-                  ref.read(gpxEditorProvider.notifier).setMapIdle(true);
-                  _updateRange(ref);
-                },
-              ),
-
-              // RETÍCULA
-              if (isRangeMapMode && !editorState.forceHideReticle)
-                const Center(child: _FixedReticleWidget()),
-
-              // BOTÓ CONFIRMAR PUNT
-              if (isRangeMapMode &&
-                  editorState.isMapIdle &&
-                  editorState.snappedPoint != null)
-                Center(
-                  child: Transform.translate(
-                    offset: const Offset(0, 60),
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.orange.shade700,
-                        elevation: 6,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                      icon: const Icon(Icons.add_location_alt),
-                      label: const Text("Confirmar punt"),
-                      onPressed: () {
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .handleMapPointSelection();
-                        _paintRange(ref.read(gpxEditorProvider));
-                      },
-                    ),
-                  ),
-                ),
-            ],
-          );
-          if (isDesktop) {
+          if (constraints.maxWidth > 800) {
             return Row(
               children: [
-                // Barra lateral fixa a l'esquerra
                 Container(
                   width: constraints.maxWidth * 0.25,
                   color: Colors.grey.shade100,
-                  child: _buildLayersSidebar(context, ref, editorState, t),
+                  child: EditorSidebarWidget(
+                    state: editorState,
+                    t: t,
+                    onPaintTracks: _paintTracks,
+                    onReverseTrack: _reverseSelectedTrackWithAnimation,
+                    onImportPressed: () => _importGpxFiles(context, ref),
+                  ),
                 ),
-
-                // Zona principal de treball (Mapa + Gràfic contextual)
                 Expanded(
                   child: Column(
                     children: [
-                      // El mapa ocupa tot l'espai restant de forma dinàmica
                       Expanded(child: mapModule),
-
-                      if (editorState.showElevationChart)
-                        Container(
+                      if (showElevationChart)
+                        ElevationChartPanel(
+                          editorState: editorState,
                           height: 180,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border(
-                              top: BorderSide(
-                                color: Colors.grey.shade300,
-                                width: 1,
-                              ),
-                            ),
-                          ),
-                          child:
-                              editorState.selectedTrackId == null ||
-                                  editorState.tracks.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    "Selecciona un track per veure el perfil d'altituds",
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                )
-                              : ElevationChartWidget(
-                                  track: editorState.tracks.firstWhere(
-                                    (t) => t.id == editorState.selectedTrackId,
-                                    orElse: () => editorState.tracks.first,
-                                  ),
-                                ),
                         ),
                     ],
                   ),
@@ -251,50 +128,15 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
               ],
             );
           } else {
-            // LAYOUT MÒBIL CORREGIT
-            return Stack(
+            return Column(
               children: [
-                Column(
-                  children: [
-                    Expanded(child: mapModule),
-
-                    // 🔥 AFEGIR TAMBÉ AQUÍ LA CONDICIÓ DEL TOGGLE
-                    if (editorState.showElevationChart)
-                      Container(
-                        height: 140,
-                        color: Colors.white,
-                        child:
-                            editorState.selectedTrackId == null ||
-                                editorState.tracks.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  "Selecciona un track",
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              )
-                            : ElevationChartWidget(
-                                // 🔒 PROTECCIÓ AFÈGIDA: Evita el crash en mòbils utilitzant l'orElse
-                                track: editorState.tracks.firstWhere(
-                                  (t) => t.id == editorState.selectedTrackId,
-                                  orElse: () => editorState.tracks.first,
-                                ),
-                              ),
-                      ),
-                  ],
-                ),
-                Positioned(
-                  // dynamic bottom: Si el gràfic està obert, pugem el botó perquè no el tapi
-                  bottom: editorState.showElevationChart ? 160 : 20,
-                  right: 16,
-                  child: FloatingActionButton(
-                    child: const Icon(Icons.layers),
-                    onPressed: () =>
-                        _showMobileBottomSheet(context, ref, editorState, t),
+                Expanded(child: mapModule),
+                if (showElevationChart)
+                  ElevationChartPanel(
+                    editorState: editorState,
+                    height: 140,
+                    textFontSize: 12,
                   ),
-                ),
               ],
             );
           }
@@ -303,333 +145,62 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     );
   }
 
-  Widget _buildLayersSidebar(
-    BuildContext context,
-    WidgetRef ref,
-    GpxEditorState state,
-    AppLocalizations t,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => _importGpxFiles(context, ref),
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 4.0,
-                horizontal: 2.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    t.importGpx.toUpperCase(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const Icon(
-                    Icons.add_circle_outline,
-                    size: 16,
-                    color: Colors.blue,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const Divider(),
-          Expanded(
-            child: state.tracks.isEmpty
-                ? const Center(child: Text("Sense tracks carregats"))
-                : ReorderableListView.builder(
-                    buildDefaultDragHandles: false,
-                    itemCount: state.tracks.length,
-                    onReorder: (oldIndex, newIndex) {
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .reorderTracks(oldIndex, newIndex);
+  void _handleCameraMove(CameraPosition pos, GpxEditorState state) {
+    if (state.activeTool != 'split' && state.activeTool != 'range_map') return;
+    if (_throttleTimer?.isActive ?? false) return;
 
-                      _paintTracks(ref.read(gpxEditorProvider).tracks);
-                    },
-                    itemBuilder: (context, index) {
-                      final track = state.tracks[index];
-                      final bool isSelected = track.id == state.selectedTrackId;
-
-                      return Container(
-                        key: ValueKey(track.id),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: Colors.grey.shade300,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        child: ListTile(
-                          selected: isSelected,
-
-                          // 🔥 HANDLE DE DRAG (tres punts verticals)
-                          leading: ReorderableDragStartListener(
-                            index: index,
-                            child: const Icon(
-                              Icons.more_vert,
-                              size: 22,
-                              color: Colors.grey,
-                            ),
-                          ),
-
-                          // 🔥 NOM DEL TRACK
-                          title: Text(
-                            track.name,
-                            style: TextStyle(
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: track.isVisible
-                                  ? Colors.black87
-                                  : Colors.grey.shade400,
-                              decoration: track.isVisible
-                                  ? TextDecoration.none
-                                  : TextDecoration.lineThrough,
-                            ),
-                          ),
-
-                          // 🔥 COLOR + VISIBILITAT
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // 🎨 COLOR PICKER
-                              GestureDetector(
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => ColorPaletteDialog(
-                                      onColorSelected: (hex) {
-                                        ref
-                                            .read(gpxEditorProvider.notifier)
-                                            .updateTrackColor(track.id, hex);
-
-                                        _paintTracks(
-                                          ref.read(gpxEditorProvider).tracks,
-                                        );
-                                      },
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: TrackColors.fromHex(track.hexColor),
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black26,
-                                        blurRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(width: 12),
-
-                              // 👁️ VISIBILITAT
-                              Checkbox(
-                                value: track.isVisible,
-                                activeColor: Color(
-                                  int.parse(
-                                    track.hexColor.replaceAll('#', '0xFF'),
-                                  ),
-                                ),
-                                onChanged: (bool? val) {
-                                  ref
-                                      .read(gpxEditorProvider.notifier)
-                                      .toggleTrackVisibility(track.id);
-
-                                  _paintTracks(
-                                    ref.read(gpxEditorProvider).tracks,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-
-                          // 🔥 SELECCIÓ DEL TRACK
-                          onTap: () async {
-                            ref
-                                .read(gpxEditorProvider.notifier)
-                                .selectTrack(track.id);
-
-                            await _focusTrack(
-                              track.id,
-                              ref.read(gpxEditorProvider).tracks,
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          const Divider(),
-          Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                      ),
-                      onPressed: () => _reverseSelectedTrackWithAnimation(ref),
-                      child: Text(
-                        t.toolInverse,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                      ),
-                      onPressed: () => ref
-                          .read(gpxEditorProvider.notifier)
-                          .setActiveTool(
-                            state.activeTool == 'split' ? 'none' : 'split',
-                          ),
-                      child: Text(
-                        state.activeTool == 'split' ? "Aturar" : t.toolSplit,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(40),
-                ),
-                icon: const Icon(Icons.link),
-                label: Text(
-                  state.activeTool == 'merge' ? "Aturar Unió" : t.toolMerge,
-                ),
-                onPressed: () => ref
-                    .read(gpxEditorProvider.notifier)
-                    .setActiveTool(
-                      state.activeTool == 'merge' ? 'none' : 'merge',
-                    ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(40),
-                  backgroundColor: state.activeTool == 'range_map'
-                      ? Colors.orange.shade50
-                      : null,
-                ),
-                icon: const Icon(Icons.analytics_outlined),
-                label: Text(
-                  state.activeTool == 'range_map'
-                      ? "Aturar Tram"
-                      : "Seleccionar Tram",
-                ),
-                onPressed: () {
-                  ref
-                      .read(gpxEditorProvider.notifier)
-                      .setActiveTool(
-                        state.activeTool == 'range_map' ? 'none' : 'range_map',
-                      );
-                },
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(36),
-                ),
-                icon: Icon(
-                  state.showElevationChart
-                      ? Icons.expand_more
-                      : Icons.expand_less,
-                ),
-                label: Text(
-                  state.showElevationChart
-                      ? "Amagar perfil d'altituds"
-                      : "Mostrar perfil d'altituds",
-                ),
-                onPressed: () =>
-                    ref.read(gpxEditorProvider.notifier).toggleElevationChart(),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+    // Throttle real corregit a 60ms
+    _throttleTimer = Timer(const Duration(milliseconds: 60), () {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .calculateSnapping(
+            pos.target.latitude,
+            pos.target.longitude,
+            pos.zoom,
+          );
+      _paintLiveOverlays(
+        ref.read(gpxEditorProvider),
+      ); // Dibuixa dinàmicament ON CAMERA MOVE!
+    });
   }
 
-  void _showMobileBottomSheet(
-    BuildContext context,
-    WidgetRef ref,
-    GpxEditorState state,
-    AppLocalizations t,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.4,
-          padding: const EdgeInsets.all(16.0),
-          child: _buildLayersSidebar(context, ref, state, t),
-        );
-      },
-    );
-  }
-
-  void _updateRange(WidgetRef ref) {
+  void _handleCameraIdle() {
     final state = ref.read(gpxEditorProvider);
-    if (_controller == null) return;
+    if (state.activeTool != 'split' && state.activeTool != 'range_map') return;
 
-    final trackId = state.selectedTrackId;
-    if (trackId == null) return;
+    final pos = _controller?.cameraPosition;
+    if (pos != null) {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .calculateSnapping(
+            pos.target.latitude,
+            pos.target.longitude,
+            pos.zoom,
+          );
+    }
+    ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+    _paintLiveOverlays(ref.read(gpxEditorProvider));
+  }
 
-    final track = state.tracks.firstWhere((t) => t.id == trackId);
-    final points = track.points;
+  void _paintLiveOverlays(GpxEditorState state) async {
+    if (_controller == null || state.selectedTrackId == null) return;
 
-    final int? start = state.selectionStartIndex;
-    final bool isSelecting = state.isSelectingRange;
-    final int? end = isSelecting
-        ? state.snappedPointIndex
-        : state.selectionEndIndex;
+    final int? activeTrackId = int.tryParse(state.selectedTrackId.toString());
+    final trackIndex = state.tracks.indexWhere((t) => t.id == activeTrackId);
+    if (trackIndex == -1) return;
 
+    final track = state.tracks[trackIndex];
+    final int? snappedIndex = state.snappedPointIndex;
     const Map<String, dynamic> emptyCollection = {
       "type": "FeatureCollection",
       "features": [],
     };
 
-    // SNAPPED POINT
-    if (state.activeTool == 'range_map' && state.snappedPoint != null) {
+    // 🔵 1) ACTUALITZACIÓ DEL CERCLE BLAU (SEMPRE EN VIU PER A SPLIT I RANGE)
+    if (state.snappedPoint != null) {
       final p = state.snappedPoint!;
       if (p.longitude != null && p.latitude != null) {
-        final geo = {
+        final pointGeojson = {
           "type": "FeatureCollection",
           "features": [
             {
@@ -641,290 +212,81 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
             },
           ],
         };
-        _controller!.setGeoJsonSource("source_snapped_point", geo);
+        await _controller!.setGeoJsonSource(
+          "source_snapped_point",
+          pointGeojson,
+        );
       }
     } else {
-      _controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
+      await _controller!.setGeoJsonSource(
+        "source_snapped_point",
+        emptyCollection,
+      );
     }
 
-    // RANGE LINE
-    if (start == null ||
-        end == null ||
-        end < 0 ||
-        start >= points.length ||
-        end >= points.length) {
-      _controller!.setGeoJsonSource("source_range", emptyCollection);
-      return;
-    }
+    // ✂️ 2) BIFURCACIÓ DE LA LÍNIA DEL TRAM SEGONS L'EINA ACTIVA
+    int lo = 0;
+    int hi = snappedIndex ?? 0;
 
-    final lo = start < end ? start : end;
-    final hi = start < end ? end : start;
+    if (state.activeTool == 'range_map') {
+      // ==========================================
+      // 📊 COMPORTAMENT COMPLET DE L'EINA TRAM
+      // ==========================================
+      if (state.selectionStartIndex == null) {
+        // Fase 1: Sense punt inicial, netegem la línia però no sortim (deixem el cercle blau actiu)
+        await _controller!.setGeoJsonSource("source_range", emptyCollection);
+        return;
+      } else if (state.selectionStartIndex != null &&
+          state.selectionEndIndex != null &&
+          state.selectionEndIndex != -1 &&
+          !state.isSelectingRange) {
+        // 🔥 OPCIÓ 2 DETECTADA: TRAM DESAT I FIXAT (Fase 3)
+        // Ignorem totalment el 'snappedIndex' de la càmera en moviment.
+        // Generem la línia fixa unint els dos punts desats a l'estat perquè no es mogui [1.1].
+        lo = state.selectionStartIndex!;
+        hi = state.selectionEndIndex!;
 
-    final segment = <List<double>>[];
-    for (int i = lo; i <= hi; i++) {
-      final p = points[i];
-      if (p.longitude != null && p.latitude != null) {
-        segment.add([p.longitude!, p.latitude!]);
-      }
-    }
-
-    final geo = {
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "geometry": {"type": "LineString", "coordinates": segment},
-        },
-      ],
-    };
-
-    _controller!.setGeoJsonSource("source_range", geo);
-  }
-
-  Future<void> _clearTrackAndToolOverlays(int trackId) async {
-    if (_controller == null) return;
-
-    const Map<String, dynamic> emptyCollection = {
-      "type": "FeatureCollection",
-      "features": [],
-    };
-
-    await _controller!.setGeoJsonSource("source_$trackId", emptyCollection);
-    await _controller!.setGeoJsonSource("source_range", emptyCollection);
-    await _controller!.setGeoJsonSource(
-      "source_snapped_point",
-      emptyCollection,
-    );
-  }
-
-  Future<void> _animateTrackRedraw(TrackModel track) async {
-    if (_controller == null) return;
-
-    final sourceId = "source_${track.id}";
-    final validCoords = track.points
-        .where((p) => p.latitude != null && p.longitude != null)
-        .map((p) => [p.longitude!, p.latitude!])
-        .toList();
-
-    if (validCoords.isEmpty) return;
-
-    // Nombre de frames de l’animació (configurable)
-    const int framesCount = 60;
-    final Duration perFrameDelay =
-        reverseAnimationDuration ~/ framesCount; // ~1s total
-
-    final progressive = <List<double>>[];
-
-    // Si hi ha molts punts, en saltem alguns per mantenir 1s
-    final int step = (validCoords.length / framesCount).ceil();
-
-    for (int i = 0; i < validCoords.length; i += step) {
-      if (!mounted || _controller == null) return;
-
-      progressive.add(validCoords[i]);
-
-      final geojson = {
-        "type": "FeatureCollection",
-        "features": [
-          {
-            "type": "Feature",
-            "geometry": {
-              "type": "LineString",
-              "coordinates": List<List<double>>.from(progressive),
+        final segment = <List<double>>[];
+        for (int i = lo; i <= hi; i++) {
+          final p = track.points[i];
+          if (p.longitude != null && p.latitude != null)
+            segment.add([p.longitude!, p.latitude!]);
+        }
+        await _controller!.setGeoJsonSource("source_range", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {"type": "LineString", "coordinates": segment},
             },
-          },
-        ],
-      };
-
-      await _controller!.setGeoJsonSource(sourceId, geojson);
-      await Future.delayed(perFrameDelay);
-    }
-
-    // Al final, assegurem que totes les coordenades queden dibuixades
-    final finalGeojson = {
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "geometry": {"type": "LineString", "coordinates": validCoords},
-        },
-      ],
-    };
-    await _controller!.setGeoJsonSource(sourceId, finalGeojson);
-  }
-
-  Future<void> _reverseSelectedTrackWithAnimation(WidgetRef ref) async {
-    if (_controller == null || _isReverseAnimating) return;
-
-    final before = ref.read(gpxEditorProvider);
-    final selectedTrackId = before.selectedTrackId;
-    if (selectedTrackId == null) return;
-
-    _isReverseAnimating = true;
-    try {
-      await _clearTrackAndToolOverlays(selectedTrackId);
-
-      ref.read(gpxEditorProvider.notifier).reverseCurrentTrackWithCleanState();
-
-      final after = ref.read(gpxEditorProvider);
-      final trackIndex = after.tracks.indexWhere(
-        (t) => t.id == selectedTrackId,
-      );
-      if (trackIndex == -1) return;
-
-      await _animateTrackRedraw(after.tracks[trackIndex]);
-    } finally {
-      _isReverseAnimating = false;
-      setState(() {});
-    }
-  }
-
-  Future<void> _createGlobalLayers() async {
-    if (_controller == null) return;
-
-    await _controller!.addSource(
-      "source_range",
-      const GeojsonSourceProperties(
-        data: {"type": "FeatureCollection", "features": []},
-      ),
-    );
-
-    await _controller!.addLineLayer(
-      "source_range",
-      "layer_range_white",
-      const LineLayerProperties(lineColor: "#FFFFFF", lineWidth: 7.0),
-    );
-
-    await _controller!.addLineLayer(
-      "source_range",
-      "layer_range_orange",
-      const LineLayerProperties(
-        lineColor: "#FF8800",
-        lineWidth: 3.5,
-        lineDasharray: [2, 2],
-      ),
-    );
-
-    await _controller!.addSource(
-      "source_snapped_point",
-      const GeojsonSourceProperties(
-        data: {"type": "FeatureCollection", "features": []},
-      ),
-    );
-
-    await _controller!.addCircleLayer(
-      "source_snapped_point",
-      "layer_snapped_circle",
-      const CircleLayerProperties(
-        circleColor: "#007AFF",
-        circleRadius: 8.0,
-        circleStrokeColor: "#FFFFFF",
-        circleStrokeWidth: 2.0,
-      ),
-    );
-  }
-
-  Future<void> _paintTracks(List<TrackModel> tracks) async {
-    if (_controller == null) return;
-
-    print("🟦 _paintTracks() → rebuts ${tracks.length} tracks");
-
-    for (final track in tracks) {
-      print(
-        "   ↳ TRACK id=${track.id} visible=${track.isVisible} punts=${track.points.length}",
-      );
-
-      final sourceId = "source_${track.id}";
-      final layerId = "layer_${track.id}";
-
-      print("      · sourceId=$sourceId layerId=$layerId");
-
-      final coords = track.points
-          .where((p) => p.latitude != null && p.longitude != null)
-          .map((p) => [p.longitude!, p.latitude!])
-          .toList();
-
-      print("      · coords vàlids=${coords.length}");
-
-      final geojson = {
-        "type": "FeatureCollection",
-        "features": [
-          {
-            "type": "Feature",
-            "geometry": {"type": "LineString", "coordinates": coords},
-          },
-        ],
-      };
-
-      try {
-        print("      · removeLayer($layerId)");
-        await _controller!.removeLayer(layerId);
-      } catch (_) {
-        print("      · removeLayer → no existia");
+          ],
+        });
+        return; // Retornem per no deixar que el bucle inferior trepitge aquest dibuix [1.1]
+      } else {
+        // Fase 2: Selecció activa en moviment. La línia creix fins a la retícula [1.1].
+        if (snappedIndex == null) return;
+        final int start = state.selectionStartIndex!;
+        lo = start < snappedIndex ? start : snappedIndex;
+        hi = start < snappedIndex ? snappedIndex : start;
       }
-
-      try {
-        print("      · removeSource($sourceId)");
-        await _controller!.removeSource(sourceId);
-      } catch (_) {
-        print("      · removeSource → no existia");
-      }
-
-      print("      · addSource($sourceId)");
-      await _controller!.addSource(
-        sourceId,
-        GeojsonSourceProperties(data: geojson),
-      );
-
-      print("      · addLineLayer($layerId)");
-      await _controller!.addLineLayer(
-        sourceId,
-        layerId,
-        LineLayerProperties(
-          lineColor: track.hexColor,
-          lineWidth: 4.0,
-          lineOpacity: track.isVisible ? 1.0 : 0.0,
-        ),
-        belowLayerId: "layer_range_white",
-      );
-
-      print("      ✔ LAYER CREAT: $layerId");
-    }
-  }
-
-  Future<void> _paintRange(GpxEditorState state) async {
-    if (_controller == null) return;
-
-    final trackId = state.selectedTrackId;
-    if (trackId == null) {
-      await _controller!.setGeoJsonSource("source_range", {
-        "type": "FeatureCollection",
-        "features": [],
-      });
+    } else if (state.activeTool == 'split') {
+      // ==========================================
+      // ✂️ COMPORTAMENT SENSE TOCAR DE L'EINA SPLIT (100% EN VIU)
+      // ==========================================
+      if (snappedIndex == null) return;
+      lo = 0; // L'origen és sempre el punt zero de la ruta [1.1]
+      hi = snappedIndex; // El final segueix la retícula a cada frame [1.1]
+    } else {
+      // Si no hi ha cap eina activa, esborrem i marxem
+      await _controller!.setGeoJsonSource("source_range", emptyCollection);
       return;
     }
 
-    final track = state.tracks.firstWhere((t) => t.id == trackId);
-    final start = state.selectionStartIndex;
-    final end = state.isSelectingRange
-        ? state.snappedPointIndex
-        : state.selectionEndIndex;
-
-    if (start == null || end == null || end < 0) {
-      await _controller!.setGeoJsonSource("source_range", {
-        "type": "FeatureCollection",
-        "features": [],
-      });
-      return;
-    }
-
-    final lo = start < end ? start : end;
-    final hi = start < end ? end : start;
-
+    // Aquest bucle final només s'executarà per a la selecció elàstica (Fase 2 del range) o per a l'split continu [1.1]
     final segment = <List<double>>[];
     for (int i = lo; i <= hi; i++) {
       final p = track.points[i];
-      if (p.latitude != null && p.longitude != null) {
+      if (p.longitude != null && p.latitude != null) {
         segment.add([p.longitude!, p.latitude!]);
       }
     }
@@ -941,7 +303,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   }
 
   Future<void> _focusTrack(int? trackId, List<TrackModel> tracks) async {
-    if (_controller == null || trackId == null) return;
+    if (_controller == null || trackId == null || tracks.isEmpty) return;
 
     final track = tracks.firstWhere(
       (t) => t.id == trackId,
@@ -951,50 +313,387 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
 
     double sumLat = 0;
     double sumLng = 0;
-    int n = 0;
+    int validPoints = 0;
 
     for (final p in track.points) {
       if (p.latitude != null && p.longitude != null) {
         sumLat += p.latitude!;
         sumLng += p.longitude!;
-        n++;
+        validPoints++;
       }
     }
 
-    if (n == 0) return;
+    if (validPoints > 0) {
+      await _controller!.animateCamera(
+        CameraUpdate.newLatLng(
+          LatLng(sumLat / validPoints, sumLng / validPoints),
+        ),
+      );
+    }
+  }
 
-    await _controller!.animateCamera(
-      CameraUpdate.newLatLng(LatLng(sumLat / n, sumLng / n)),
+  Future<void> _createGlobalLayers() async {
+    if (_controller == null) return;
+    try {
+      await _controller!.addSource(
+        "source_range",
+        const GeojsonSourceProperties(
+          data: {"type": "FeatureCollection", "features": []},
+        ),
+      );
+
+      // Base blanca gruixuda sòlida
+      await _controller!.addLineLayer(
+        "source_range",
+        "layer_range_white",
+        const LineLayerProperties(lineColor: "#FFFFFF", lineWidth: 6.5),
+      );
+      // Línia superior taronja discontínua cridant
+      await _controller!.addLineLayer(
+        "source_range",
+        "layer_range_orange",
+        const LineLayerProperties(
+          lineColor: "#FF8800",
+          lineWidth: 3.5,
+          lineDasharray: [3.0, 2.5],
+        ),
+      );
+    } catch (_) {}
+
+    try {
+      await _controller!.addSource(
+        "source_snapped_point",
+        const GeojsonSourceProperties(
+          data: {"type": "FeatureCollection", "features": []},
+        ),
+      );
+      await _controller!.addCircleLayer(
+        "source_snapped_point",
+        "layer_snapped_circle",
+        const CircleLayerProperties(
+          circleColor: "#007AFF",
+          circleRadius: 9.0,
+          circleStrokeColor: "#FFFFFF",
+          circleStrokeWidth: 2.5,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _paintTracks(List<TrackModel> tracks) async {
+    if (_controller == null) return;
+
+    // 🔥 1) ESCOMBRADOR TOTAL DE SEGURETAT:
+    // Com que els tracks vells (esborrats pel split) ja no estan a la llista de dades,
+    // demanem al controlador de MapLibre que elimini de la GPU qualsevol capa que estigués dibuixada.
+    // Això evita que els tracks originals es quedin congelats i "zombis" al fons de la pantalla.
+    // 🔥 ESCOMBRADOR TOTAL REFORÇAT:
+    try {
+      final List<String> currentLayers = (await _controller!.getLayerIds())
+          .cast<String>();
+
+      for (final layerId in currentLayers) {
+        if (layerId.startsWith("layer_") &&
+            layerId != "layer_range_white" &&
+            layerId != "layer_range_orange" &&
+            layerId != "layer_snapped_circle") {
+          // 🔒 PROTECCIÓ ADCEIONAL: Comprovem si la capa encara és vàlida
+          // a la memòria gràfica abans d'executar l'esborrat natiu.
+          try {
+            await _controller!.removeLayer(layerId);
+          } catch (_) {
+            // Silenciem qualsevol micro-excepció asíncrona de MapLibre
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Avís netejant capes velles: $e");
+    }
+
+    // 🔥 2) PINTAT REFRESCAT DELS TRACKS ACTIUS
+    for (final track in tracks) {
+      final sourceId = "source_${track.id}";
+      final layerId = "layer_${track.id}";
+      final coords = track.points
+          .where((p) => p.latitude != null && p.longitude != null)
+          .map((p) => [p.longitude!, p.latitude!])
+          .toList();
+
+      // Netegem el source abans de re-injectar per si de cas
+      try {
+        await _controller!.removeSource(sourceId);
+      } catch (_) {}
+
+      await _controller!.addSource(
+        sourceId,
+        GeojsonSourceProperties(
+          data: {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": coords},
+              },
+            ],
+          },
+        ),
+      );
+
+      // Injectem garantint que el track es dibuixa a baix de la línia discontínua blanca del split
+      await _controller!.addLineLayer(
+        sourceId,
+        layerId,
+        LineLayerProperties(
+          lineColor: track.hexColor,
+          lineWidth: 4.0,
+          lineOpacity: track.isVisible ? 1.0 : 0.0,
+        ),
+        belowLayerId: "layer_range_white",
+      );
+    }
+  }
+
+  Future<void> _clearTrackAndToolOverlays(int trackId) async {
+    if (_controller == null) return;
+    const Map<String, dynamic> emptyCollection = {
+      "type": "FeatureCollection",
+      "features": [],
+    };
+    await _controller!.setGeoJsonSource("source_$trackId", emptyCollection);
+    await _controller!.setGeoJsonSource("source_range", emptyCollection);
+    await _controller!.setGeoJsonSource(
+      "source_snapped_point",
+      emptyCollection,
+    );
+  }
+
+  Future<void> _animateTrackRedraw(TrackModel track) async {
+    if (_controller == null) return;
+
+    final sourceId = "source_${track.id}";
+    final validCoords = track.points
+        .where((p) => p.latitude != null && p.longitude != null)
+        .map((p) => [p.longitude!, p.latitude!])
+        .toList();
+    if (validCoords.isEmpty) return;
+
+    const int framesCount = 60;
+    final Duration perFrameDelay = reverseAnimationDuration ~/ framesCount;
+    final progressive = <List<double>>[];
+    final int step = (validCoords.length / framesCount).ceil();
+
+    for (int i = 0; i < validCoords.length; i += step) {
+      if (!mounted || _controller == null) return;
+      progressive.add(validCoords[i]);
+
+      await _controller!.setGeoJsonSource(sourceId, {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "LineString",
+              "coordinates": List<List<double>>.from(progressive),
+            },
+          },
+        ],
+      });
+      await Future.delayed(perFrameDelay);
+    }
+
+    await _controller!.setGeoJsonSource(sourceId, {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {"type": "LineString", "coordinates": validCoords},
+        },
+      ],
+    });
+  }
+
+  Future<void> _reverseSelectedTrackWithAnimation(WidgetRef ref) async {
+    if (_controller == null || _isReverseAnimating) return;
+
+    final before = ref.read(gpxEditorProvider);
+    final selectedTrackId = before.selectedTrackId;
+    if (selectedTrackId == null) return;
+
+    setState(() => _isReverseAnimating = true);
+    try {
+      await _clearTrackAndToolOverlays(selectedTrackId);
+      ref.read(gpxEditorProvider.notifier).reverseCurrentTrackWithCleanState();
+      final after = ref.read(gpxEditorProvider);
+      final trackIndex = after.tracks.indexWhere(
+        (t) => t.id == selectedTrackId,
+      );
+      if (trackIndex == -1) return;
+
+      await _animateTrackRedraw(after.tracks[trackIndex]);
+    } finally {
+      if (mounted) setState(() => _isReverseAnimating = false);
+    }
+  }
+
+  Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['gpx'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final List<TrackModel> parsed = [];
+    for (final file in result.files) {
+      final content = file.bytes != null
+          ? utf8.decode(file.bytes!)
+          : await File(file.path!).readAsString();
+      parsed.add(GpxParser.parse(content, file.name));
+    }
+    ref.read(gpxEditorProvider.notifier).addImportedTracks(parsed);
+  }
+
+  void _showMobileBottomSheet(
+    BuildContext context,
+    WidgetRef ref,
+    GpxEditorState state,
+    AppLocalizations t,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.45,
+        color: Colors.white,
+        child: EditorSidebarWidget(
+          state: state,
+          t: t,
+          onPaintTracks: _paintTracks,
+          onReverseTrack: _reverseSelectedTrackWithAnimation,
+          onImportPressed: () => _importGpxFiles(context, ref),
+        ),
+      ),
     );
   }
 }
 
-class _FixedReticleWidget extends StatelessWidget {
-  const _FixedReticleWidget();
+// =========================================================================
+// 🎯 PAS 3: WIDGET REACCIÓ DEL BOTÓ FLOTANT (AÏLLAT DE FORMA INDEPENDENT)
+// =========================================================================
+// Dins de class _ReactiveSplitButton extends ConsumerWidget a la part inferior de main_editor_screen.dart
+class _ReactiveSplitButton extends ConsumerWidget {
+  const _ReactiveSplitButton();
 
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.black87, width: 1.5),
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
+    final hasSnappedPoint = ref.watch(
+      gpxEditorProvider.select((s) => s.snappedPoint != null),
+    );
+
+    final bool show = activeTool == 'split' && isMapIdle && hasSnappedPoint;
+    if (!show) return const SizedBox.shrink();
+
+    return Center(
+      child: Transform.translate(
+        offset: const Offset(0, 60),
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.purple.shade700,
+            foregroundColor: Colors.white,
+            elevation: 6,
           ),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: Colors.red,
-              shape: BoxShape.circle,
-            ),
+          icon: const Icon(Icons.content_cut),
+          label: const Text("Seleccionar punt de tall"),
+          onPressed: () async {
+            // 🔍 1) Busquem la pantalla principal des del context de forma immediata
+            final screenState = context
+                .findAncestorStateOfType<_MainEditorScreenState>();
+            if (screenState == null) return;
+
+            // 🔒 2) CONTROL D'ORDRE INVERS:
+            // Primer demanem al Notifier que calculi la divisió de dades EN MEMÒRIA,
+            // però sense apagar l'eina de split automàticament perquè el botó no desaparegui de cop.
+            ref.read(gpxEditorProvider.notifier).executeTrackSplit();
+
+            // 🎨 3) RENDERING ASÍNCRON CONTROLAT:
+            // Pintem les noves capes (_part1 i _part2) i netegem la línia discontínua taronja.
+            // Com que el botó flotant encara es manté viu i visible, el 'context' és 100% vàlid
+            // i Flutter Web no llançarà mai cap excepció de component "disposed".
+            final stateDespresDelTall = ref.read(gpxEditorProvider);
+            await screenState._paintTracks(stateDespresDelTall.tracks);
+
+            if (screenState._controller != null) {
+              await screenState._controller!.setGeoJsonSource("source_range", {
+                "type": "FeatureCollection",
+                "features": [],
+              });
+            }
+
+            // 🧼 4) NETEJA FINAL DE SEGURETAT:
+            // Un cop la GPU de MapLibre ja ha finalitzat el dibuix i s'ha estabilitzat,
+            // ara sí que diem al Notifier que canviï de forma segura l'eina a 'none'
+            // per tancar la retícula i amagar aquest botó de manera natural.
+            ref.read(gpxEditorProvider.notifier).setActiveTool('none');
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// 📊 COMPONENT REACTIU RECUPERAT: BOTÓ FLOTANT PER A LA SELECCIÓ DE TRAMS
+class _ReactiveRangeButton extends ConsumerWidget {
+  const _ReactiveRangeButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Escoltem de forma aïllada les propietats individuals de l'eina de tram
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
+    final hasSnappedPoint = ref.watch(
+      gpxEditorProvider.select((s) => s.snappedPoint != null),
+    );
+
+    final isSelectingRange = ref.watch(
+      gpxEditorProvider.select((s) => s.isSelectingRange),
+    );
+    final hasStart = ref.watch(
+      gpxEditorProvider.select((s) => s.selectionStartIndex != null),
+    );
+
+    // Només es mostra si l'eina és 'range_map', el mapa està quiet i tenim un punt imantat
+    final bool show = activeTool == 'range_map' && isMapIdle && hasSnappedPoint;
+    if (!show) return const SizedBox.shrink();
+
+    // 🏷️ Canviem el text del botó de forma dinàmica segons la fase del tram
+    String labelText = "Confirmar punt inicial";
+    if (hasStart && isSelectingRange) {
+      labelText = "Confirmar punt final";
+    } else if (hasStart && !isSelectingRange) {
+      labelText = "Seleccionar nou tram";
+    }
+
+    return Center(
+      child: Transform.translate(
+        offset: const Offset(0, 60),
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.orange.shade800,
+            elevation: 6,
           ),
-        ],
+          icon: const Icon(Icons.add_location_alt),
+          label: Text(labelText),
+          onPressed: () {
+            // 🎯 Executem la màquina d'estats síncrona del teu Notifier (Fase 1, 2 o 3)
+            ref.read(gpxEditorProvider.notifier).handleMapPointSelection();
+
+            // 🔒 SOLUCIÓ AL COMPILADOR: No cridem a cap mètode privat des d'aquí.
+            // L'estat canviarà i el 'ref.listen' del mètode build de la pantalla principal
+            // s'encarregarà de cridar a '_paintLiveOverlays' de forma nativa.
+          },
+        ),
       ),
     );
   }
