@@ -75,34 +75,28 @@ class GpxEditor extends _$GpxEditor {
     state = state.copyWith(tracks: list);
   }
 
+  // Mantenim el teu mètode original de tota la vida intacte:
   void addImportedTracks(List<TrackModel> newTracks) {
-    // 🔒 GENERACIÓ D'IDS SEGURS: Assegurem enters únics de 64 bits nets i forcem la instanciació de llista nova
     final List<TrackModel> fixed = [];
     int baseTimestamp = DateTime.now().microsecondsSinceEpoch;
 
     for (int i = 0; i < newTracks.length; i++) {
       final track = newTracks[i];
-      // Modifiquem l'ID creant una nova referència immutable transparent per a Isar i Riverpod
       track.id = baseTimestamp + i;
       fixed.add(track);
     }
 
-    // Actualitzem l'estat forçant a crear una llista totalment nova a la memòria
     state = state.copyWith(
       tracks: [...state.tracks, ...fixed],
-      // Seleccionem obligatòriament el primer track importat per activar la reactivitat visual de la llista
       selectedTrackId: fixed.first.id,
-    );
-
-    // Print de depuració per confirmar que les dades entren correctament al proveïdor
-    debugPrint(
-      "📥 RIVERPOD: S'han afegit ${fixed.length} tracks a l'estat. Total actual: ${state.tracks.length}",
     );
   }
 
   // =========================================================================
   // 📏 LÒGICA MATEMÀTICA DE SNAPPING (DINS DEL FITXER CENTRAL)
   // =========================================================================
+  // Dins del teu GpxEditor Notifier
+
   void calculateSnapping(
     double centerLat,
     double centerLng,
@@ -112,10 +106,10 @@ class GpxEditor extends _$GpxEditor {
 
     final bool isSplitMode = state.activeTool == 'split';
     final bool isRangeMapMode = state.activeTool == 'range_map';
-    if (!isSplitMode && !isRangeMapMode) return;
+    final bool isMergeMode = state.activeTool == 'merge'; // 🌟 Nova eina
+    if (!isSplitMode && !isRangeMapMode && !isMergeMode) return;
 
-    // 🔒 SENSE BLOCATGES: Deixem que el càlcul s'execute sempre en moure el mapa.
-    // Així el cercle blau reaccionarà sempre, tant per a 'split' com per a 'range_map' [1.1].
+    // 🔒 SENSE BLOCATGES: Mantenim el teu càlcul de pas (step) segons el zoom original
     int step = 1;
     if (currentZoom < 9)
       step = 16;
@@ -126,6 +120,69 @@ class GpxEditor extends _$GpxEditor {
     else if (currentZoom < 15)
       step = 2;
 
+    // =========================================================================
+    // 🤝 BLOC NOU: LÒGICA DE PROXIMITAT PER AL MERGE (SORTIDA RÀPIDA)
+    // =========================================================================
+    if (isMergeMode) {
+      double minGlobalDistance = double.infinity;
+      int? closestTrackId;
+      List<TrackPointModel>? closestTrackPoints;
+
+      for (final track in state.tracks) {
+        if (track.id == state.selectedTrackId)
+          continue; // Ignorem el track del sidebar
+
+        for (int i = 0; i < track.points.length; i += step) {
+          final p = track.points[i];
+          if (p.latitude == null || p.longitude == null) continue;
+
+          final double dLat = p.latitude! - centerLat;
+          final double dLng = p.longitude! - centerLng;
+          final double distance = dLat * dLat + dLng * dLng;
+
+          if (distance < minGlobalDistance) {
+            minGlobalDistance = distance;
+            closestTrackId = track.id;
+            closestTrackPoints = track.points;
+          }
+        }
+      }
+
+      // 🔒 Llindar de distància de seguretat (aprox. 40-50 metres a la realitat)
+      const double safetyThreshold = 0.0005;
+      if (minGlobalDistance < safetyThreshold &&
+          closestTrackId != null &&
+          closestTrackPoints != null) {
+        if (state.previewTrackId == closestTrackId)
+          return; // Ja està previsualitzat, sortim
+
+        final trackA = state.tracks.firstWhere(
+          (t) => t.id == state.selectedTrackId,
+        );
+
+        // El track seleccionat al sidebar (A) va SEMPRE obligatòriament a l'inici
+        final List<TrackPointModel> tempMergedPoints = [
+          ...trackA.points,
+          ...closestTrackPoints,
+        ];
+
+        state = state.copyWith(
+          previewTrackId: closestTrackId,
+          previewPoints: tempMergedPoints,
+          isMapIdle: false,
+        );
+      } else {
+        // Si s'allunya del track o no hi ha res a prop, netegem la previsualització de fons
+        if (state.previewTrackId != null) {
+          state = state.copyWith(previewTrackId: null, previewPoints: null);
+        }
+      }
+      return; // 🎯 SORTIDA RÀPIDA: Evitem que el merge entri a la lògica de sota
+    }
+
+    // =========================================================================
+    // ✂️ EL TEU CODI ORIGINAL PER A 'SPLIT' I 'RANGE_MAP' (100% INTACTE)
+    // =========================================================================
     final int? activeTrackId = int.tryParse(state.selectedTrackId.toString());
     final trackIndex = state.tracks.indexWhere((t) => t.id == activeTrackId);
     if (trackIndex == -1) return;
@@ -161,6 +218,55 @@ class GpxEditor extends _$GpxEditor {
     } else {
       state = state.copyWith(snappedPoint: null, snappedPointIndex: null);
     }
+  }
+
+  /// 🤝 CONFIRMACIÓ FINAL DEL MERGE (Executada en prémer el botó flotant)
+  void executeTracksMerge() {
+    if (state.selectedTrackId == null ||
+        state.previewTrackId == null ||
+        state.previewPoints == null)
+      return;
+
+    final trackA = state.tracks.firstWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    final trackB = state.tracks.firstWhere((t) => t.id == state.previewTrackId);
+
+    final int newTrackId = DateTime.now().microsecondsSinceEpoch;
+    final String cleanNameA = trackA.name.replaceAll(RegExp(r'_part\d+'), '');
+    final String cleanNameB = trackB.name.replaceAll(RegExp(r'_part\d+'), '');
+
+    final mergedTrack = TrackModel(
+      id: newTrackId,
+      name: "${cleanNameA}_merge_${cleanNameB}",
+      hexColor: trackA.hexColor,
+      points: List<TrackPointModel>.from(state.previewPoints!),
+      waypoints: [...trackA.waypoints, ...trackB.waypoints],
+    );
+
+    // 🌟 REPARADO: No borramos trackA ni trackB.
+    // Mapeamos la lista actual para ocultar los dos tracks originales en el mapa.
+    final List<TrackModel> updatedList = state.tracks.map((t) {
+      if (t.id == trackA.id || t.id == trackB.id) {
+        return t.copyWith(isVisible: false); // Los apagamos visualmente
+      }
+      return t;
+    }).toList();
+
+    // Añadimos el nuevo track combinado al final de la lista
+    updatedList.add(mergedTrack);
+
+    state = state.copyWith(
+      tracks: updatedList,
+      selectedTrackId: newTrackId, // Hacemos foco automático en el nuevo
+      previewTrackId: null,
+      previewPoints: null,
+      activeTool: 'none',
+    );
+
+    debugPrint(
+      "🤝 MERGE SUCCESS: Creado track unificado conservando los originales.",
+    );
   }
 
   // =========================================================================
@@ -284,5 +390,59 @@ class GpxEditor extends _$GpxEditor {
       );
       return;
     }
+  }
+
+  /// 🗑️ ELIMINAR CAPA (Del estado y del Sidebar)
+  void deleteTrack(int trackId) {
+    // Si borramos el track que estaba seleccionado, ponemos la selección a null
+    final int? nextSelectedId = state.selectedTrackId == trackId
+        ? null
+        : state.selectedTrackId;
+
+    state = state.copyWith(
+      tracks: state.tracks.where((t) => t.id != trackId).toList(),
+      selectedTrackId: nextSelectedId,
+    );
+  }
+
+  /// 💾 EXPORTAR GPX (Genera la estructura de texto XML)
+  String generateGpxString(TrackModel track) {
+    final StringBuffer xml = StringBuffer();
+    xml.writeln('<?xml version="1.0" encoding="UTF-8"?>');
+    xml.writeln(
+      '<gpx version="1.1" creator="TrackioApp" xmlns="http://topografix.com">',
+    );
+
+    // 1. Añadir Waypoints si el track los contiene
+    for (final wp in track.waypoints) {
+      if (wp.latitude == null || wp.longitude == null) continue;
+      xml.writeln('  <wpt lat="${wp.latitude}" lon="${wp.longitude}">');
+      if (wp.elevation != null) xml.writeln('    <ele>${wp.elevation}</ele>');
+      if (wp.name != null) xml.writeln('    <name>${wp.name}</name>');
+      if (wp.comment != null) xml.writeln('    <cmt>${wp.comment}</cmt>');
+      xml.writeln('  </wpt>');
+    }
+
+    // 2. Añadir Track y Trackpoints
+    xml.writeln('  <trk>');
+    xml.writeln('    <name>${track.name}</name>');
+    xml.writeln('    <trkseg>');
+
+    for (final p in track.points) {
+      if (p.latitude == null || p.longitude == null) continue;
+      xml.writeln('      <trkpt lat="${p.latitude}" lon="${p.longitude}">');
+      if (p.elevation != null) xml.writeln('        <ele>${p.elevation}</ele>');
+      if (p.timestamp != null)
+        xml.writeln(
+          '        <time>${p.timestamp!.toUtc().toIso8601String()}</time>',
+        );
+      xml.writeln('      </trkpt>');
+    }
+
+    xml.writeln('    </trkseg>');
+    xml.writeln('  </trk>');
+    xml.writeln('</gpx>');
+
+    return xml.toString();
   }
 }

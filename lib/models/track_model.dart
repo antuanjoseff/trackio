@@ -85,8 +85,7 @@ class TrackModel {
     this.importedAt,
     List<TrackPointModel>? points,
     List<WaypointModel>? waypoints,
-    int?
-    id, // 👈 SOLUCIÓ AL BUG: Permetem injectar un ID existent si estem clonant
+    int? id,
   }) : id =
            id ??
            DateTime.now()

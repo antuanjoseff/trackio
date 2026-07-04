@@ -49,7 +49,10 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     final editorState = ref.read(gpxEditorProvider);
     final bool isSplitMode = activeTool == 'split';
     final bool isRangeMode = activeTool == 'range_map';
-    final bool showReticle = isSplitMode || isRangeMode;
+    final bool isMergeMode = activeTool == 'merge';
+
+    // La mira vermella es mostrarà si estem en split, en range o en mode merge!
+    final bool showReticle = isSplitMode || isRangeMode || isMergeMode;
 
     // Invisible wire (ref.listen) que injecta dades directament a la GPU sense refer el widget
     ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
@@ -57,9 +60,13 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           next.selectedTrackId != null) {
         _focusTrack(next.selectedTrackId, next.tracks);
       }
-      if (previous?.tracks.length != next.tracks.length) {
+
+      // 🌟 REPARADO: Si hay elementos cargando, el ref.listen se mantiene en silencio
+      if (previous?.tracks.length != next.tracks.length &&
+          next.loadingTrackIds.isEmpty) {
         _paintTracks(next.tracks);
       }
+
       if (previous?.snappedPointIndex != next.snappedPointIndex ||
           previous?.snappedPoint != next.snappedPoint) {
         _paintLiveOverlays(next);
@@ -92,64 +99,101 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
         // 🎯 PAS 3: Invoquem el nou botó reactiu aïllat
         const _ReactiveSplitButton(),
         const _ReactiveRangeButton(),
+        const _ReactiveMergeButton(),
       ],
     );
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t.appTitle)),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth > 800) {
-            return Row(
-              children: [
-                Container(
-                  width: constraints.maxWidth * 0.25,
-                  color: Colors.grey.shade100,
-                  child: EditorSidebarWidget(
-                    state: editorState,
-                    t: t,
-                    onPaintTracks: _paintTracks,
-                    onReverseTrack: _reverseSelectedTrackWithAnimation,
-                    onImportPressed: () => _importGpxFiles(context, ref),
-                  ),
-                ),
-                Expanded(
-                  child: Column(
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(title: Text(t.appTitle)),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 800) {
+                return Row(
+                  children: [
+                    Container(
+                      width: constraints.maxWidth * 0.25,
+                      color: Colors.grey.shade100,
+                      child: EditorSidebarWidget(
+                        state: editorState,
+                        t: t,
+                        onPaintTracks: _paintTracks,
+                        onReverseTrack: _reverseSelectedTrackWithAnimation,
+                        onImportPressed: () => _importGpxFiles(context, ref),
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(child: mapModule),
+                          if (showElevationChart)
+                            ElevationChartPanel(
+                              editorState: editorState,
+                              height: 180,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              } else {
+                return Column(
+                  children: [
+                    Expanded(child: mapModule),
+                    if (showElevationChart)
+                      ElevationChartPanel(
+                        editorState: editorState,
+                        height: 140,
+                        textFontSize: 12,
+                      ),
+                  ],
+                );
+              }
+            },
+          ),
+        ),
+
+        // 🎯 L'INDICADOR CENTRAL SIMPLE (Només es mostra mentre processem el GPX)
+        if (_isReverseAnimating) // O la teva variable '_isLoading'
+          Container(
+            color: Colors.black.withOpacity(
+              0.3,
+            ), // Atenua una mica el fons per UX
+            child: const Center(
+              child: Card(
+                elevation: 4,
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(child: mapModule),
-                      if (showElevationChart)
-                        ElevationChartPanel(
-                          editorState: editorState,
-                          height: 180,
-                        ),
+                      CircularProgressIndicator(color: Colors.blue),
+                      SizedBox(width: 16),
+                      Text(
+                        "Processant arxiu GPX...",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),
-              ],
-            );
-          } else {
-            return Column(
-              children: [
-                Expanded(child: mapModule),
-                if (showElevationChart)
-                  ElevationChartPanel(
-                    editorState: editorState,
-                    height: 140,
-                    textFontSize: 12,
-                  ),
-              ],
-            );
-          }
-        },
-      ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
   void _handleCameraMove(CameraPosition pos, GpxEditorState state) {
-    if (state.activeTool != 'split' && state.activeTool != 'range_map') return;
+    // 🌟 REPARAT: Afegim 'merge' al filtre de seguretat per deixar passar l'eina
+    if (state.activeTool != 'split' &&
+        state.activeTool != 'range_map' &&
+        state.activeTool != 'merge')
+      return;
+
     if (_throttleTimer?.isActive ?? false) return;
 
-    // Throttle real corregit a 60ms
+    // Throttle real a 60ms
     _throttleTimer = Timer(const Duration(milliseconds: 60), () {
       ref
           .read(gpxEditorProvider.notifier)
@@ -160,13 +204,17 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           );
       _paintLiveOverlays(
         ref.read(gpxEditorProvider),
-      ); // Dibuixa dinàmicament ON CAMERA MOVE!
+      ); // Dibuixa dinàmicament a la GPU ON CAMERA MOVE!
     });
   }
 
   void _handleCameraIdle() {
     final state = ref.read(gpxEditorProvider);
-    if (state.activeTool != 'split' && state.activeTool != 'range_map') return;
+    // 🌟 REPARAT: Deixem passar també 'merge' quan el mapa es quedi quiet
+    if (state.activeTool != 'split' &&
+        state.activeTool != 'range_map' &&
+        state.activeTool != 'merge')
+      return;
 
     final pos = _controller?.cameraPosition;
     if (pos != null) {
@@ -228,7 +276,31 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     int lo = 0;
     int hi = snappedIndex ?? 0;
 
-    if (state.activeTool == 'range_map') {
+    if (state.activeTool == 'merge') {
+      // ==========================================
+      // 🤝 COMPORTAMENT EN VIU DE L'EINA MERGE
+      // ==========================================
+      if (state.previewPoints != null && state.previewPoints!.isNotEmpty) {
+        final previewCoords = state.previewPoints!
+            .where((p) => p.latitude != null && p.longitude != null)
+            .map((p) => [p.longitude!, p.latitude!])
+            .toList();
+
+        await _controller!.setGeoJsonSource("source_range", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {"type": "LineString", "coordinates": previewCoords},
+            },
+          ],
+        });
+      } else {
+        // Si no hi ha track proper, esborrem immediatament la previsualització de la GPU
+        await _controller!.setGeoJsonSource("source_range", emptyCollection);
+      }
+      return; // 🎯 Sortida ràpida: Evitem entrar a la lògica de les altres eines de sota
+    } else if (state.activeTool == 'range_map') {
       // ==========================================
       // 📊 COMPORTAMENT COMPLET DE L'EINA TRAM
       // ==========================================
@@ -386,8 +458,6 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     // 🔥 1) ESCOMBRADOR TOTAL DE SEGURETAT:
     // Com que els tracks vells (esborrats pel split) ja no estan a la llista de dades,
     // demanem al controlador de MapLibre que elimini de la GPU qualsevol capa que estigués dibuixada.
-    // Això evita que els tracks originals es quedin congelats i "zombis" al fons de la pantalla.
-    // 🔥 ESCOMBRADOR TOTAL REFORÇAT:
     try {
       final List<String> currentLayers = (await _controller!.getLayerIds())
           .cast<String>();
@@ -397,21 +467,24 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
             layerId != "layer_range_white" &&
             layerId != "layer_range_orange" &&
             layerId != "layer_snapped_circle") {
-          // 🔒 PROTECCIÓ ADCEIONAL: Comprovem si la capa encara és vàlida
-          // a la memòria gràfica abans d'executar l'esborrat natiu.
           try {
             await _controller!.removeLayer(layerId);
-          } catch (_) {
-            // Silenciem qualsevol micro-excepció asíncrona de MapLibre
-          }
+          } catch (_) {}
         }
       }
     } catch (e) {
       debugPrint("Avís netejant capes velles: $e");
     }
 
-    // 🔥 2) PINTAT REFRESCAT DELS TRACKS ACTIUS
+    // 🔥 2) PINTAT REFRESCAT DELS TRACKS ACTIUS (BLINDAT CONTRA COL·LISIONS WEB)
+    // Recuperem de la GPU el llistat real de fonts registrades en aquest instant
+    final List<String> existingSources = (await _controller!.getSourceIds())
+        .cast<String>();
+
     for (final track in tracks) {
+      // 🔒 PROTECCIÓ: Si el track està buit (perquè és un "fantasma" carregant), ens el saltem
+      if (track.points.isEmpty) continue;
+
       final sourceId = "source_${track.id}";
       final layerId = "layer_${track.id}";
       final coords = track.points
@@ -419,37 +492,43 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           .map((p) => [p.longitude!, p.latitude!])
           .toList();
 
-      // Netegem el source abans de re-injectar per si de cas
-      try {
-        await _controller!.removeSource(sourceId);
-      } catch (_) {}
+      if (coords.isEmpty) continue;
 
-      await _controller!.addSource(
-        sourceId,
-        GeojsonSourceProperties(
-          data: {
-            "type": "FeatureCollection",
-            "features": [
-              {
-                "type": "Feature",
-                "geometry": {"type": "LineString", "coordinates": coords},
-              },
-            ],
+      // Generem l'estructura de dades GeoJSON a injectar
+      final Map<String, dynamic> trackGeojson = {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {"type": "LineString", "coordinates": coords},
           },
-        ),
-      );
+        ],
+      };
 
-      // Injectem garantint que el track es dibuixa a baix de la línia discontínua blanca del split
-      await _controller!.addLineLayer(
-        sourceId,
-        layerId,
-        LineLayerProperties(
-          lineColor: track.hexColor,
-          lineWidth: 4.0,
-          lineOpacity: track.isVisible ? 1.0 : 0.0,
-        ),
-        belowLayerId: "layer_range_white",
-      );
+      // 🔄 RAMIFICACIÓ INTEL·LIGENT EN CALENT:
+      if (existingSources.contains(sourceId)) {
+        // OPCIÓ A: La font ja existeix a la GPU. Actualitzem els punts directament en memòria.
+        // Això és instantani i evita l'error 'Source already exists' de MapLibre Web.
+        await _controller!.setGeoJsonSource(sourceId, trackGeojson);
+      } else {
+        // OPCIÓ B: La font és nova. La registrem des de zero i li creem la seva capa visual.
+        await _controller!.addSource(
+          sourceId,
+          GeojsonSourceProperties(data: trackGeojson),
+        );
+
+        // Injectem garantint que el track es dibuixa a baix de la línia discontínua blanca del split
+        await _controller!.addLineLayer(
+          sourceId,
+          layerId,
+          LineLayerProperties(
+            lineColor: track.hexColor,
+            lineWidth: 4.0,
+            lineOpacity: track.isVisible ? 1.0 : 0.0,
+          ),
+          belowLayerId: "layer_range_white",
+        );
+      }
     }
   }
 
@@ -542,14 +621,41 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
-    final List<TrackModel> parsed = [];
-    for (final file in result.files) {
-      final content = file.bytes != null
-          ? utf8.decode(file.bytes!)
-          : await File(file.path!).readAsString();
-      parsed.add(GpxParser.parse(content, file.name));
+
+    // ⏳ Mostrem el loading central al mil·lisegon i forcem el mini salt de frame
+    setState(() => _isReverseAnimating = true);
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    try {
+      final List<TrackModel> parsed = [];
+      for (final file in result.files) {
+        // 🌟 LA CLAU MÀGICA PER A FLUTTER WEB:
+        // Cedim el control al navegador durant un instant abans de començar el processament.
+        // Això permet que l'animació de la rodet es mogui i giri de forma 100% fluida!
+        await Future.delayed(Duration.zero);
+
+        final content = file.bytes != null
+            ? utf8.decode(file.bytes!)
+            : await File(file.path!).readAsString();
+
+        parsed.add(GpxParser.parse(content, file.name));
+      }
+
+      // Injectem a Riverpod
+      ref.read(gpxEditorProvider.notifier).addImportedTracks(parsed);
+
+      // Repintem el mapa
+      await _paintTracks(ref.read(gpxEditorProvider).tracks);
+      await _focusTrack(
+        ref.read(gpxEditorProvider).selectedTrackId,
+        ref.read(gpxEditorProvider).tracks,
+      );
+    } catch (e) {
+      debugPrint("Error important tracks: $e");
+    } finally {
+      // 🧼 Apaguem el loading sempre al final de forma segura
+      if (mounted) setState(() => _isReverseAnimating = false);
     }
-    ref.read(gpxEditorProvider.notifier).addImportedTracks(parsed);
   }
 
   void _showMobileBottomSheet(
@@ -692,6 +798,64 @@ class _ReactiveRangeButton extends ConsumerWidget {
             // 🔒 SOLUCIÓ AL COMPILADOR: No cridem a cap mètode privat des d'aquí.
             // L'estat canviarà i el 'ref.listen' del mètode build de la pantalla principal
             // s'encarregarà de cridar a '_paintLiveOverlays' de forma nativa.
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// 🤝 COMPONENT REACTIU: BOTÓ FLOTANT PER A LA CONFIRMACIÓ DEL MERGE INTERACTIU
+class _ReactiveMergeButton extends ConsumerWidget {
+  const _ReactiveMergeButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Escoltem de forma aïllada per evitar re-renders a la pantalla principal
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
+    final hasPreview = ref.watch(
+      gpxEditorProvider.select((s) => s.previewTrackId != null),
+    );
+
+    // 🔒 REGLA INTERACTIVA: Només es mostra si l'eina és 'merge',
+    // el mapa s'ha aturat i la retícula ha caçat un track proper.
+    final bool show = activeTool == 'merge' && isMapIdle && hasPreview;
+    if (!show) return const SizedBox.shrink();
+
+    return Center(
+      child: Transform.translate(
+        offset: const Offset(
+          0,
+          60,
+        ), // Clavat a la mateixa alçada que els teus altres botons flotants
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green.shade700,
+            foregroundColor: Colors.white,
+            elevation: 6,
+          ),
+          icon: const Icon(Icons.call_merge),
+          label: const Text("Confirmar unió de tracks"),
+          onPressed: () {
+            // 🔍 1) Busquem la pantalla principal des del context de forma immediata
+            final screenState = context
+                .findAncestorStateOfType<_MainEditorScreenState>();
+            if (screenState == null) return;
+
+            // 🧼 2) NETEJA INSTANTÀNIA DE LA PREVISUALITZACIÓ
+            // Netegem immediatament el fil taronja discontinu abans que es destrueixin els tracks,
+            // d'aquesta manera evitem qualsevol excepció de renderitzat al canvas de Flutter Web.
+            if (screenState._controller != null) {
+              screenState._controller!.setGeoJsonSource("source_range", const {
+                "type": "FeatureCollection",
+                "features": [],
+              });
+            }
+
+            // 🤝 3) EXECUTEM EL MERGE A RIVERPOD
+            // El Notifier mutarà la llista de tracks en memòria.
+            ref.read(gpxEditorProvider.notifier).executeTracksMerge();
           },
         ),
       ),

@@ -27,6 +27,12 @@ class GpxEditorState {
   final bool
   forceHideReticle; // true para esconder la mira automáticamente al cerrar el tramo
 
+  final int? previewTrackId; // ID del track proper a la retícula
+  final List<TrackPointModel>? previewPoints;
+
+  // ⏳ NUEVO: Control reactivo de tracks que se están procesando individualmente en segundo plano
+  final List<int> loadingTrackIds;
+
   GpxEditorState({
     required this.tracks,
     this.selectedTrackId,
@@ -40,11 +46,14 @@ class GpxEditorState {
     this.selectionEndIndex,
     this.isSelectingRange = false,
     this.forceHideReticle = false,
+    this.previewTrackId,
+    this.previewPoints,
+    this.loadingTrackIds = const [], // 🌟 Buit per defecte al néixer
   });
 
   // Estado inicial limpio al arrancar la aplicación
   factory GpxEditorState.initial() {
-    return GpxEditorState(tracks: []);
+    return GpxEditorState(tracks: [], loadingTrackIds: const []);
   }
 
   // Método copyWith para mutar el estado inmutable de Riverpod sin destruir el resto de variables
@@ -61,6 +70,9 @@ class GpxEditorState {
     Object? selectionEndIndex = _noChange,
     bool? isSelectingRange,
     bool? forceHideReticle,
+    Object? previewTrackId = _noChange,
+    Object? previewPoints = _noChange,
+    List<int>? loadingTrackIds, // 🌟 Nova propietat inmutable al copyWith
   }) {
     final int? nextSelectionEndIndex;
     if (identical(selectionEndIndex, _noChange)) {
@@ -99,6 +111,14 @@ class GpxEditorState {
       selectionEndIndex: nextSelectionEndIndex,
       isSelectingRange: isSelectingRange ?? this.isSelectingRange,
       forceHideReticle: forceHideReticle ?? this.forceHideReticle,
+      previewTrackId: identical(previewTrackId, _noChange)
+          ? this.previewTrackId
+          : previewTrackId as int?,
+      previewPoints: identical(previewPoints, _noChange)
+          ? this.previewPoints
+          : previewPoints as List<TrackPointModel>?,
+      loadingTrackIds:
+          loadingTrackIds ?? this.loadingTrackIds, // 👈 Assignació neta
     );
   }
 }
