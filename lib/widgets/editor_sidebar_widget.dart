@@ -295,10 +295,13 @@ class _SidebarToolsPanel extends ConsumerWidget {
       gpxEditorProvider.select((s) => s.showElevationChart),
     );
 
-    // 🌟 EXTRAEM TAMBÉ EL TRACK SELECCIONAT PER SABER SI EL BOTÓ HA D'ESTAR ACTIU O BLOCAT
+    // Extraiem el track seleccionat per saber si els botons han d'estar actius o blocats
     final selectedTrackId = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId),
     );
+
+    // Comprovem si les eines han d'estar completament deshabilitades
+    final bool isDisabled = selectedTrackId == null;
 
     return Column(
       children: [
@@ -307,12 +310,15 @@ class _SidebarToolsPanel extends ConsumerWidget {
           children: [
             // ↩️ INVERTIR TRACK
             Expanded(
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
-                onPressed: () => onReverseTrack(ref),
-                child: Text(
+                onPressed: isDisabled ? null : () => onReverseTrack(ref),
+                icon: TrackioIcons.reverseDirection(
+                  color: isDisabled ? Colors.grey : Colors.blue.shade700,
+                ),
+                label: Text(
                   t.toolInverse,
                   textAlign: TextAlign.center,
                   maxLines: 1,
@@ -322,21 +328,31 @@ class _SidebarToolsPanel extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
+
             // ✂️ TALLAR TRACK (SPLIT)
             Expanded(
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   backgroundColor: liveActiveTool == 'split'
                       ? Colors.purple.shade50
                       : null,
                 ),
-                onPressed: () => ref
-                    .read(gpxEditorProvider.notifier)
-                    .setActiveTool(
-                      liveActiveTool == 'split' ? 'none' : 'split',
-                    ),
-                child: Text(
+                onPressed: isDisabled
+                    ? null
+                    : () => ref
+                          .read(gpxEditorProvider.notifier)
+                          .setActiveTool(
+                            liveActiveTool == 'split' ? 'none' : 'split',
+                          ),
+                icon: TrackioIcons.cutGpx(
+                  color: isDisabled
+                      ? Colors.grey
+                      : (liveActiveTool == 'split'
+                            ? Colors.purple.shade800
+                            : Colors.purple),
+                ),
+                label: Text(
                   liveActiveTool == 'split' ? "Aturar" : t.toolSplit,
                   textAlign: TextAlign.center,
                   maxLines: 1,
@@ -348,18 +364,33 @@ class _SidebarToolsPanel extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 8),
+
         // 🔗 UNIR TRACKS (MERGE)
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(40),
+            backgroundColor: liveActiveTool == 'merge'
+                ? Colors.teal.shade50
+                : null,
           ),
-          icon: const Icon(Icons.link),
+          icon: TrackioIcons.joinGpx(
+            color: isDisabled
+                ? Colors.grey
+                : (liveActiveTool == 'merge'
+                      ? Colors.teal.shade800
+                      : Colors.teal),
+          ),
           label: Text(liveActiveTool == 'merge' ? "Aturar Unió" : t.toolMerge),
-          onPressed: () => ref
-              .read(gpxEditorProvider.notifier)
-              .setActiveTool(liveActiveTool == 'merge' ? 'none' : 'merge'),
+          onPressed: isDisabled
+              ? null
+              : () => ref
+                    .read(gpxEditorProvider.notifier)
+                    .setActiveTool(
+                      liveActiveTool == 'merge' ? 'none' : 'merge',
+                    ),
         ),
         const SizedBox(height: 8),
+
         // 📊 SELECCIONAR TRAM (RANGE MAP)
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
@@ -368,21 +399,31 @@ class _SidebarToolsPanel extends ConsumerWidget {
                 ? Colors.orange.shade50
                 : null,
           ),
-          icon: const Icon(Icons.analytics_outlined),
+          icon: TrackioIcons.selectAndExtract(
+            color: isDisabled
+                ? Colors.grey
+                : (liveActiveTool == 'range_map'
+                      ? Colors.orange.shade800
+                      : Colors.orange),
+          ),
           label: Text(
             liveActiveTool == 'range_map' ? "Aturar Tram" : "Seleccionar Tram",
           ),
-          onPressed: () => ref
-              .read(gpxEditorProvider.notifier)
-              .setActiveTool(
-                liveActiveTool == 'range_map' ? 'none' : 'range_map',
-              ),
+          onPressed: isDisabled
+              ? null
+              : () => ref
+                    .read(gpxEditorProvider.notifier)
+                    .setActiveTool(
+                      liveActiveTool == 'range_map' ? 'none' : 'range_map',
+                    ),
         ),
         const SizedBox(height: 8),
+
         // ↕️ TOGGLE GRÀFIC ELEVACIONS
         OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(36),
+            backgroundColor: liveShowChart ? Colors.blue.shade50 : null,
           ),
           icon: Icon(liveShowChart ? Icons.expand_more : Icons.expand_less),
           label: Text(
@@ -395,13 +436,10 @@ class _SidebarToolsPanel extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
 
-        // =========================================================================
-        // 📍 INSERCIÓ NETA: BOTÓ ÚNIC GLOBAL PER AL MODE WAYPOINT (TRACK ACTIU)
-        // =========================================================================
+        // 📍 BOTÓ ÚNIC GLOBAL PER AL MODE WAYPOINT (TRACK ACTIU)
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size.fromHeight(40),
-            // Si l'eina està activa es posa de color blau per avisar l'usuari
             backgroundColor: liveActiveTool == 'add_waypoint'
                 ? Colors.blue.shade700
                 : null,
@@ -409,32 +447,283 @@ class _SidebarToolsPanel extends ConsumerWidget {
                 ? Colors.white
                 : null,
           ),
-          icon: Icon(
-            liveActiveTool == 'add_waypoint'
-                ? Icons.gps_fixed
-                : Icons.add_location_alt_rounded,
+          icon: TrackioIcons.addWaypoint(
+            color: isDisabled
+                ? Colors.grey
+                : (liveActiveTool == 'add_waypoint'
+                      ? Colors.white
+                      : Colors.blue.shade800),
           ),
           label: Text(
             liveActiveTool == 'add_waypoint'
                 ? "Aturar Waypoint"
                 : "Afegir Waypoint",
           ),
-          // 🔒 SEGURETAT: Si no hi ha cap track seleccionat a la llista, el botó es desactiva (null)
-          onPressed: selectedTrackId == null
+          onPressed: isDisabled
               ? null
               : () {
                   if (liveActiveTool == 'add_waypoint') {
-                    // Si ja estava encès, en prémer-ho el desactivem tornant a 'none'
                     ref.read(gpxEditorProvider.notifier).setActiveTool('none');
                   } else {
-                    // Si estava apagat, activem el mode de fites per pintar la retícula
                     ref
                         .read(gpxEditorProvider.notifier)
                         .setActiveTool('add_waypoint');
                   }
                 },
         ),
+
+        // 🔒 INFORMA AL L'USUARI SI NO HI HA RES SELECCIONAT
+        if (isDisabled) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: Colors.amber.shade800,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    "Selecciona un track de la llista per utilitzar les eines.",
+                    style: TextStyle(fontSize: 11, color: Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 }
+
+// 🎨 COMPOSICIÓ D'ICONES VECTORIALS PER A LA MARCA TRACKIO
+class TrackioIcons {
+  static Widget reverseDirection({required Color color, double size = 16}) {
+    return Icon(Icons.sync_alt_rounded, color: color, size: size);
+  }
+
+  static Widget cutGpx({required Color color, double size = 16}) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Icon(
+          Icons.timeline_rounded,
+          color: color.withOpacity(0.35),
+          size: size,
+        ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Icon(
+            Icons.content_cut_rounded,
+            color: color,
+            size: size * 0.75,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget joinGpx({required Color color, double size = 18}) {
+    return Icon(Icons.add_link_rounded, color: color, size: size);
+  }
+
+  static Widget selectAndExtract({required Color color, double size = 18}) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Icona de selecció rectangular/marquesina vàlida en Flutter
+        Icon(
+          Icons.check_box_outline_blank_rounded,
+          color: color.withOpacity(0.4),
+          size: size,
+        ),
+        Icon(Icons.insights_rounded, color: color, size: size * 0.75),
+      ],
+    );
+  }
+
+  static Widget addWaypoint({required Color color, double size = 18}) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Icon(Icons.location_on_outlined, color: color, size: size),
+        Positioned(
+          top: size * 0.15,
+          child: Icon(Icons.add, color: color, size: size * 0.45),
+        ),
+      ],
+    );
+  }
+}
+
+// 🛠️ SUB-WIDGET EXTRET: Simplifica i redueix la mida de la barra lateral
+// class _SidebarToolsPanel extends ConsumerWidget {
+//   final AppLocalizations t;
+//   final Future<void> Function(WidgetRef) onReverseTrack;
+
+//   const _SidebarToolsPanel({required this.t, required this.onReverseTrack});
+
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+//     // Escoltem l'eina activa de Riverpod per fer que els botons reaccionin de forma aïllada
+//     final liveActiveTool = ref.watch(
+//       gpxEditorProvider.select((s) => s.activeTool),
+//     );
+//     final liveShowChart = ref.watch(
+//       gpxEditorProvider.select((s) => s.showElevationChart),
+//     );
+
+//     // 🌟 EXTRAEM TAMBÉ EL TRACK SELECCIONAT PER SABER SI EL BOTÓ HA D'ESTAR ACTIU O BLOCAT
+//     final selectedTrackId = ref.watch(
+//       gpxEditorProvider.select((s) => s.selectedTrackId),
+//     );
+
+//     return Column(
+//       children: [
+//         Row(
+//           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+//           children: [
+//             // ↩️ INVERTIR TRACK
+//             Expanded(
+//               child: ElevatedButton(
+//                 style: ElevatedButton.styleFrom(
+//                   padding: const EdgeInsets.symmetric(horizontal: 4),
+//                 ),
+//                 onPressed: () => onReverseTrack(ref),
+//                 child: Text(
+//                   t.toolInverse,
+//                   textAlign: TextAlign.center,
+//                   maxLines: 1,
+//                   overflow: TextOverflow.ellipsis,
+//                   style: const TextStyle(fontSize: 11),
+//                 ),
+//               ),
+//             ),
+//             const SizedBox(width: 8),
+//             // ✂️ TALLAR TRACK (SPLIT)
+//             Expanded(
+//               child: ElevatedButton(
+//                 style: ElevatedButton.styleFrom(
+//                   padding: const EdgeInsets.symmetric(horizontal: 4),
+//                   backgroundColor: liveActiveTool == 'split'
+//                       ? Colors.purple.shade50
+//                       : null,
+//                 ),
+//                 onPressed: () => ref
+//                     .read(gpxEditorProvider.notifier)
+//                     .setActiveTool(
+//                       liveActiveTool == 'split' ? 'none' : 'split',
+//                     ),
+//                 child: Text(
+//                   liveActiveTool == 'split' ? "Aturar" : t.toolSplit,
+//                   textAlign: TextAlign.center,
+//                   maxLines: 1,
+//                   overflow: TextOverflow.ellipsis,
+//                   style: const TextStyle(fontSize: 11),
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+//         const SizedBox(height: 8),
+//         // 🔗 UNIR TRACKS (MERGE)
+//         ElevatedButton.icon(
+//           style: ElevatedButton.styleFrom(
+//             minimumSize: const Size.fromHeight(40),
+//           ),
+//           icon: const Icon(Icons.link),
+//           label: Text(liveActiveTool == 'merge' ? "Aturar Unió" : t.toolMerge),
+//           onPressed: () => ref
+//               .read(gpxEditorProvider.notifier)
+//               .setActiveTool(liveActiveTool == 'merge' ? 'none' : 'merge'),
+//         ),
+//         const SizedBox(height: 8),
+//         // 📊 SELECCIONAR TRAM (RANGE MAP)
+//         ElevatedButton.icon(
+//           style: ElevatedButton.styleFrom(
+//             minimumSize: const Size.fromHeight(40),
+//             backgroundColor: liveActiveTool == 'range_map'
+//                 ? Colors.orange.shade50
+//                 : null,
+//           ),
+//           icon: const Icon(Icons.analytics_outlined),
+//           label: Text(
+//             liveActiveTool == 'range_map' ? "Aturar Tram" : "Seleccionar Tram",
+//           ),
+//           onPressed: () => ref
+//               .read(gpxEditorProvider.notifier)
+//               .setActiveTool(
+//                 liveActiveTool == 'range_map' ? 'none' : 'range_map',
+//               ),
+//         ),
+//         const SizedBox(height: 8),
+//         // ↕️ TOGGLE GRÀFIC ELEVACIONS
+//         OutlinedButton.icon(
+//           style: OutlinedButton.styleFrom(
+//             minimumSize: const Size.fromHeight(36),
+//           ),
+//           icon: Icon(liveShowChart ? Icons.expand_more : Icons.expand_less),
+//           label: Text(
+//             liveShowChart
+//                 ? "Amagar perfil d'altituds"
+//                 : "Mostrar perfil d'altituds",
+//           ),
+//           onPressed: () =>
+//               ref.read(gpxEditorProvider.notifier).toggleElevationChart(),
+//         ),
+//         const SizedBox(height: 8),
+
+//         // =========================================================================
+//         // 📍 INSERCIÓ NETA: BOTÓ ÚNIC GLOBAL PER AL MODE WAYPOINT (TRACK ACTIU)
+//         // =========================================================================
+//         ElevatedButton.icon(
+//           style: ElevatedButton.styleFrom(
+//             minimumSize: const Size.fromHeight(40),
+//             // Si l'eina està activa es posa de color blau per avisar l'usuari
+//             backgroundColor: liveActiveTool == 'add_waypoint'
+//                 ? Colors.blue.shade700
+//                 : null,
+//             foregroundColor: liveActiveTool == 'add_waypoint'
+//                 ? Colors.white
+//                 : null,
+//           ),
+//           icon: Icon(
+//             liveActiveTool == 'add_waypoint'
+//                 ? Icons.gps_fixed
+//                 : Icons.add_location_alt_rounded,
+//           ),
+//           label: Text(
+//             liveActiveTool == 'add_waypoint'
+//                 ? "Aturar Waypoint"
+//                 : "Afegir Waypoint",
+//           ),
+//           // 🔒 SEGURETAT: Si no hi ha cap track seleccionat a la llista, el botó es desactiva (null)
+//           onPressed: selectedTrackId == null
+//               ? null
+//               : () {
+//                   if (liveActiveTool == 'add_waypoint') {
+//                     // Si ja estava encès, en prémer-ho el desactivem tornant a 'none'
+//                     ref.read(gpxEditorProvider.notifier).setActiveTool('none');
+//                   } else {
+//                     // Si estava apagat, activem el mode de fites per pintar la retícula
+//                     ref
+//                         .read(gpxEditorProvider.notifier)
+//                         .setActiveTool('add_waypoint');
+//                   }
+//                 },
+//         ),
+//       ],
+//     );
+//   }
+// }
