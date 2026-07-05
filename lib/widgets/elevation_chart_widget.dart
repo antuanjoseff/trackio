@@ -113,6 +113,52 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     );
     final Color trackColor = Color(trackColorValue);
 
+    // 🌟 1. LEEMOS TANTO LOS ÍNDICES FIJOS COMO EL ÍNDEX ELÁSTICO DE LA CÁMARA EN VIVO
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final isSelectingRange = ref.watch(
+      gpxEditorProvider.select((s) => s.isSelectingRange),
+    );
+    final savedStart = ref.watch(
+      gpxEditorProvider.select((s) => s.selectionStartIndex),
+    );
+    final savedEnd = ref.watch(
+      gpxEditorProvider.select((s) => s.selectionEndIndex),
+    );
+    final snappedIdx = ref.watch(
+      gpxEditorProvider.select((s) => s.snappedPointIndex),
+    );
+
+    // Determinar de forma dinámica el inicio y fin del tramo (fijo o efímero)
+    int? start;
+    int? end;
+
+    if (activeTool == 'range_map') {
+      if (savedStart != null &&
+          savedEnd != null &&
+          savedEnd != -1 &&
+          !isSelectingRange) {
+        // Opción A: Tramo definitivo guardado y fijado (Fase 3)
+        start = savedStart;
+        end = savedEnd;
+      } else if (savedStart != null && isSelectingRange && snappedIdx != null) {
+        // Opción B: 🌟 TRAMO EFÍMERO EN VIVO (Fase 2). Ordenamos start/end según hacia dónde mueva el mapa
+        start = savedStart < snappedIdx ? savedStart : snappedIdx;
+        end = savedStart < snappedIdx ? snappedIdx : savedStart;
+      }
+    } else if (activeTool == 'split' && snappedIdx != null) {
+      // Opción C: ✂️ Opcional: Si quieres que el modo split también ilumine el perfil desde el inicio hasta la tijera
+      start = 0;
+      end = snappedIdx;
+    }
+
+    // 🌟 2. FILTRAMOS LOS SPOTS CON EL RANGO DINÁMICO CALCULADO
+    final List<FlSpot> selectedSpots = [];
+    if (start != null && end != null) {
+      selectedSpots.addAll(
+        _spots.where((spot) => spot.x >= start! && spot.x <= end!),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(top: 20, right: 24, left: 12, bottom: 8),
       child: LineChart(
@@ -224,11 +270,11 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           ),
           borderData: FlBorderData(show: false),
           minX: 0,
-          maxX: (_validPoints.length - 1)
-              .toDouble(), // 🚀 RETORNAT: El mateix rang exacte de coordenades de la llista original
+          maxX: (_validPoints.length - 1).toDouble(),
           minY: _minAlt,
           maxY: _maxAlt,
           lineBarsData: [
+            // LÍNEA 1: Perfil de fondo completo de la ruta
             LineChartBarData(
               spots: _spots,
               isCurved: false,
@@ -241,6 +287,23 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 color: trackColor.withValues(alpha: 0.1),
               ),
             ),
+
+            // LÍNEA 2: 🌟 CAPA SUPERPUESTA PURA PARA EL TRAMO DESTACADO
+            if (selectedSpots.isNotEmpty)
+              LineChartBarData(
+                spots: selectedSpots,
+                isCurved: false,
+                color: Colors.orange.shade800, // Color destacado del tramo
+                barWidth: 3.5, // Más gruesa para que resalte
+                isStrokeCapRound: true,
+                dotData: const FlDotData(show: false),
+                belowBarData: BarAreaData(
+                  show: true,
+                  color: Colors.orange.shade400.withValues(
+                    alpha: 0.35,
+                  ), // Fundo translúcido resaltado
+                ),
+              ),
           ],
         ),
       ),

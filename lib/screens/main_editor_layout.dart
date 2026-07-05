@@ -5,6 +5,7 @@ import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/elevation_chart_panel.dart';
+import 'package:trackio/widgets/track_stats_panel.dart'; // 🌟 1. IMPORTAMOS TU NUEVO PANEL DE DATOS
 
 class MainEditorLayout extends StatelessWidget {
   const MainEditorLayout({
@@ -54,6 +55,10 @@ class MainEditorLayout extends StatelessWidget {
                       child: Column(
                         children: [
                           Expanded(child: mapModule),
+
+                          // 🎯 2. VISTA ESCRITORIO: Inyectamos el panel de datos justo por encima del gráfico
+                          const TrackStatsPanel(),
+
                           if (showElevationChart)
                             ElevationChartPanel(
                               editorState: editorState,
@@ -68,6 +73,10 @@ class MainEditorLayout extends StatelessWidget {
                 return Column(
                   children: [
                     Expanded(child: mapModule),
+
+                    // 🎯 3. VISTA MÓVIL: Inyectamos el mismo panel aquí también por encima del gráfico
+                    const TrackStatsPanel(),
+
                     if (showElevationChart)
                       ElevationChartPanel(
                         editorState: editorState,
