@@ -497,4 +497,33 @@ class GpxEditor extends _$GpxEditor {
       isMapIdle: false,
     );
   }
+
+  // =========================================================================
+  // 📈 SELECCIÓ DES DEL GRÀFIC (SINCRONITZACIÓ BIDIRECCIONAL)
+  // =========================================================================
+
+  /// Es crida quan l'usuari fa el primer toc a la muntanya del gràfic
+  void startChartRangeSelection(int index) {
+    state = state.copyWith(
+      selectionStartIndex: index,
+      selectionEndIndex:
+          -1, // Netegem qualsevol final anterior (-1 es tradueix a null al teu copyWith)
+      isSelectingRange: true,
+      snappedPointIndex: index,
+    );
+  }
+
+  /// Es crida contínuament frame a frame mentre es mou el dit pel perfil d'altituds
+  void updateChartRangeSelection(int index, TrackPointModel point) {
+    state = state.copyWith(snappedPointIndex: index, snappedPoint: point);
+  }
+
+  /// Es crida quan l'usuari aixeca el dit del gràfic, congelant el tram definitiu
+  void finalizeChartRangeSelection(int start, int end) {
+    state = state.copyWith(
+      selectionStartIndex: start < end ? start : end,
+      selectionEndIndex: start < end ? end : start,
+      isSelectingRange: false,
+    );
+  }
 }

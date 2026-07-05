@@ -230,48 +230,113 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       child: LineChart(
         LineChartData(
           lineTouchData: LineTouchData(
-            touchCallback:
-                (FlTouchEvent event, LineTouchResponse? touchResponse) {
-                  if (touchResponse == null ||
-                      touchResponse.lineBarSpots == null)
-                    return;
+            enabled: true,
+            // Desactivem els tooltips natius només en modo 'range_map' per a que no facin nosa en arrossegar el dit
+            handleBuiltInTouches: activeTool != 'range_map',
+            touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+              if (touchResponse == null ||
+                  touchResponse.lineBarSpots == null ||
+                  touchResponse.lineBarSpots!.isEmpty) {
+                // Si l'usuari surt dels marges de la gràfica o aixeca el dit fora, consolidem el rang de seguretat
+                if (touchResponse == null ||
+                    touchResponse.lineBarSpots == null ||
+                    touchResponse.lineBarSpots!.isEmpty) {
+                  // 🏁 Netegem l'esdeveniment que donava error: eliminem FlLongPressEndEvent
+                  if ((event is FlTapUpEvent || event is FlPanEndEvent) &&
+                      activeTool == 'range_map') {
+                    if (start != null && snappedIdx != null) {
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .finalizeChartRangeSelection(start, snappedIdx);
+                    }
+                  }
+                  return;
+                }
 
+                return;
+              }
+
+              // 🧮 CÀLCUL D'ÍNDEX (El teu codi original intacte): Trobem el punt GPX més proper segons els metres X
+              final double touchedMeters = touchResponse.lineBarSpots!.first.x;
+              int realPointsIndex = 0;
+              double minDiff = double.infinity;
+
+              for (int i = 0; i < _distances.length; i++) {
+                final double diff = (touchedMeters - _distances[i]).abs();
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  realPointsIndex = i;
+                }
+              }
+              realPointsIndex = realPointsIndex.clamp(
+                0,
+                _validPoints.length - 1,
+              );
+
+              final notifier = ref.read(gpxEditorProvider.notifier);
+
+              // =========================================================================
+              // 📐 CAS A: EINA SELECCIONAR TRAM ACTIVA (range_map)
+              // =========================================================================
+              if (activeTool == 'range_map') {
+                // 🛑 FASE 1: Inici de la selecció (Funciona unificat amb Clic o Toc Tàctil)
+                if (event is FlTapDownEvent || event is FlPanStartEvent) {
+                  _lastSentIndex = realPointsIndex;
+                  notifier.startChartRangeSelection(realPointsIndex);
+
+                  // Si és un inici tàctil, fem un petit feedback vibratori opcional
+                  if (event is FlPanStartEvent) {
+                    try {
+                      Feedback.forLongPress(context);
+                    } catch (_) {}
+                  }
+                }
+
+                // 🔄 FASE 2: Arrossegament elàstic en viu (L'usuari mou el dit/ratolí)
+                if (event is FlPanUpdateEvent) {
                   final int currentTimestamp =
                       DateTime.now().millisecondsSinceEpoch;
                   if (currentTimestamp - _lastUpdateTimestamp < 30) return;
                   _lastUpdateTimestamp = currentTimestamp;
 
-                  final spots = touchResponse.lineBarSpots!;
-                  if (spots.isNotEmpty) {
-                    final double touchedMeters = spots.first.x;
-
-                    int realPointsIndex = 0;
-                    double minDiff = double.infinity;
-
-                    for (int i = 0; i < _distances.length; i++) {
-                      final double diff = (touchedMeters - _distances[i]).abs();
-                      if (diff < minDiff) {
-                        minDiff = diff;
-                        realPointsIndex = i;
-                      }
-                    }
-
-                    realPointsIndex = realPointsIndex.clamp(
-                      0,
-                      _validPoints.length - 1,
-                    );
-
-                    if (_lastSentIndex == realPointsIndex) return;
+                  if (_lastSentIndex != realPointsIndex) {
                     _lastSentIndex = realPointsIndex;
-
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .updateSnappedPoint(
-                          _validPoints[realPointsIndex],
-                          realPointsIndex,
-                        );
+                    notifier.updateChartRangeSelection(
+                      realPointsIndex,
+                      _validPoints[realPointsIndex],
+                    );
                   }
-                },
+                }
+
+                // 🏁 FASE 3: L'usuari aixeca el dit o el ratolí (Congelar el tram)
+                if (event is FlTapUpEvent || event is FlPanEndEvent) {
+                  if (start != null) {
+                    notifier.finalizeChartRangeSelection(
+                      start,
+                      realPointsIndex,
+                    );
+                  }
+                  _lastSentIndex = null;
+                }
+              }
+              // =========================================================================
+              // ✂️ CAS B: COMPORTAMENT PER DEFECTE / RETÍCULA O SPLIT (El teu hover original)
+              // =========================================================================
+              else {
+                final int currentTimestamp =
+                    DateTime.now().millisecondsSinceEpoch;
+                if (currentTimestamp - _lastUpdateTimestamp < 30) return;
+                _lastUpdateTimestamp = currentTimestamp;
+
+                if (_lastSentIndex == realPointsIndex) return;
+                _lastSentIndex = realPointsIndex;
+
+                notifier.updateSnappedPoint(
+                  _validPoints[realPointsIndex],
+                  realPointsIndex,
+                );
+              }
+            },
             touchTooltipData: LineTouchTooltipData(
               maxContentWidth: 160,
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
