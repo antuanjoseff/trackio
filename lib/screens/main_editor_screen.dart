@@ -55,14 +55,16 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     final bool showReticle =
         isSplitMode || isRangeMode || isMergeMode || isWaypointMode;
 
-    // Invisible wire (ref.listen) que injecta dades directament a la GPU sense refer el widget
     ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
-      if (previous?.selectedTrackId != next.selectedTrackId &&
-          next.selectedTrackId != null) {
-        _focusTrack(next.selectedTrackId, next.tracks);
+      if (previous?.selectedTrackId != next.selectedTrackId) {
+        if (next.selectedTrackId != null) {
+          _focusTrack(next.selectedTrackId, next.tracks);
+        }
+        // 🌟 Forzamos a repintar para mover el efecto de resplandor blanco al nuevo track seleccionado al instante
+        _paintTracks(next.tracks);
       }
 
-      // 🌟 REPARADO: Repintem també quan canvia visibilitat/color/waypoints (no només la longitud).
+      // Repintem també quan canvia visibilitat/color/waypoints (no només la longitud).
       if (previous?.tracks != next.tracks && next.loadingTrackIds.isEmpty) {
         _paintTracks(next.tracks);
       }
@@ -407,12 +409,22 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   Future<void> _paintTracks(List<TrackModel> tracks) async {
     if (_controller == null) return;
 
+    // 1. Llegim l'id del track que està actiu actualment a Riverpod
+    final int? activeTrackId = ref.read(gpxEditorProvider).selectedTrackId;
+
+    // 2. Protegim totes les capes (incloses les dues de contorn actiu) de l'escombrador de la GPU
     final Set<String> wantedLayerIds = tracks
-        .expand((track) => ["layer_${track.id}", "layer_wp_${track.id}"])
+        .expand(
+          (track) => [
+            "layer_${track.id}",
+            "layer_glow_white_${track.id}",
+            "layer_glow_yellow_${track.id}",
+            "layer_wp_${track.id}",
+          ],
+        )
         .toSet();
 
     // 🔥 1) ESCOMBRADOR TOTAL DE SEGURETAT:
-    // Eliminem només capes de tracks que ja no existeixen a l'estat.
     try {
       final List<String> currentLayers = (await _controller!.getLayerIds())
           .cast<String>();
@@ -430,8 +442,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
         }
       }
 
-      // 🔥 2) PINTAT REFRESCAT DELS TRACKS ACTIUS (BLINDAT CONTRA COL·LISIONS WEB)
-      // Recuperem de la GPU el llistat real de fonts registrades en aquest instant.
+      // 🔥 2) PINTAT REFRESCAT DELS TRACKS ACTIUS
       final Set<String> existingSourceSet = (await _controller!.getSourceIds())
           .cast<String>()
           .toSet();
@@ -441,8 +452,11 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
 
         final sourceId = "source_${track.id}";
         final layerId = "layer_${track.id}";
+        final glowWhiteLayerId = "layer_glow_white_${track.id}";
+        final glowYellowLayerId = "layer_glow_yellow_${track.id}";
         final waypointSourceId = "source_wp_${track.id}";
         final waypointLayerId = "layer_wp_${track.id}";
+
         final coords = track.points
             .where((p) => p.latitude != null && p.longitude != null)
             .map((p) => [p.longitude!, p.latitude!])
@@ -498,22 +512,71 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           existingSourceSet.add(waypointSourceId);
         }
 
-        // Recreem capa quan cal per garantir que no desaparegui i actualitzar visibilitat/color.
+        // Neteja higiènica de capes antigues per evitar duplicats orfes
         if (currentLayerSet.contains(layerId)) {
           try {
             await _controller!.removeLayer(layerId);
           } catch (_) {}
         }
+        if (currentLayerSet.contains(glowWhiteLayerId)) {
+          try {
+            await _controller!.removeLayer(glowWhiteLayerId);
+          } catch (_) {}
+        }
+        if (currentLayerSet.contains(glowYellowLayerId)) {
+          try {
+            await _controller!.removeLayer(glowYellowLayerId);
+          } catch (_) {}
+        }
 
+        final bool isActiveTrack = track.id == activeTrackId;
+
+        // 🌟 CAPA 1 (A BAIX DE TOT): BASE BLANCA ULTRA-GRUIXUDA
+        if (isActiveTrack && track.isVisible) {
+          await _controller!.addLineLayer(
+            sourceId,
+            glowWhiteLayerId,
+            const LineLayerProperties(
+              lineColor: "#FFFFFF",
+              lineWidth: 8.5, // El llit blanc exterior més ample
+              lineJoin: "round",
+              lineCap: "round",
+            ),
+            belowLayerId: "layer_range_white",
+          );
+          currentLayerSet.add(glowWhiteLayerId);
+        }
+
+        // 🌟 CAPA 2 (AL MIG): PERFIL GROC REFLECTANT
+        if (isActiveTrack && track.isVisible) {
+          await _controller!.addLineLayer(
+            sourceId,
+            glowYellowLayerId,
+            const LineLayerProperties(
+              lineColor: "#FFEB3B", // Groc seguretat
+              lineWidth:
+                  6.0, // Intermedi per deixar veure la vora blanca de sota
+              lineJoin: "round",
+              lineCap: "round",
+            ),
+            belowLayerId:
+                "layer_range_white", // Es manté sota les eines, quedant per sobre de la blanca
+          );
+          currentLayerSet.add(glowYellowLayerId);
+        }
+
+        // 🌟 CAPA 3 (A DALT DE TOT): LA TEVA LÍNIA DE COLOR ORIGINAL
         await _controller!.addLineLayer(
           sourceId,
           layerId,
           LineLayerProperties(
             lineColor: track.hexColor,
-            lineWidth: 4.0,
+            lineWidth:
+                3.5, // Més estreta per deixar veure els contorns inferiors que sobresurten
             lineOpacity: track.isVisible ? 1.0 : 0.0,
           ),
-          belowLayerId: "layer_range_white",
+          belowLayerId:
+              "layer_range_white", // Es manté sota les eines, quedant per sobre de la groga i la blanca
         );
         currentLayerSet.add(layerId);
 
@@ -527,8 +590,8 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           waypointSourceId,
           waypointLayerId,
           CircleLayerProperties(
-            circleColor: "#FFFFFF",
-            circleRadius: 5.0,
+            circleColor: isActiveTrack ? "#FFEB3B" : "#FFFFFF",
+            circleRadius: isActiveTrack ? 6.0 : 4.5,
             circleStrokeColor: track.hexColor,
             circleStrokeWidth: 2.0,
             circleOpacity: track.isVisible ? 1.0 : 0.0,
@@ -882,6 +945,7 @@ class _ReactiveWaypointButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     // Escoltem només el canvi de l'eina, si el mapa s'ha aturat i si el panell inferior està obert
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
@@ -906,8 +970,8 @@ class _ReactiveWaypointButton extends ConsumerWidget {
         child: FloatingActionButton.extended(
           backgroundColor: Colors.blueAccent.shade700,
           icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white),
-          label: const Text(
-            "Afegir waypoint",
+          label: Text(
+            t.addWaypoint,
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           onPressed: () async {
@@ -919,8 +983,8 @@ class _ReactiveWaypointButton extends ConsumerWidget {
             ref
                 .read(gpxEditorProvider.notifier)
                 .addWaypointToSelectedTrack(
-                  name: "WP-${DateTime.now().second}",
-                  comment: "Afegit des de la retícula",
+                  name: "${t.waypointNamePrefix}-${DateTime.now().second}",
+                  comment: t.waypointCommentFromGrid,
                 );
 
             // 2) Forcem el repintat de les capes del mapa perquè dibuixi la nova fita a la GPU
@@ -928,8 +992,8 @@ class _ReactiveWaypointButton extends ConsumerWidget {
             await screenState._paintTracks(estatActualitzat.tracks);
 
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Waypoint afegit correctament al track actiu"),
+              SnackBar(
+                content: Text(t.waypointAddedToActiveTrack),
                 behavior: SnackBarBehavior.floating,
               ),
             );

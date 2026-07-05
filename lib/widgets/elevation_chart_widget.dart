@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:latlong2/latlong.dart' as geo;
+import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 
@@ -99,11 +100,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     if (_validPoints.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          "Aquest track no conté dades d'altitud",
-          style: TextStyle(color: Colors.grey, fontSize: 13),
+          t.trackWithoutElevationData,
+          style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
       );
     }
@@ -224,7 +226,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         _spots.where((spot) => spot.x >= startMeters && spot.x <= endMeters),
       );
     }
-
+    final showSpeed = ref.watch(
+      gpxEditorProvider.select((s) => s.showSpeedInChart),
+    );
     return Padding(
       padding: const EdgeInsets.only(top: 20, right: 24, left: 12, bottom: 8),
       child: LineChart(
@@ -397,7 +401,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             show: true,
             rightTitles: AxisTitles(
               sideTitles: SideTitles(
-                showTitles: true,
+                showTitles: showSpeed,
                 reservedSize: 45,
                 getTitlesWidget: (value, meta) {
                   final double speedVal = scaleAltToSpeed(value);
@@ -444,11 +448,11 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           minY: _minAlt,
           maxY: _maxAlt,
           lineBarsData: [
+            // 1. Línea Base: Perfil complet d'Altitud (es queda sempre visible)
             LineChartBarData(
               spots: _spots,
               isCurved: false,
               color: trackColor,
-
               barWidth: 2.0,
               isStrokeCapRound: true,
               dotData: const FlDotData(show: false),
@@ -457,6 +461,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 color: trackColor.withValues(alpha: 0.1),
               ),
             ),
+
+            // 2. Línea de Tram seleccionat (apareix si hi ha selecció activa)
             if (selectedSpots.isNotEmpty)
               LineChartBarData(
                 spots: selectedSpots,
@@ -470,7 +476,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   color: Colors.orange.shade400.withValues(alpha: 0.35),
                 ),
               ),
-            if (speedSpots.isNotEmpty)
+
+            // 🌟 3. LÍNIA DE VELOCITAT CORREGIDA: Ara respecta el toggle de l'usuari
+            if (speedSpots.isNotEmpty &&
+                showSpeed) // 👈 Afegim "&& showSpeed" aquí
               LineChartBarData(
                 spots: speedSpots,
                 isCurved: true,

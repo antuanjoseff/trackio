@@ -526,4 +526,43 @@ class GpxEditor extends _$GpxEditor {
       isSelectingRange: false,
     );
   }
+
+  void createTrackFromSelectedRange() {
+    if (state.selectedTrackId == null ||
+        state.selectionStartIndex == null ||
+        state.selectionEndIndex == null ||
+        state.selectionEndIndex == -1)
+      return;
+
+    final int start = state.selectionStartIndex!;
+    final int end = state.selectionEndIndex!;
+
+    final activeTrack = state.tracks.firstWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    if (start < 0 || end >= activeTrack.points.length) return;
+
+    // Extreiem el subsegment de punts GPX de forma segura
+    final selectedPoints = activeTrack.points.sublist(start, end + 1);
+
+    // Creem el nou model de Track independent
+    final newTrack = TrackModel(
+      name: "${activeTrack.name}_segment",
+      hexColor: "#FF5722", // Taronja per diferenciar-lo
+      points: selectedPoints.map((p) => p.copyWith()).toList(),
+      waypoints: const [],
+    );
+
+    state = state.copyWith(
+      tracks: [...state.tracks, newTrack],
+      selectedTrackId: newTrack.id, // Fem focus automàtic al nou track creat
+      selectionStartIndex: null,
+      selectionEndIndex: -1,
+      activeTool: 'none',
+    );
+  }
+
+  void toggleSpeedChart() {
+    state = state.copyWith(showSpeedInChart: !state.showSpeedInChart);
+  }
 }

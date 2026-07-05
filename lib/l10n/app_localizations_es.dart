@@ -43,4 +43,82 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get confirmTracksMerge => 'Confirmar unión de tracks';
+
+  @override
+  String get noTracksLoaded => 'No hay tracks cargados';
+
+  @override
+  String get exportGpx => 'Exportar GPX';
+
+  @override
+  String get deleteTrack => 'Eliminar track';
+
+  @override
+  String get stop => 'Detener';
+
+  @override
+  String get stopMerge => 'Detener unión';
+
+  @override
+  String get selectRange => 'Seleccionar tramo';
+
+  @override
+  String get stopRange => 'Detener tramo';
+
+  @override
+  String get hideElevationProfile => 'Ocultar perfil de altitud';
+
+  @override
+  String get showElevationProfile => 'Mostrar perfil de altitud';
+
+  @override
+  String get stopWaypoint => 'Detener waypoint';
+
+  @override
+  String get addWaypoint => 'Añadir waypoint';
+
+  @override
+  String get selectTrackToUseTools => 'Selecciona un track de la lista para usar las herramientas.';
+
+  @override
+  String get importTracks => 'Importar tracks';
+
+  @override
+  String get elevationProfile => 'Perfil de altitud';
+
+  @override
+  String get chooseColor => 'Elige un color';
+
+  @override
+  String get selectTrackToViewElevationProfile => 'Selecciona un track para ver el perfil de altitud';
+
+  @override
+  String get trackWithoutElevationData => 'Este track no contiene datos de altitud';
+
+  @override
+  String get hideSpeed => 'Ocultar velocidad';
+
+  @override
+  String get showSpeed => 'Mostrar velocidad';
+
+  @override
+  String get newTrackAddedFromSelectedSegment => 'Nuevo track añadido correctamente del tramo seleccionado';
+
+  @override
+  String get addTrack => 'AÑADIR TRACK';
+
+  @override
+  String get segment => 'TRAMO';
+
+  @override
+  String get route => 'RUTA';
+
+  @override
+  String get waypointAddedToActiveTrack => 'Waypoint añadido correctamente al track activo';
+
+  @override
+  String get waypointNamePrefix => 'WP';
+
+  @override
+  String get waypointCommentFromGrid => 'Añadido desde la retícula';
 }

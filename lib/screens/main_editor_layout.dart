@@ -48,6 +48,20 @@ class MainEditorLayout extends ConsumerWidget {
       children: [
         Scaffold(
           appBar: AppBar(
+            leading: Center(
+              child: Container(
+                margin: const EdgeInsets.only(left: 12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  tooltip: t.importTracks,
+                  icon: const Icon(Icons.upload, color: Colors.blue, size: 20),
+                  onPressed: onImportPressed,
+                ),
+              ),
+            ),
             title: Text(t.appTitle),
             actions: [
               // 🔄 1. INVERTIR TRACK
@@ -108,7 +122,7 @@ class MainEditorLayout extends ConsumerWidget {
 
               // 📐 4. SELECCIONAR TRAM
               IconButton(
-                tooltip: "Seleccionar Tram",
+                tooltip: t.selectRange,
                 isSelected: liveActiveTool == 'range_map',
                 selectedIcon: TrackioIcons.selectAndExtract(
                   color: Colors.orange.shade700,
@@ -134,7 +148,7 @@ class MainEditorLayout extends ConsumerWidget {
 
               // 📍 5. AFEGIR WAYPOINT
               IconButton(
-                tooltip: "Afegir Waypoint",
+                tooltip: t.addWaypoint,
                 isSelected: liveActiveTool == 'add_waypoint',
                 selectedIcon: TrackioIcons.addWaypoint(
                   color: Colors.indigo.shade700,
@@ -162,7 +176,7 @@ class MainEditorLayout extends ConsumerWidget {
 
               // ↕️ 6. GRÀFIC D'ELEVACIONS (Aquest no es bloqueja si isDisabled és true)
               IconButton(
-                tooltip: "Perfil d'altituds",
+                tooltip: t.elevationProfile,
                 icon: Icon(
                   liveShowChart
                       ? Icons.insert_chart

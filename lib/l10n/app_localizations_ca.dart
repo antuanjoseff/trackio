@@ -43,4 +43,82 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get confirmTracksMerge => 'Confirmar unió de tracks';
+
+  @override
+  String get noTracksLoaded => 'Sense tracks carregats';
+
+  @override
+  String get exportGpx => 'Exportar GPX';
+
+  @override
+  String get deleteTrack => 'Eliminar track';
+
+  @override
+  String get stop => 'Aturar';
+
+  @override
+  String get stopMerge => 'Aturar unió';
+
+  @override
+  String get selectRange => 'Seleccionar tram';
+
+  @override
+  String get stopRange => 'Aturar tram';
+
+  @override
+  String get hideElevationProfile => 'Amagar perfil d\'altituds';
+
+  @override
+  String get showElevationProfile => 'Mostrar perfil d\'altituds';
+
+  @override
+  String get stopWaypoint => 'Aturar waypoint';
+
+  @override
+  String get addWaypoint => 'Afegir waypoint';
+
+  @override
+  String get selectTrackToUseTools => 'Selecciona un track de la llista per utilitzar les eines.';
+
+  @override
+  String get importTracks => 'Importar tracks';
+
+  @override
+  String get elevationProfile => 'Perfil d\'altituds';
+
+  @override
+  String get chooseColor => 'Tria un color';
+
+  @override
+  String get selectTrackToViewElevationProfile => 'Selecciona un track per veure el perfil d\'altituds';
+
+  @override
+  String get trackWithoutElevationData => 'Aquest track no conté dades d\'altitud';
+
+  @override
+  String get hideSpeed => 'Amagar velocitat';
+
+  @override
+  String get showSpeed => 'Mostrar velocitat';
+
+  @override
+  String get newTrackAddedFromSelectedSegment => 'Nou track afegit correctament del tram seleccionat';
+
+  @override
+  String get addTrack => 'AFEGIR TRACK';
+
+  @override
+  String get segment => 'TRAM';
+
+  @override
+  String get route => 'RUTA';
+
+  @override
+  String get waypointAddedToActiveTrack => 'Waypoint afegit correctament al track actiu';
+
+  @override
+  String get waypointNamePrefix => 'WP';
+
+  @override
+  String get waypointCommentFromGrid => 'Afegit des de la retícula';
 }

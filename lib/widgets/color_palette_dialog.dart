@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/vars/track_colors.dart';
 
 class ColorPaletteDialog extends StatelessWidget {
@@ -8,6 +9,7 @@ class ColorPaletteDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
@@ -16,8 +18,8 @@ class ColorPaletteDialog extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text(
-              "Tria un color",
+            Text(
+              t.chooseColor,
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 16),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/utils/track_stats_calculator.dart';
+import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/models/track_model.dart';
 
@@ -9,6 +10,7 @@ class TrackStatsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final editorState = ref.watch(gpxEditorProvider);
 
     final activeTrackId = editorState.selectedTrackId;
@@ -27,12 +29,16 @@ class TrackStatsPanel extends ConsumerWidget {
     final end = editorState.selectionEndIndex;
     final snappedIdx = editorState.snappedPointIndex;
 
+    // Detectamos si el tramo está completamente cerrado y guardado de forma fija (Fase 3)
+    final bool rangeIsFixed =
+        start != null &&
+        end != null &&
+        end != -1 &&
+        !editorState.isSelectingRange;
+
     // Detectamos de forma idéntica si procesamos el track completo o el tramo efímero/fijo
     if (editorState.activeTool == 'range_map') {
-      if (start != null &&
-          end != null &&
-          end != -1 &&
-          !editorState.isSelectingRange) {
+      if (rangeIsFixed) {
         pointsToProcess = track.points.sublist(start, end + 1);
         isSegment = true;
       } else if (start != null &&
@@ -69,8 +75,12 @@ class TrackStatsPanel extends ConsumerWidget {
         ? "${speed.toStringAsFixed(1)} km/h ($paceStr)"
         : "--";
 
+    // Condición exacta para saber si la etiqueta debe convertirse en el botón interactivo de acción
+    final bool canAddTrack =
+        isSegment && rangeIsFixed && editorState.activeTool == 'range_map';
+
     return Container(
-      // 🌟 Ajuste drástico del padding para compactar la altura
+      // Ajuste drástico del padding para compactar la altura
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         // Si es un tramo, se tiñe sutilmente de naranja para avisar al usuario
@@ -84,22 +94,104 @@ class TrackStatsPanel extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // INDICADOR DE MODO (Texto pequeño rotado o etiqueta compacta)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: isSegment ? Colors.orange.shade200 : Colors.blue.shade100,
-              borderRadius: BorderRadius.circular(4),
+          // ⚡ BOTÓ INTEGRAT A L'ESQUERRA DEL TOT (Només si el gràfic està visible)
+          if (editorState.showElevationChart) ...[
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                tooltip: editorState.showSpeedInChart
+                    ? t.hideSpeed
+                    : t.showSpeed,
+                style: IconButton.styleFrom(
+                  backgroundColor: editorState.showSpeedInChart
+                      ? Colors.teal.shade50
+                      : Colors.grey.shade100,
+                  shape: const CircleBorder(),
+                ),
+                icon: Icon(
+                  editorState.showSpeedInChart
+                      ? Icons.speed
+                      : Icons.speed_outlined,
+                  color: editorState.showSpeedInChart
+                      ? Colors.teal.shade700
+                      : Colors.grey.shade500,
+                  size: 15,
+                ),
+                onPressed: () =>
+                    ref.read(gpxEditorProvider.notifier).toggleSpeedChart(),
+              ),
             ),
-            child: Text(
-              isSegment ? "TRAM" : "RUTA",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 9,
-                color: isSegment
-                    ? Colors.orange.shade900
-                    : Colors.blue.shade900,
-                letterSpacing: 0.5,
+            const SizedBox(width: 8),
+          ],
+
+          // 🌟 ETIQUETA INTELIGENTE RECONVERTIDA: RUTA, TRAM o BOTÓN AFEGIR TRACK
+          InkWell(
+            onTap: canAddTrack
+                ? () {
+                    // 1. Creamos el nuevo track a nivel de estado global de forma síncrona
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .createTrackFromSelectedRange();
+
+                    // 2. Avisamos al usuario con un feedback visual nativo
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(t.newTrackAddedFromSelectedSegment),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                : null, // Si es el track completo o tramo elástico, se comporta como etiqueta normal
+            borderRadius: BorderRadius.circular(4),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: EdgeInsets.symmetric(
+                horizontal: canAddTrack ? 8 : 6,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                // Se vuelve verde llamativo si está listo para ser guardado como un track nuevo
+                color: canAddTrack
+                    ? Colors.green.shade600
+                    : (isSegment
+                          ? Colors.orange.shade200
+                          : Colors.blue.shade100),
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: canAddTrack
+                    ? [
+                        const BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (canAddTrack) ...[
+                    const Icon(Icons.add, size: 10, color: Colors.white),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                    canAddTrack
+                        ? t.addTrack
+                        : (isSegment ? t.segment : t.route),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 9,
+                      color: canAddTrack
+                          ? Colors.white
+                          : (isSegment
+                                ? Colors.orange.shade900
+                                : Colors.blue.shade900),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -135,7 +227,7 @@ class TrackStatsPanel extends ConsumerWidget {
     );
   }
 
-  // 🌟 Widget auxiliar para pintar el icono y el texto en paralelo, ahorrando espacio vertical
+  // Widget auxiliar para pintar el icono y el texto en paralelo, ahorrando espacio vertical
   Widget _inlineStat(IconData icon, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),

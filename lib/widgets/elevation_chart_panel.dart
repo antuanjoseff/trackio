@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🔥 Afegit per a la reactivitat
+import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart'; // 🔥 Afegit
 import 'package:trackio/widgets/elevation_chart_widget.dart';
@@ -21,6 +22,7 @@ class ElevationChartPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     // 👈 Afegit WidgetRef ref
     // 🔒 EL RADAR EN VIU: Llegim la llista de tracks i el seleccionat en viu de Riverpod.
     // Així, quan importis o tallis un track, el gràfic es repintarà a l'acte a la pantalla [1.1].
@@ -46,7 +48,7 @@ class ElevationChartPanel extends ConsumerWidget {
       child: hasNoSelection
           ? Center(
               child: Text(
-                "Selecciona un track per veure el perfil d'altituds",
+                t.selectTrackToViewElevationProfile,
                 style: TextStyle(color: Colors.grey, fontSize: textFontSize),
               ),
             )

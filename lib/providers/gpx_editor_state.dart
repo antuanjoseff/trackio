@@ -5,6 +5,7 @@ import 'package:trackio/models/track_model.dart';
 class GpxEditorState {
   static const Object _noChange = Object();
 
+  final bool showSpeedInChart; // 🌟 Afegit correctament
   final List<TrackModel> tracks;
   final int? selectedTrackId;
   final TrackPointModel? snappedPoint;
@@ -35,6 +36,7 @@ class GpxEditorState {
     this.isMapIdle = false,
     this.activeTool = 'none',
     this.showElevationChart = true,
+    this.showSpeedInChart = true, // 🌟 Inicialitzador
     this.selectionStartIndex,
     this.selectionEndIndex,
     this.isSelectingRange = false,
@@ -42,7 +44,7 @@ class GpxEditorState {
     this.previewTrackId,
     this.previewPoints,
     this.loadingTrackIds = const [],
-    this.waypointCameraPosition, // 👈 Inicializador
+    this.waypointCameraPosition,
   });
 
   factory GpxEditorState.initial() {
@@ -58,6 +60,7 @@ class GpxEditorState {
     String? activeTool,
     Object? mapController = _noChange,
     bool? showElevationChart,
+    bool? showSpeedInChart, // 🌟 1. AFEGIT COM A PARÀMETRE OPTIONAL
     Object? selectionStartIndex = _noChange,
     Object? selectionEndIndex = _noChange,
     bool? isSelectingRange,
@@ -65,7 +68,7 @@ class GpxEditorState {
     Object? previewTrackId = _noChange,
     Object? previewPoints = _noChange,
     List<int>? loadingTrackIds,
-    Object? waypointCameraPosition = _noChange, // 👈 Añadido al copyWith
+    Object? waypointCameraPosition = _noChange,
   }) {
     final int? nextSelectionEndIndex;
     if (identical(selectionEndIndex, _noChange)) {
@@ -96,6 +99,9 @@ class GpxEditorState {
       isMapIdle: isMapIdle ?? this.isMapIdle,
       activeTool: activeTool ?? this.activeTool,
       showElevationChart: showElevationChart ?? this.showElevationChart,
+      showSpeedInChart:
+          showSpeedInChart ??
+          this.showSpeedInChart, // 🌟 2. INJECTAT EN RETORNAR EL NOU ESTAT
       selectionStartIndex: identical(selectionStartIndex, _noChange)
           ? this.selectionStartIndex
           : selectionStartIndex as int?,
@@ -109,7 +115,6 @@ class GpxEditorState {
           ? this.previewPoints
           : previewPoints as List<TrackPointModel>?,
       loadingTrackIds: loadingTrackIds ?? this.loadingTrackIds,
-      // Manejo del borrado o actualización de la coordenada del waypoint
       waypointCameraPosition: identical(waypointCameraPosition, _noChange)
           ? this.waypointCameraPosition
           : waypointCameraPosition as LatLng?,

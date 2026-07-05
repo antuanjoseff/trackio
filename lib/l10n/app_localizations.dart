@@ -63,8 +63,7 @@ import 'app_localizations_es.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -72,8 +71,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -85,19 +83,18 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ca'),
     Locale('en'),
-    Locale('es'),
+    Locale('es')
   ];
 
   /// No description provided for @appTitle.
@@ -171,10 +168,165 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Confirm track merge'**
   String get confirmTracksMerge;
+
+  /// No description provided for @noTracksLoaded.
+  ///
+  /// In en, this message translates to:
+  /// **'No tracks loaded'**
+  String get noTracksLoaded;
+
+  /// No description provided for @exportGpx.
+  ///
+  /// In en, this message translates to:
+  /// **'Export GPX'**
+  String get exportGpx;
+
+  /// No description provided for @deleteTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete track'**
+  String get deleteTrack;
+
+  /// No description provided for @stop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get stop;
+
+  /// No description provided for @stopMerge.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop merge'**
+  String get stopMerge;
+
+  /// No description provided for @selectRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Select range'**
+  String get selectRange;
+
+  /// No description provided for @stopRange.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop range'**
+  String get stopRange;
+
+  /// No description provided for @hideElevationProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide elevation profile'**
+  String get hideElevationProfile;
+
+  /// No description provided for @showElevationProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Show elevation profile'**
+  String get showElevationProfile;
+
+  /// No description provided for @stopWaypoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop waypoint'**
+  String get stopWaypoint;
+
+  /// No description provided for @addWaypoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add waypoint'**
+  String get addWaypoint;
+
+  /// No description provided for @selectTrackToUseTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a track from the list to use the tools.'**
+  String get selectTrackToUseTools;
+
+  /// No description provided for @importTracks.
+  ///
+  /// In en, this message translates to:
+  /// **'Import tracks'**
+  String get importTracks;
+
+  /// No description provided for @elevationProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Elevation profile'**
+  String get elevationProfile;
+
+  /// No description provided for @chooseColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a color'**
+  String get chooseColor;
+
+  /// No description provided for @selectTrackToViewElevationProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a track to view the elevation profile'**
+  String get selectTrackToViewElevationProfile;
+
+  /// No description provided for @trackWithoutElevationData.
+  ///
+  /// In en, this message translates to:
+  /// **'This track has no elevation data'**
+  String get trackWithoutElevationData;
+
+  /// No description provided for @hideSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide speed'**
+  String get hideSpeed;
+
+  /// No description provided for @showSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Show speed'**
+  String get showSpeed;
+
+  /// No description provided for @newTrackAddedFromSelectedSegment.
+  ///
+  /// In en, this message translates to:
+  /// **'New track added from selected segment'**
+  String get newTrackAddedFromSelectedSegment;
+
+  /// No description provided for @addTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'ADD TRACK'**
+  String get addTrack;
+
+  /// No description provided for @segment.
+  ///
+  /// In en, this message translates to:
+  /// **'SEGMENT'**
+  String get segment;
+
+  /// No description provided for @route.
+  ///
+  /// In en, this message translates to:
+  /// **'ROUTE'**
+  String get route;
+
+  /// No description provided for @waypointAddedToActiveTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Waypoint added to active track'**
+  String get waypointAddedToActiveTrack;
+
+  /// No description provided for @waypointNamePrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'WP'**
+  String get waypointNamePrefix;
+
+  /// No description provided for @waypointCommentFromGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Added from the grid'**
+  String get waypointCommentFromGrid;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -183,28 +335,26 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['ca', 'en', 'es'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['ca', 'en', 'es'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'ca':
-      return AppLocalizationsCa();
-    case 'en':
-      return AppLocalizationsEn();
-    case 'es':
-      return AppLocalizationsEs();
+    case 'ca': return AppLocalizationsCa();
+    case 'en': return AppLocalizationsEn();
+    case 'es': return AppLocalizationsEs();
   }
 
   throw FlutterError(
     'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
     'an issue with the localizations generation tool. Please file an issue '
     'on GitHub with a reproducible sample app and the gen-l10n configuration '
-    'that was used.',
+    'that was used.'
   );
 }
