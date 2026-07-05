@@ -33,10 +33,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   @override
   void didUpdateWidget(covariant ElevationChartWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _precomputeChartData();
+    _precomputeChartData(); // 🔥 també es recalcula quan només s’inverteix l’ordre dels punts
   }
 
-  /// 🏎️ CÀLCUL EN MEMÒRIA BASAT EN DISTÀNCIA REAL (MÈTRES)
+  /// 🏎️ CÀLCUL EN MEMÒRIA (S'executa una sola vegada per track)
   void _precomputeChartData() {
     _validPoints = widget.track.points
         .where(
@@ -56,13 +56,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     const geo.Distance distanceCalculator = geo.Distance();
     final int len = _validPoints.length;
 
+    // Reduïm dinàmicament el nombre d'spots visualitzats si passem de 2.000 punts
+    // per evitar que fl_chart saturi la GPU en entorn web
     int step = 1;
     if (len > 2000) {
       step = (len / 2000).ceil();
     }
-
-    // El primer punt comença sempre a 0 metres acumulats
-    localDistances.add(0.0);
 
     for (int i = 0; i < len; i++) {
       final double alt = _validPoints[i].elevation!;
@@ -76,12 +75,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           ),
           geo.LatLng(_validPoints[i].latitude!, _validPoints[i].longitude!),
         );
-        localDistances.add(totalDistanceMeters);
       }
 
-      // 🌟 L'eix X és ara la distància real (totalDistanceMeters) en comptes de l'índex secuencial (i)
+      // Mantenim l'índex real 'i' com a propietat X de l'spot gràfic!
+      // Així l'eix X del mapa i de la gràfica coincideixen al 100% de manera nativa.
       if (i % step == 0 || i == len - 1) {
-        localSpots.add(FlSpot(totalDistanceMeters, alt));
+        localDistances.add(totalDistanceMeters);
+        localSpots.add(FlSpot(i.toDouble(), alt));
 
         if (alt < minAlt) minAlt = alt;
         if (alt > maxAlt) maxAlt = alt;
@@ -113,18 +113,26 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     );
     final Color trackColor = Color(trackColorValue);
 
-    // 1. Leemos las variables fijas de rango del estado de Riverpod
     final start = ref.watch(
       gpxEditorProvider.select((s) => s.selectionStartIndex),
     );
     final end = ref.watch(gpxEditorProvider.select((s) => s.selectionEndIndex));
 
+    final List<FlSpot> selectedSpots = [];
+    if (start != null && end != null && end != -1) {
+      selectedSpots.addAll(
+        _spots.where((spot) => spot.x >= start && spot.x <= end),
+      );
+    }
+
     // =========================================================================
-    // 📊 CONFIGURACIÓ MATEMÀTICA DEL SEGON EIX Y (VELOCITAT)
+    // 📊 1. PREPARACIÓN DEL SEGUNDO EJE Y (VELOCIDAD)
     // =========================================================================
+    // Fijamos un rango fijo realista para la velocidad (de 0 a 40 km/h por ejemplo)
     const double maxSpeedTarget = 40.0;
     const double minSpeedTarget = 0.0;
 
+    // Fórmulas para proyectar la velocidad dentro del rango de altitud (_minAlt a _maxAlt)
     double scaleSpeedToAlt(double speed) {
       final double altRange = _maxAlt - _minAlt;
       if (altRange <= 0) return _minAlt;
@@ -140,11 +148,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           ((altY - _minAlt) / altRange) * (maxSpeedTarget - minSpeedTarget);
     }
 
-    // Generación de spots de velocidad utilizando la distancia real (metros) como eje X
+    // 🚀 NUEVO: Generamos los spots de velocidad usando el escalado matemático
+    // Calculamos la velocidad punto a punto basándonos en la distancia y el tiempo del GPX
     final List<FlSpot> speedSpots = [];
     const geo.Distance distanceCalculator = geo.Distance();
 
     for (int i = 0; i < _validPoints.length; i++) {
+      // Aplicamos el mismo filtro de optimización 'step' que usas en tu INITSTATE para no saturar la GPU
       int step = 1;
       if (_validPoints.length > 2000)
         step = (_validPoints.length / 2000).ceil();
@@ -172,56 +182,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           }
         }
       }
-
-      final double currentMeters =
-          _distances[i.clamp(0, _distances.length - 1)];
+      // Guardamos la velocidad escalada al rango de altitud
       speedSpots.add(
         FlSpot(
-          currentMeters,
+          i.toDouble(),
           scaleSpeedToAlt(speedKmh.clamp(0, maxSpeedTarget)),
         ),
-      );
-    }
-
-    // =========================================================================
-    // 🌟 NUEVO: CÁLCULO DINÁMICO DEL RANGO (FIJO O EFÍMERO EN VIVO)
-    // =========================================================================
-    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
-    final isSelectingRange = ref.watch(
-      gpxEditorProvider.select((s) => s.isSelectingRange),
-    );
-    final snappedIdx = ref.watch(
-      gpxEditorProvider.select((s) => s.snappedPointIndex),
-    );
-
-    int? startPointsIndex;
-    int? endPointsIndex;
-
-    if (activeTool == 'range_map') {
-      if (start != null && end != null && end != -1 && !isSelectingRange) {
-        // Opción A: El tramo ya está guardado y fijado de forma definitiva (Fase 3)
-        startPointsIndex = start;
-        endPointsIndex = end;
-      } else if (start != null && isSelectingRange && snappedIdx != null) {
-        // Opción B: Tramo efímero en vivo (Fase 2) mientras mueves el mapa
-        startPointsIndex = start < snappedIdx ? start : snappedIdx;
-        endPointsIndex = start < snappedIdx ? snappedIdx : start;
-      }
-    } else if (activeTool == 'split' && snappedIdx != null) {
-      // Opción C: Iluminación elástica del modo split hasta la tijera
-      startPointsIndex = 0;
-      endPointsIndex = snappedIdx;
-    }
-
-    // Filtramos la lista de '_spots' buscando los metros del rango dinámico
-    final List<FlSpot> selectedSpots = [];
-    if (startPointsIndex != null && endPointsIndex != null) {
-      final double startMeters =
-          _distances[startPointsIndex.clamp(0, _distances.length - 1)];
-      final double endMeters =
-          _distances[endPointsIndex.clamp(0, _distances.length - 1)];
-      selectedSpots.addAll(
-        _spots.where((spot) => spot.x >= startMeters && spot.x <= endMeters),
       );
     }
 
@@ -243,33 +209,19 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                   final spots = touchResponse.lineBarSpots!;
                   if (spots.isNotEmpty) {
-                    final double touchedMeters = spots.first.x;
+                    final int realPointsIndex = spots.first.x.toInt();
+                    if (realPointsIndex >= 0 &&
+                        realPointsIndex < _validPoints.length) {
+                      if (_lastSentIndex == realPointsIndex) return;
+                      _lastSentIndex = realPointsIndex;
 
-                    int realPointsIndex = 0;
-                    double minDiff = double.infinity;
-
-                    for (int i = 0; i < _distances.length; i++) {
-                      final double diff = (touchedMeters - _distances[i]).abs();
-                      if (diff < minDiff) {
-                        minDiff = diff;
-                        realPointsIndex = i;
-                      }
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateSnappedPoint(
+                            _validPoints[realPointsIndex],
+                            realPointsIndex,
+                          );
                     }
-
-                    realPointsIndex = realPointsIndex.clamp(
-                      0,
-                      _validPoints.length - 1,
-                    );
-
-                    if (_lastSentIndex == realPointsIndex) return;
-                    _lastSentIndex = realPointsIndex;
-
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .updateSnappedPoint(
-                          _validPoints[realPointsIndex],
-                          realPointsIndex,
-                        );
                   }
                 },
             touchTooltipData: LineTouchTooltipData(
@@ -277,33 +229,42 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
                 if (_distances.isEmpty || touchedSpots.isEmpty) return [];
 
-                final double metersAccumulated = touchedSpots.first.x;
+                // 1. Tomamos el índice X del punto que se ha tocado (compartido por altitud y velocidad)
+                final int index = touchedSpots.first.x.toInt();
+
+                // 2. Calculamos de forma segura la aproximación de la distancia acumulada
+                final int distanceIndex =
+                    ((index / (_validPoints.length - 1)) *
+                            (_distances.length - 1))
+                        .clamp(0, _distances.length - 1)
+                        .toInt();
+                final double metersAccumulated = _distances[distanceIndex];
 
                 final int km = (metersAccumulated / 1000).floor();
                 final int m = (metersAccumulated % 1000).round();
-                final String distanceString = km > 0 ? "$km km $m m" : "$m m";
+                final String distanceString = km > 0
+                    ? "${km}km ${m}m"
+                    : "${m}m";
 
-                int searchIndex = 0;
-                double minDiff = double.infinity;
-                for (int i = 0; i < _distances.length; i++) {
-                  final double diff = (metersAccumulated - _distances[i]).abs();
-                  if (diff < minDiff) {
-                    minDiff = diff;
-                    searchIndex = i;
-                  }
-                }
-                searchIndex = searchIndex.clamp(0, _validPoints.length - 1);
+                // 3. Extraemos la Altitud real del track
                 final double realAlt =
-                    _validPoints[searchIndex].elevation ?? 0.0;
+                    _validPoints[index.clamp(0, _validPoints.length - 1)]
+                        .elevation ??
+                    0.0;
 
+                // 4. Extraemos la Velocidad desescalando el valor Y ficticio de la Línea 3
+                // Buscamos si entre los spots tocados está el de la línea de velocidad (el tercero de la lista)
+                // Si no, lo calculamos directamente con las mismas funciones de escala que creamos arriba
                 final speedSpot = speedSpots.firstWhere(
-                  (s) => (s.x - metersAccumulated).abs() < 10.0,
-                  orElse: () => FlSpot(metersAccumulated, _minAlt),
+                  (s) => s.x.toInt() == index,
+                  orElse: () => FlSpot(0, _minAlt),
                 );
                 final double realSpeed = scaleAltToSpeed(speedSpot.y);
 
+                // 5. 🌟 REPARADO: Generamos una lista mapeada que coincide al 100% con la longitud requerida por fl_chart
                 int counter = 0;
                 return touchedSpots.map((LineBarSpot touchedSpot) {
+                  // Solo al primer elemento de la lista le inyectamos el cuadro de texto unificado
                   if (counter == 0) {
                     counter++;
                     return LineTooltipItem(
@@ -315,6 +276,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       ),
                     );
                   }
+                  // Para las líneas superpuestas (Línea 2 y Línea 3), devolvemos null para que no pinten cuadros duplicados
                   return null;
                 }).toList();
               },
@@ -330,12 +292,15 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           ),
           titlesData: FlTitlesData(
             show: true,
+            // 🌟 2. ACTIVACIÓN Y CONFIGURACIÓN DEL EJE Y DERECHO (VELOCIDAD)
             rightTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 45,
                 getTitlesWidget: (value, meta) {
+                  // Desescalamos el valor Y ficticio del mapa para convertirlo en texto real de velocidad
                   final double speedVal = scaleAltToSpeed(value);
+                  // Solo mostramos etiquetas legibles espaciadas (ej: múltiplos de 10)
                   if (speedVal % 10 == 0 || speedVal == maxSpeedTarget) {
                     return Text(
                       "${speedVal.toStringAsFixed(0)} km/h",
@@ -375,15 +340,15 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           ),
           borderData: FlBorderData(show: false),
           minX: 0,
-          maxX: _distances.isNotEmpty ? _distances.last : 0.0,
+          maxX: (_validPoints.length - 1).toDouble(),
           minY: _minAlt,
           maxY: _maxAlt,
           lineBarsData: [
+            // LÍNEA 1: Perfil de fondo completo de la ruta (Altitud)
             LineChartBarData(
               spots: _spots,
               isCurved: false,
               color: trackColor,
-
               barWidth: 2.0,
               isStrokeCapRound: true,
               dotData: const FlDotData(show: false),
@@ -392,6 +357,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 color: trackColor.withValues(alpha: 0.1),
               ),
             ),
+
+            // LÍNEA 2: Capa superpuesta para el tramo destacado
             if (selectedSpots.isNotEmpty)
               LineChartBarData(
                 spots: selectedSpots,
@@ -405,12 +372,18 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   color: Colors.orange.shade400.withValues(alpha: 0.35),
                 ),
               ),
+
+            // LÍNEA 3: 🌟 NUEVA CURVA DE VELOCIDAD EN TIEMPO REAL (Línea discontinua azul/gris)
+            // LÍNEA 3: 🌟 NUEVA CURVA DE VELOCIDAD EN TIEMPO REAL (Línea suave estilizada)
             if (speedSpots.isNotEmpty)
               LineChartBarData(
                 spots: speedSpots,
-                isCurved: true,
-                color: Colors.teal.shade500.withValues(alpha: 0.6),
-                barWidth: 1.2,
+                isCurved: true, // Suaviza los picos bruscos del GPS
+                color: Colors.teal.shade500.withValues(
+                  alpha: 0.6,
+                ), // Color contrastado que no ensucia la altitud
+                barWidth:
+                    1.2, // Más fina para diferenciarla claramente de la línea de altitud
                 isStrokeCapRound: true,
                 dotData: const FlDotData(show: false),
               ),
