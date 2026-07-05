@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
@@ -444,5 +445,56 @@ class GpxEditor extends _$GpxEditor {
     xml.writeln('</gpx>');
 
     return xml.toString();
+  }
+
+  // 📍 1. Actualitza la coordenada de la retícula central (es cridarà quan el mapa es mogui)
+  void updateWaypointPosition(double latitude, double longitude) {
+    final current = state.waypointCameraPosition;
+    if (current != null) {
+      const double epsilon = 0.000001;
+      final bool unchanged =
+          (current.latitude - latitude).abs() < epsilon &&
+          (current.longitude - longitude).abs() < epsilon;
+      if (unchanged) return;
+    }
+
+    state = state.copyWith(waypointCameraPosition: LatLng(latitude, longitude));
+  }
+
+  // 📍 2. Inserció del waypoint al track seleccionat actiu en aquell moment
+  void addWaypointToSelectedTrack({
+    String name = 'Waypoint',
+    String comment = '',
+  }) {
+    // Si no hi ha cap track triat o el mapa no té posició, no fem res
+    if (state.selectedTrackId == null || state.waypointCameraPosition == null)
+      return;
+
+    final targetPosition = state.waypointCameraPosition!;
+
+    // Creem el nou model de fita / waypoint
+    final newWaypoint = WaypointModel(
+      latitude: targetPosition.latitude,
+      longitude: targetPosition.longitude,
+      elevation: 0.0,
+      name: name,
+      comment: comment,
+    );
+
+    // Mapegem els tracks actuals per afegir el waypoint només al que està seleccionat
+    final updatedTracks = state.tracks.map((track) {
+      if (track.id == state.selectedTrackId) {
+        return track.copyWith(waypoints: [...track.waypoints, newWaypoint]);
+      }
+      return track;
+    }).toList();
+
+    // Actualitzem l'estat global, tanquem l'eina i netegem variables
+    state = state.copyWith(
+      tracks: updatedTracks,
+      activeTool: 'none',
+      waypointCameraPosition: null,
+      isMapIdle: false,
+    );
   }
 }

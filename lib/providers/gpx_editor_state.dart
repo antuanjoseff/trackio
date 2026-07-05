@@ -1,8 +1,7 @@
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:trackio/models/track_model.dart';
 
-/// 🧠 ESTADO INMUTABLE AVANZADO DE TRACKIO
-/// Centraliza el control de capas, herramientas vivas y la selección dual de tramos.
+/// 🧠 ESTADO INMUTABLE AVANCED DE TRACKIO
 class GpxEditorState {
   static const Object _noChange = Object();
 
@@ -12,26 +11,21 @@ class GpxEditorState {
   final int? snappedPointIndex;
   final bool isMapIdle;
 
-  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map'
+  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint' 👈 NUEVA
   final String activeTool;
 
-  // ↕️ NUEVO: Control de visibilidad del panel inferior (Toggle)
   final bool showElevationChart;
-
-  // 📏 NUEVO: Índices de acotación del tramo seleccionado (sublistas de puntos)
   final int? selectionStartIndex;
   final int? selectionEndIndex;
+  final bool isSelectingRange;
+  final bool forceHideReticle;
 
-  // 🎯 NUEVO: Banderas de control fino para la retícula en mapa
-  final bool isSelectingRange; // true si ya fijó el punto 1 y busca el punto 2
-  final bool
-  forceHideReticle; // true para esconder la mira automáticamente al cerrar el tramo
-
-  final int? previewTrackId; // ID del track proper a la retícula
+  final int? previewTrackId;
   final List<TrackPointModel>? previewPoints;
-
-  // ⏳ NUEVO: Control reactivo de tracks que se están procesando individualmente en segundo plano
   final List<int> loadingTrackIds;
+
+  // 📍 NUEVO: Guarda la posición actual de la retícula central cuando la herramienta está activa
+  final LatLng? waypointCameraPosition;
 
   GpxEditorState({
     required this.tracks,
@@ -40,23 +34,21 @@ class GpxEditorState {
     this.snappedPointIndex,
     this.isMapIdle = false,
     this.activeTool = 'none',
-
-    this.showElevationChart = true, // El gráfico se muestra abierto por defecto
+    this.showElevationChart = true,
     this.selectionStartIndex,
     this.selectionEndIndex,
     this.isSelectingRange = false,
     this.forceHideReticle = false,
     this.previewTrackId,
     this.previewPoints,
-    this.loadingTrackIds = const [], // 🌟 Buit per defecte al néixer
+    this.loadingTrackIds = const [],
+    this.waypointCameraPosition, // 👈 Inicializador
   });
 
-  // Estado inicial limpio al arrancar la aplicación
   factory GpxEditorState.initial() {
     return GpxEditorState(tracks: [], loadingTrackIds: const []);
   }
 
-  // Método copyWith para mutar el estado inmutable de Riverpod sin destruir el resto de variables
   GpxEditorState copyWith({
     List<TrackModel>? tracks,
     Object? selectedTrackId = _noChange,
@@ -72,7 +64,8 @@ class GpxEditorState {
     bool? forceHideReticle,
     Object? previewTrackId = _noChange,
     Object? previewPoints = _noChange,
-    List<int>? loadingTrackIds, // 🌟 Nova propietat inmutable al copyWith
+    List<int>? loadingTrackIds,
+    Object? waypointCameraPosition = _noChange, // 👈 Añadido al copyWith
   }) {
     final int? nextSelectionEndIndex;
     if (identical(selectionEndIndex, _noChange)) {
@@ -82,7 +75,6 @@ class GpxEditorState {
       nextSelectionEndIndex = provided == -1 ? null : provided;
     }
 
-    // 🔒 PROTECCIÓ DE TIPUS: Blindem el selectedTrackId perquè sigui SEMPRE un int numèric net
     final int? nextSelectedTrackId;
     if (identical(selectedTrackId, _noChange)) {
       nextSelectedTrackId = this.selectedTrackId;
@@ -94,8 +86,7 @@ class GpxEditorState {
 
     return GpxEditorState(
       tracks: tracks ?? this.tracks,
-      selectedTrackId:
-          nextSelectedTrackId, // 👈 Guardat amb èxit i format correcte
+      selectedTrackId: nextSelectedTrackId,
       snappedPoint: identical(snappedPoint, _noChange)
           ? this.snappedPoint
           : snappedPoint as TrackPointModel?,
@@ -117,8 +108,11 @@ class GpxEditorState {
       previewPoints: identical(previewPoints, _noChange)
           ? this.previewPoints
           : previewPoints as List<TrackPointModel>?,
-      loadingTrackIds:
-          loadingTrackIds ?? this.loadingTrackIds, // 👈 Assignació neta
+      loadingTrackIds: loadingTrackIds ?? this.loadingTrackIds,
+      // Manejo del borrado o actualización de la coordenada del waypoint
+      waypointCameraPosition: identical(waypointCameraPosition, _noChange)
+          ? this.waypointCameraPosition
+          : waypointCameraPosition as LatLng?,
     );
   }
 }

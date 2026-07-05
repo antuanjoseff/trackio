@@ -1,7 +1,6 @@
 import 'package:isar/isar.dart';
 
 /// 📍 MODELO EMBEBIDO PARA LOS PUNTOS DE LA LÍNEA DE RUTA
-/// ⚡ CORRECCIÓN WEB: Forzamos un nombre de hash ultra corto seguro para JavaScript
 @embedded
 @Name('TP')
 class TrackPointModel {
@@ -17,7 +16,6 @@ class TrackPointModel {
     this.timestamp,
   });
 
-  /// Permet clonar punts si en algun moment cal modificar metadades individuals
   TrackPointModel copyWith({
     double? latitude,
     double? longitude,
@@ -69,8 +67,11 @@ class WaypointModel {
 }
 
 /// 📍 MODELO PRINCIPAL DE TRACK (MULTIPLATAFORMA WEB/MÓVIL)
+@collection
 class TrackModel {
-  int id;
+  // Isar requiere que Id sea un entero asignable.
+  Id id;
+
   String name;
   bool isVisible;
   String hexColor;
@@ -78,25 +79,45 @@ class TrackModel {
   List<TrackPointModel> points;
   List<WaypointModel> waypoints;
 
+  /// 🌟 CONSTRUCTOR PRINCIPAL REPARADO:
+  /// Añadimos 'id' opcional. Si se pasa, Isar y Riverpod lo respetan.
+  /// Si no se pasa, genera automáticamente el código de tiempo seguro.
   TrackModel({
-    required this.name,
+    this.name = '',
     this.isVisible = true,
     this.hexColor = '#007AFF',
     this.importedAt,
     List<TrackPointModel>? points,
     List<WaypointModel>? waypoints,
-    int? id,
-  }) : id =
-           id ??
-           DateTime.now()
-               .microsecondsSinceEpoch, // Si és nou, genera ID; si es clona, el manté.
-       points = points ?? [],
-       waypoints = waypoints ?? [] {
+    int? id, // 👈 Parámetro nominal reintroducido con éxito
+  }) : id = id ?? (DateTime.now().microsecondsSinceEpoch & 0x1FFFFFFFFFFFFF),
+       points = points ?? const [],
+       waypoints = waypoints ?? const [] {
     this.importedAt = importedAt ?? DateTime.now();
   }
 
-  /// 🔥 EL MÈTODE SOLUCIÓ: Clona l'objecte de forma immutable transparent per a Riverpod i Isar.
-  /// Evita que es generi un ID nou en utilitzar copyWith.
+  /// Helper alternativo que mantiene compatibilidad si tu app lo llamaba en otras pantallas
+  factory TrackModel.create({
+    required String name,
+    bool isVisible = true,
+    String hexColor = '#007AFF',
+    DateTime? importedAt,
+    List<TrackPointModel>? points,
+    List<WaypointModel>? waypoints,
+    int? id,
+  }) {
+    return TrackModel(
+      id: id,
+      name: name,
+      isVisible: isVisible,
+      hexColor: hexColor,
+      importedAt: importedAt,
+      points: points,
+      waypoints: waypoints,
+    );
+  }
+
+  /// Copia el objeto de forma inmutable sin romper referencias ni perder el ID
   TrackModel copyWith({
     String? name,
     bool? isVisible,
@@ -106,12 +127,11 @@ class TrackModel {
     List<WaypointModel>? waypoints,
   }) {
     return TrackModel(
-      id: this.id, // 👈 Clau: Forcem a mantenir l'ID original de la capa
+      id: this.id, // Forzamos a mantener el ID original al clonar capas
       name: name ?? this.name,
       isVisible: isVisible ?? this.isVisible,
       hexColor: hexColor ?? this.hexColor,
       importedAt: importedAt ?? this.importedAt,
-      // Fem servir List.from per assegurar-nos que es trenca la referència de memòria de la llista vella
       points: points ?? List<TrackPointModel>.from(this.points),
       waypoints: waypoints ?? List<WaypointModel>.from(this.waypoints),
     );

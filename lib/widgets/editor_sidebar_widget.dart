@@ -8,7 +8,6 @@ import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/vars/track_colors.dart';
 import 'package:trackio/widgets/color_palette_dialog.dart';
-import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 class EditorSidebarWidget extends ConsumerWidget {
@@ -296,6 +295,11 @@ class _SidebarToolsPanel extends ConsumerWidget {
       gpxEditorProvider.select((s) => s.showElevationChart),
     );
 
+    // 🌟 EXTRAEM TAMBÉ EL TRACK SELECCIONAT PER SABER SI EL BOTÓ HA D'ESTAR ACTIU O BLOCAT
+    final selectedTrackId = ref.watch(
+      gpxEditorProvider.select((s) => s.selectedTrackId),
+    );
+
     return Column(
       children: [
         Row(
@@ -388,6 +392,47 @@ class _SidebarToolsPanel extends ConsumerWidget {
           ),
           onPressed: () =>
               ref.read(gpxEditorProvider.notifier).toggleElevationChart(),
+        ),
+        const SizedBox(height: 8),
+
+        // =========================================================================
+        // 📍 INSERCIÓ NETA: BOTÓ ÚNIC GLOBAL PER AL MODE WAYPOINT (TRACK ACTIU)
+        // =========================================================================
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size.fromHeight(40),
+            // Si l'eina està activa es posa de color blau per avisar l'usuari
+            backgroundColor: liveActiveTool == 'add_waypoint'
+                ? Colors.blue.shade700
+                : null,
+            foregroundColor: liveActiveTool == 'add_waypoint'
+                ? Colors.white
+                : null,
+          ),
+          icon: Icon(
+            liveActiveTool == 'add_waypoint'
+                ? Icons.gps_fixed
+                : Icons.add_location_alt_rounded,
+          ),
+          label: Text(
+            liveActiveTool == 'add_waypoint'
+                ? "Aturar Waypoint"
+                : "Afegir Waypoint",
+          ),
+          // 🔒 SEGURETAT: Si no hi ha cap track seleccionat a la llista, el botó es desactiva (null)
+          onPressed: selectedTrackId == null
+              ? null
+              : () {
+                  if (liveActiveTool == 'add_waypoint') {
+                    // Si ja estava encès, en prémer-ho el desactivem tornant a 'none'
+                    ref.read(gpxEditorProvider.notifier).setActiveTool('none');
+                  } else {
+                    // Si estava apagat, activem el mode de fites per pintar la retícula
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .setActiveTool('add_waypoint');
+                  }
+                },
         ),
       ],
     );

@@ -11,7 +11,6 @@ import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/screens/main_editor_layout.dart';
-
 import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/static_editor_map_widget.dart';
 
@@ -50,9 +49,11 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
     final bool isSplitMode = activeTool == 'split';
     final bool isRangeMode = activeTool == 'range_map';
     final bool isMergeMode = activeTool == 'merge';
+    final bool isWaypointMode = activeTool == 'add_waypoint';
 
-    // La mira vermella es mostrarà si estem en split, en range o en mode merge!
-    final bool showReticle = isSplitMode || isRangeMode || isMergeMode;
+    // Afegeix el mode waypoint a la teva variable showReticle existent:
+    final bool showReticle =
+        isSplitMode || isRangeMode || isMergeMode || isWaypointMode;
 
     // Invisible wire (ref.listen) que injecta dades directament a la GPU sense refer el widget
     ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
@@ -61,9 +62,8 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
         _focusTrack(next.selectedTrackId, next.tracks);
       }
 
-      // 🌟 REPARADO: Si hay elementos cargando, el ref.listen se mantiene en silencio
-      if (previous?.tracks.length != next.tracks.length &&
-          next.loadingTrackIds.isEmpty) {
+      // 🌟 REPARADO: Repintem també quan canvia visibilitat/color/waypoints (no només la longitud).
+      if (previous?.tracks != next.tracks && next.loadingTrackIds.isEmpty) {
         _paintTracks(next.tracks);
       }
 
@@ -100,6 +100,7 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
         const _ReactiveSplitButton(),
         const _ReactiveRangeButton(),
         const _ReactiveMergeButton(),
+        const _ReactiveWaypointButton(),
       ],
     );
 
@@ -116,7 +117,14 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   }
 
   void _handleCameraMove(CameraPosition pos, GpxEditorState state) {
-    // 🌟 REPARAT: Afegim 'merge' al filtre de seguretat per deixar passar l'eina
+    // 📍 MODO WAYPOINT OPTIMIZADO CONTRA CONGELAMIENTO
+    if (state.activeTool == 'add_waypoint') {
+      // 1. Solo cambiamos el flag de reposo si realmente estaba en TRUE, evitando bucles repetitivos de renderizado
+      if (state.isMapIdle) {
+        ref.read(gpxEditorProvider.notifier).setMapIdle(false);
+      }
+      return;
+    }
     if (state.activeTool != 'split' &&
         state.activeTool != 'range_map' &&
         state.activeTool != 'merge')
@@ -141,6 +149,19 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
 
   void _handleCameraIdle() {
     final state = ref.read(gpxEditorProvider);
+    // 📍 MODO WAYPOINT CUANDO EL MAPA SE DETIENE POR COMPLETO
+    if (state.activeTool == 'add_waypoint') {
+      final pos = _controller?.cameraPosition;
+      if (pos != null) {
+        ref
+            .read(gpxEditorProvider.notifier)
+            .updateWaypointPosition(pos.target.latitude, pos.target.longitude);
+      }
+      // Activamos el reposo de forma segura al final para que emerja el botón flotante
+      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      return;
+    }
+
     // 🌟 REPARAT: Deixem passar també 'merge' quan el mapa es quedi quiet
     if (state.activeTool != 'split' &&
         state.activeTool != 'range_map' &&
@@ -386,69 +407,104 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
   Future<void> _paintTracks(List<TrackModel> tracks) async {
     if (_controller == null) return;
 
+    final Set<String> wantedLayerIds = tracks
+        .expand((track) => ["layer_${track.id}", "layer_wp_${track.id}"])
+        .toSet();
+
     // 🔥 1) ESCOMBRADOR TOTAL DE SEGURETAT:
-    // Com que els tracks vells (esborrats pel split) ja no estan a la llista de dades,
-    // demanem al controlador de MapLibre que elimini de la GPU qualsevol capa que estigués dibuixada.
+    // Eliminem només capes de tracks que ja no existeixen a l'estat.
     try {
       final List<String> currentLayers = (await _controller!.getLayerIds())
           .cast<String>();
+      final Set<String> currentLayerSet = currentLayers.toSet();
 
       for (final layerId in currentLayers) {
         if (layerId.startsWith("layer_") &&
             layerId != "layer_range_white" &&
             layerId != "layer_range_orange" &&
-            layerId != "layer_snapped_circle") {
+            layerId != "layer_snapped_circle" &&
+            !wantedLayerIds.contains(layerId)) {
           try {
             await _controller!.removeLayer(layerId);
           } catch (_) {}
         }
       }
-    } catch (e) {
-      debugPrint("Avís netejant capes velles: $e");
-    }
 
-    // 🔥 2) PINTAT REFRESCAT DELS TRACKS ACTIUS (BLINDAT CONTRA COL·LISIONS WEB)
-    // Recuperem de la GPU el llistat real de fonts registrades en aquest instant
-    final List<String> existingSources = (await _controller!.getSourceIds())
-        .cast<String>();
+      // 🔥 2) PINTAT REFRESCAT DELS TRACKS ACTIUS (BLINDAT CONTRA COL·LISIONS WEB)
+      // Recuperem de la GPU el llistat real de fonts registrades en aquest instant.
+      final Set<String> existingSourceSet = (await _controller!.getSourceIds())
+          .cast<String>()
+          .toSet();
 
-    for (final track in tracks) {
-      // 🔒 PROTECCIÓ: Si el track està buit (perquè és un "fantasma" carregant), ens el saltem
-      if (track.points.isEmpty) continue;
+      for (final track in tracks) {
+        if (track.points.isEmpty) continue;
 
-      final sourceId = "source_${track.id}";
-      final layerId = "layer_${track.id}";
-      final coords = track.points
-          .where((p) => p.latitude != null && p.longitude != null)
-          .map((p) => [p.longitude!, p.latitude!])
-          .toList();
+        final sourceId = "source_${track.id}";
+        final layerId = "layer_${track.id}";
+        final waypointSourceId = "source_wp_${track.id}";
+        final waypointLayerId = "layer_wp_${track.id}";
+        final coords = track.points
+            .where((p) => p.latitude != null && p.longitude != null)
+            .map((p) => [p.longitude!, p.latitude!])
+            .toList();
+        final waypointCoords = track.waypoints
+            .where((p) => p.latitude != null && p.longitude != null)
+            .map((p) => [p.longitude!, p.latitude!])
+            .toList();
 
-      if (coords.isEmpty) continue;
+        if (coords.isEmpty) continue;
 
-      // Generem l'estructura de dades GeoJSON a injectar
-      final Map<String, dynamic> trackGeojson = {
-        "type": "FeatureCollection",
-        "features": [
-          {
-            "type": "Feature",
-            "geometry": {"type": "LineString", "coordinates": coords},
-          },
-        ],
-      };
+        final Map<String, dynamic> trackGeojson = {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {"type": "LineString", "coordinates": coords},
+            },
+          ],
+        };
+        final Map<String, dynamic> waypointGeojson = {
+          "type": "FeatureCollection",
+          "features": waypointCoords
+              .map(
+                (c) => {
+                  "type": "Feature",
+                  "geometry": {"type": "Point", "coordinates": c},
+                },
+              )
+              .toList(),
+        };
 
-      // 🔄 RAMIFICACIÓ INTEL·LIGENT EN CALENT:
-      if (existingSources.contains(sourceId)) {
-        // OPCIÓ A: La font ja existeix a la GPU. Actualitzem els punts directament en memòria.
-        // Això és instantani i evita l'error 'Source already exists' de MapLibre Web.
-        await _controller!.setGeoJsonSource(sourceId, trackGeojson);
-      } else {
-        // OPCIÓ B: La font és nova. La registrem des de zero i li creem la seva capa visual.
-        await _controller!.addSource(
-          sourceId,
-          GeojsonSourceProperties(data: trackGeojson),
-        );
+        if (existingSourceSet.contains(sourceId)) {
+          await _controller!.setGeoJsonSource(sourceId, trackGeojson);
+        } else {
+          await _controller!.addSource(
+            sourceId,
+            GeojsonSourceProperties(data: trackGeojson),
+          );
+          existingSourceSet.add(sourceId);
+        }
 
-        // Injectem garantint que el track es dibuixa a baix de la línia discontínua blanca del split
+        if (existingSourceSet.contains(waypointSourceId)) {
+          await _controller!.setGeoJsonSource(
+            waypointSourceId,
+            waypointGeojson,
+          );
+        } else {
+          await _controller!.addSource(
+            waypointSourceId,
+            GeojsonSourceProperties(data: waypointGeojson),
+          );
+          existingSourceSet.add(waypointSourceId);
+        }
+
+        // Recreem capa quan cal per garantir que no desaparegui i actualitzar visibilitat/color.
+        if (currentLayerSet.contains(layerId)) {
+          try {
+            await _controller!.removeLayer(layerId);
+          } catch (_) {}
+        }
+
         await _controller!.addLineLayer(
           sourceId,
           layerId,
@@ -459,7 +515,30 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
           ),
           belowLayerId: "layer_range_white",
         );
+        currentLayerSet.add(layerId);
+
+        if (currentLayerSet.contains(waypointLayerId)) {
+          try {
+            await _controller!.removeLayer(waypointLayerId);
+          } catch (_) {}
+        }
+
+        await _controller!.addCircleLayer(
+          waypointSourceId,
+          waypointLayerId,
+          CircleLayerProperties(
+            circleColor: "#FFFFFF",
+            circleRadius: 5.0,
+            circleStrokeColor: track.hexColor,
+            circleStrokeWidth: 2.0,
+            circleOpacity: track.isVisible ? 1.0 : 0.0,
+            circleStrokeOpacity: track.isVisible ? 1.0 : 0.0,
+          ),
+        );
+        currentLayerSet.add(waypointLayerId);
       }
+    } catch (e) {
+      debugPrint("Avís netejant capes velles: $e");
     }
   }
 
@@ -790,6 +869,70 @@ class _ReactiveMergeButton extends ConsumerWidget {
             // 🤝 3) EXECUTEM EL MERGE A RIVERPOD
             // El Notifier mutarà la llista de tracks en memòria.
             ref.read(gpxEditorProvider.notifier).executeTracksMerge();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// 📍 COMPONENT REACTIU: BOTÓ FLOTANT PER AFEGIR WAYPOINTS
+class _ReactiveWaypointButton extends ConsumerWidget {
+  const _ReactiveWaypointButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Escoltem només el canvi de l'eina, si el mapa s'ha aturat i si el panell inferior està obert
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
+    final hasSelectedTrack = ref.watch(
+      gpxEditorProvider.select((s) => s.selectedTrackId != null),
+    );
+    final showElevationChart = ref.watch(
+      gpxEditorProvider.select((s) => s.showElevationChart),
+    );
+
+    // Si l'eina no és la de waypoints, o el mapa es mou, o no hi ha track seleccionat, s'amaga
+    if (activeTool != 'add_waypoint' || !isMapIdle || !hasSelectedTrack) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      // S'adapta automàticament per no xocar amb el gràfic d'elevació inferior
+      bottom: showElevationChart ? 200 : 24,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: FloatingActionButton.extended(
+          backgroundColor: Colors.blueAccent.shade700,
+          icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white),
+          label: const Text(
+            "Afegir waypoint",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          onPressed: () async {
+            final screenState = context
+                .findAncestorStateOfType<_MainEditorScreenState>();
+            if (screenState == null) return;
+
+            // 1) Inserim el waypoint a la llista de l'estat de Riverpod
+            ref
+                .read(gpxEditorProvider.notifier)
+                .addWaypointToSelectedTrack(
+                  name: "WP-${DateTime.now().second}",
+                  comment: "Afegit des de la retícula",
+                );
+
+            // 2) Forcem el repintat de les capes del mapa perquè dibuixi la nova fita a la GPU
+            final estatActualitzat = ref.read(gpxEditorProvider);
+            await screenState._paintTracks(estatActualitzat.tracks);
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Waypoint afegit correctament al track actiu"),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
           },
         ),
       ),
