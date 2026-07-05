@@ -25,4 +25,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get confirmSplit => 'Split here';
+
+  @override
+  String get processingGpxFile => 'Processing GPX file...';
+
+  @override
+  String get selectSplitPoint => 'Select split point';
+
+  @override
+  String get confirmRangeStartPoint => 'Confirm start point';
+
+  @override
+  String get confirmRangeEndPoint => 'Confirm end point';
+
+  @override
+  String get selectNewRange => 'Select new range';
+
+  @override
+  String get confirmTracksMerge => 'Confirm track merge';
 }

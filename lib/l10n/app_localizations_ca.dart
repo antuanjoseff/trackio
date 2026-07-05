@@ -25,4 +25,22 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get confirmSplit => 'Tallar aquí';
+
+  @override
+  String get processingGpxFile => 'Processant arxiu GPX...';
+
+  @override
+  String get selectSplitPoint => 'Seleccionar punt de tall';
+
+  @override
+  String get confirmRangeStartPoint => 'Confirmar punt inicial';
+
+  @override
+  String get confirmRangeEndPoint => 'Confirmar punt final';
+
+  @override
+  String get selectNewRange => 'Seleccionar nou tram';
+
+  @override
+  String get confirmTracksMerge => 'Confirmar unió de tracks';
 }

@@ -10,10 +10,10 @@ import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
+import 'package:trackio/screens/main_editor_layout.dart';
 
 import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/static_editor_map_widget.dart';
-import 'package:trackio/widgets/elevation_chart_panel.dart';
 
 class MainEditorScreen extends ConsumerStatefulWidget {
   const MainEditorScreen({super.key});
@@ -103,84 +103,15 @@ class _MainEditorScreenState extends ConsumerState<MainEditorScreen> {
       ],
     );
 
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(title: Text(t.appTitle)),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth > 800) {
-                return Row(
-                  children: [
-                    Container(
-                      width: constraints.maxWidth * 0.25,
-                      color: Colors.grey.shade100,
-                      child: EditorSidebarWidget(
-                        state: editorState,
-                        t: t,
-                        onPaintTracks: _paintTracks,
-                        onReverseTrack: _reverseSelectedTrackWithAnimation,
-                        onImportPressed: () => _importGpxFiles(context, ref),
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Expanded(child: mapModule),
-                          if (showElevationChart)
-                            ElevationChartPanel(
-                              editorState: editorState,
-                              height: 180,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              } else {
-                return Column(
-                  children: [
-                    Expanded(child: mapModule),
-                    if (showElevationChart)
-                      ElevationChartPanel(
-                        editorState: editorState,
-                        height: 140,
-                        textFontSize: 12,
-                      ),
-                  ],
-                );
-              }
-            },
-          ),
-        ),
-
-        // 🎯 L'INDICADOR CENTRAL SIMPLE (Només es mostra mentre processem el GPX)
-        if (_isReverseAnimating) // O la teva variable '_isLoading'
-          Container(
-            color: Colors.black.withOpacity(
-              0.3,
-            ), // Atenua una mica el fons per UX
-            child: const Center(
-              child: Card(
-                elevation: 4,
-                child: Padding(
-                  padding: EdgeInsets.all(24.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: Colors.blue),
-                      SizedBox(width: 16),
-                      Text(
-                        "Processant arxiu GPX...",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
+    return MainEditorLayout(
+      t: t,
+      editorState: editorState,
+      mapModule: mapModule,
+      showElevationChart: showElevationChart,
+      isReverseAnimating: _isReverseAnimating,
+      onPaintTracks: _paintTracks,
+      onReverseTrack: _reverseSelectedTrackWithAnimation,
+      onImportPressed: () => _importGpxFiles(context, ref),
     );
   }
 
@@ -691,6 +622,7 @@ class _ReactiveSplitButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
     final hasSnappedPoint = ref.watch(
@@ -710,7 +642,7 @@ class _ReactiveSplitButton extends ConsumerWidget {
             elevation: 6,
           ),
           icon: const Icon(Icons.content_cut),
-          label: const Text("Seleccionar punt de tall"),
+          label: Text(t.selectSplitPoint),
           onPressed: () async {
             // 🔍 1) Busquem la pantalla principal des del context de forma immediata
             final screenState = context
@@ -754,6 +686,7 @@ class _ReactiveRangeButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     // Escoltem de forma aïllada les propietats individuals de l'eina de tram
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
@@ -773,11 +706,11 @@ class _ReactiveRangeButton extends ConsumerWidget {
     if (!show) return const SizedBox.shrink();
 
     // 🏷️ Canviem el text del botó de forma dinàmica segons la fase del tram
-    String labelText = "Confirmar punt inicial";
+    String labelText = t.confirmRangeStartPoint;
     if (hasStart && isSelectingRange) {
-      labelText = "Confirmar punt final";
+      labelText = t.confirmRangeEndPoint;
     } else if (hasStart && !isSelectingRange) {
-      labelText = "Seleccionar nou tram";
+      labelText = t.selectNewRange;
     }
 
     return Center(
@@ -811,6 +744,7 @@ class _ReactiveMergeButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     // Escoltem de forma aïllada per evitar re-renders a la pantalla principal
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
@@ -836,7 +770,7 @@ class _ReactiveMergeButton extends ConsumerWidget {
             elevation: 6,
           ),
           icon: const Icon(Icons.call_merge),
-          label: const Text("Confirmar unió de tracks"),
+          label: Text(t.confirmTracksMerge),
           onPressed: () {
             // 🔍 1) Busquem la pantalla principal des del context de forma immediata
             final screenState = context

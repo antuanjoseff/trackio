@@ -4,5 +4,11 @@
   "toolSplit": "Recortar track",
   "toolMerge": "Unir tracks",
   "toolInverse": "Invertir dirección",
-  "confirmSplit": "Cortar aquí"
+  "confirmSplit": "Cortar aquí",
+  "processingGpxFile": "Procesando archivo GPX...",
+  "selectSplitPoint": "Seleccionar punto de corte",
+  "confirmRangeStartPoint": "Confirmar punto inicial",
+  "confirmRangeEndPoint": "Confirmar punto final",
+  "selectNewRange": "Seleccionar nuevo tramo",
+  "confirmTracksMerge": "Confirmar unión de tracks"
 }
