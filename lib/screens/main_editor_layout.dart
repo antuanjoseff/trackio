@@ -6,6 +6,7 @@ import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/elevation_chart_panel.dart';
+import 'package:trackio/widgets/range_track_selection.dart';
 import 'package:trackio/widgets/track_stats_panel.dart'; // 🌟 1. IMPORTAMOS TU NUEVO PANEL DE DATOS
 
 class MainEditorLayout extends ConsumerWidget {
@@ -124,10 +125,10 @@ class MainEditorLayout extends ConsumerWidget {
               IconButton(
                 tooltip: t.selectRange,
                 isSelected: liveActiveTool == 'range_map',
-                selectedIcon: TrackioIcons.selectAndExtract(
+                selectedIcon: TrackRangeSelection(
                   color: Colors.orange.shade700,
                 ),
-                icon: TrackioIcons.selectAndExtract(
+                icon: TrackRangeSelection(
                   color: isDisabled ? Colors.grey.shade400 : Colors.orange,
                 ),
                 style: IconButton.styleFrom(

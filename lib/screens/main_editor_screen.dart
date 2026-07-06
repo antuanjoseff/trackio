@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/models/track_model.dart';
@@ -946,7 +947,7 @@ class _ReactiveWaypointButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
-    // Escoltem només el canvi de l'eina, si el mapa s'ha aturat i si el panell inferior està obert
+
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
     final hasSelectedTrack = ref.watch(
@@ -956,13 +957,11 @@ class _ReactiveWaypointButton extends ConsumerWidget {
       gpxEditorProvider.select((s) => s.showElevationChart),
     );
 
-    // Si l'eina no és la de waypoints, o el mapa es mou, o no hi ha track seleccionat, s'amaga
     if (activeTool != 'add_waypoint' || !isMapIdle || !hasSelectedTrack) {
       return const SizedBox.shrink();
     }
 
     return Positioned(
-      // S'adapta automàticament per no xocar amb el gràfic d'elevació inferior
       bottom: showElevationChart ? 200 : 24,
       left: 0,
       right: 0,
@@ -972,28 +971,46 @@ class _ReactiveWaypointButton extends ConsumerWidget {
           icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white),
           label: Text(
             t.addWaypoint,
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           onPressed: () async {
             final screenState = context
                 .findAncestorStateOfType<_MainEditorScreenState>();
             if (screenState == null) return;
 
-            // 1) Inserim el waypoint a la llista de l'estat de Riverpod
+            // 1) Track actiu
+            final state = ref.read(gpxEditorProvider);
+            final track = state.tracks.firstWhere(
+              (t) => t.id == state.selectedTrackId,
+            );
+
+            // 2) Punt N
+            final int n = track.waypoints.length + 1;
+            final String defaultName = "Punt $n";
+
+            // 3) Diàleg
+            final String? name = await askWaypointNameDialog(
+              context,
+              defaultName,
+            );
+            if (name == null || name.isEmpty) return;
+
+            // 4) Afegir waypoint
             ref
                 .read(gpxEditorProvider.notifier)
-                .addWaypointToSelectedTrack(
-                  name: "${t.waypointNamePrefix}-${DateTime.now().second}",
-                  comment: t.waypointCommentFromGrid,
-                );
+                .addWaypointToSelectedTrack(name: name, comment: "");
 
-            // 2) Forcem el repintat de les capes del mapa perquè dibuixi la nova fita a la GPU
-            final estatActualitzat = ref.read(gpxEditorProvider);
-            await screenState._paintTracks(estatActualitzat.tracks);
+            // 5) Repintar mapa
+            final updated = ref.read(gpxEditorProvider);
+            await screenState._paintTracks(updated.tracks);
 
+            // 6) Feedback
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(t.waypointAddedToActiveTrack),
+                content: Text("Waypoint afegit: $name"),
                 behavior: SnackBarBehavior.floating,
               ),
             );

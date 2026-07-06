@@ -238,6 +238,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             // Desactivem els tooltips natius només en modo 'range_map' per a que no facin nosa en arrossegar el dit
             handleBuiltInTouches: activeTool != 'range_map',
             touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+              if (event is FlPanStartEvent || event is FlTapDownEvent) {
+                ref.read(gpxEditorProvider.notifier).setActiveTool('range_map');
+              }
+
               if (touchResponse == null ||
                   touchResponse.lineBarSpots == null ||
                   touchResponse.lineBarSpots!.isEmpty) {
