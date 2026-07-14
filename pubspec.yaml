@@ -25,6 +25,7 @@ dependencies:
   fl_chart:
   riverpod_annotation:
   file_picker: ^11.0.2
+  http:
 
 dev_dependencies:
   flutter_test:
