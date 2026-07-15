@@ -11,6 +11,7 @@ class GpxEditorState {
   final TrackPointModel? snappedPoint;
   final int? snappedPointIndex;
   final bool isMapIdle;
+  final bool showSidebar;
 
   // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint', 'draw' 👈 NUEVA
   final String activeTool;
@@ -50,6 +51,7 @@ class GpxEditorState {
     this.previewPoints,
     this.loadingTrackIds = const [],
     this.waypointCameraPosition,
+    this.showSidebar = true,
     // 🌟 Inicialitzadors per defecte
     this.drawingPoints = const [],
     this.drawingLivePoint,
@@ -77,6 +79,7 @@ class GpxEditorState {
     Object? previewPoints = _noChange,
     List<int>? loadingTrackIds,
     Object? waypointCameraPosition = _noChange,
+    bool? showSidebar,
     // 🌟 Paràmetres opcionals per al copyWith
     List<TrackPointModel>? drawingPoints,
     Object? drawingLivePoint = _noChange,
@@ -127,7 +130,7 @@ class GpxEditorState {
       waypointCameraPosition: identical(waypointCameraPosition, _noChange)
           ? this.waypointCameraPosition
           : waypointCameraPosition as LatLng?,
-      // 🌟 Retorn dels nous estats calculats respectant el patró _noChange per poder fer null el live
+      showSidebar: showSidebar ?? this.showSidebar, // 👈 AFEGIT
       drawingPoints: drawingPoints ?? this.drawingPoints,
       drawingLivePoint: identical(drawingLivePoint, _noChange)
           ? this.drawingLivePoint

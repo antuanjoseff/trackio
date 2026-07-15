@@ -1,18 +1,21 @@
+// 🌟 EL NOU PROVIDER TRADICIONAL (KeepAlive per defecte, no es reinicia mai sol)
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/services/track_elevation_service.dart';
 
-part 'gpx_editor_notifier.g.dart';
+final gpxEditorProvider = StateNotifierProvider<GpxEditor, GpxEditorState>((
+  ref,
+) {
+  return GpxEditor();
+});
 
-@riverpod
-class GpxEditor extends _$GpxEditor {
-  @override
-  GpxEditorState build() {
-    return GpxEditorState.initial();
-  }
+// Cambiem la definició de la classe perquè hereti de StateNotifier en comptes de _$GpxEditor
+class GpxEditor extends StateNotifier<GpxEditorState> {
+  // El constructor clàssic inicialitza l'estat directament
+  GpxEditor() : super(GpxEditorState.initial());
 
   /// Selecciona el track en el estado global.
   void selectTrack(int? trackId) {
@@ -92,6 +95,14 @@ class GpxEditor extends _$GpxEditor {
       tracks: [...state.tracks, ...fixed],
       selectedTrackId: fixed.first.id,
     );
+  }
+
+  /// 🌟 NOU: Alterna la visibilitat del panell lateral esquerre
+  void toggleSidebar() {
+    debugPrint(
+      "🌟 TOGGLE SIDEBAR: ${state.showSidebar ? 'CERRANDO' : 'ABRIEND'}",
+    );
+    state = state.copyWith(showSidebar: !state.showSidebar);
   }
 
   // =========================================================================
@@ -715,7 +726,6 @@ class GpxEditor extends _$GpxEditor {
   void updateDrawingLiveLocationWithoutZ(double lat, double lon) {
     if (state.activeTool != 'draw') return;
 
-    // Creem el punt efímer mantenint l'alçada a 0 durant el desplaçament continu
     final provisionalPoint = TrackPointModel(
       latitude: lat,
       longitude: lon,
@@ -723,10 +733,7 @@ class GpxEditor extends _$GpxEditor {
       timestamp: DateTime.now(),
     );
 
-    state = state.copyWith(
-      drawingLivePoint: provisionalPoint,
-      // Forcem un mini-refresc visual lleuger per al gràfic en moviment
-      tracks: List.from(state.tracks),
-    );
+    // 🌟 REPARACIÓ: Eliminem el 'tracks: List.from' per trencar el bucle infinit!
+    state = state.copyWith(drawingLivePoint: provisionalPoint);
   }
-}
+} // Tancament oficial de la classe GpxEditor

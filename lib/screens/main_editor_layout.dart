@@ -7,13 +7,13 @@ import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/elevation_chart_panel.dart';
 import 'package:trackio/widgets/range_track_selection.dart';
-import 'package:trackio/widgets/track_stats_panel.dart'; // 🌟 1. IMPORTAMOS TU NUEVO PANEL DE DATOS
+import 'package:trackio/widgets/track_stats_panel.dart';
 
 class MainEditorLayout extends ConsumerWidget {
   const MainEditorLayout({
     super.key,
     required this.t,
-    required this.editorState,
+    required this.editorState, // El mantenim al constructor per evitar errors de compilació al pare
     required this.mapModule,
     required this.showElevationChart,
     required this.isReverseAnimating,
@@ -33,7 +33,7 @@ class MainEditorLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 🌟 LLEGIM ELS ESTATS PER REACCIONAR DINÀMICAMENT A LA APPBAR
+    // 🔒 RADAR EN VIU TOTALMENT REACTIU DEL PROPI LAYOUT
     final liveActiveTool = ref.watch(
       gpxEditorProvider.select((s) => s.activeTool),
     );
@@ -43,8 +43,13 @@ class MainEditorLayout extends ConsumerWidget {
     final liveShowChart = ref.watch(
       gpxEditorProvider.select((s) => s.showElevationChart),
     );
+    final liveShowSidebar = ref.watch(
+      gpxEditorProvider.select((s) => s.showSidebar),
+    );
+    final currentFullState = ref.watch(gpxEditorProvider);
 
     final bool isDisabled = selectedTrackId == null;
+
     return Stack(
       children: [
         Scaffold(
@@ -173,10 +178,9 @@ class MainEditorLayout extends ConsumerWidget {
                           ),
               ),
 
-              // 🎨 5.2. NOU BOTÓ EN LA BARRA: EINA DIBUIXAR RUTA DE ZERO
+              // 🎨 5.2. EINA DIBUIXAR RUTA DE ZERO
               IconButton(
-                tooltip: t
-                    .toolDraw, // "Dibuixar ruta" / "Dibujar ruta" / "Draw route"
+                tooltip: t.toolDraw,
                 isSelected: liveActiveTool == 'draw',
                 selectedIcon: const Icon(
                   Icons.gesture_rounded,
@@ -196,7 +200,7 @@ class MainEditorLayout extends ConsumerWidget {
 
               const VerticalDivider(indent: 12, endIndent: 12, width: 16),
 
-              // ↕️ 6. GRÀFIC D'ELEVACIONS (Aquest no es bloqueja si isDisabled és true)
+              // ↕️ 6. GRÀFIC D'ELEVACIONS
               IconButton(
                 tooltip: t.elevationProfile,
                 icon: Icon(
@@ -217,30 +221,45 @@ class MainEditorLayout extends ConsumerWidget {
           body: LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth > 800) {
+                // Calculem la mida exacta del 25% en píxels reals per donar estabilitat visual
+                final double sidebarWidth = constraints.maxWidth * 0.25;
+
                 return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: constraints.maxWidth * 0.25,
-                      color: Colors.grey.shade100,
-                      child: EditorSidebarWidget(
-                        state: editorState,
-                        t: t,
-                        onPaintTracks: onPaintTracks,
-                        onReverseTrack: onReverseTrack,
-                        onImportPressed: onImportPressed,
+                    // 🌟 REPARACIÓ VISUAL CLAU: Canviem el 'if' que bloquejava la llista per un contenidor reactiu.
+                    // Si 'liveShowSidebar' passa a fals, l'amplada s'encongeix de cop a 0.0 de forma física,
+                    // tancant el panell i obligant a l'Expanded del costat a estirar el mapa a l'acte.
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOut,
+                      width: liveShowSidebar ? sidebarWidth : 0.0,
+                      child: ClipRRect(
+                        child: SizedBox(
+                          width: liveShowSidebar ? sidebarWidth : 0.0,
+                          child: EditorSidebarWidget(
+                            state: currentFullState,
+                            t: t,
+                            onPaintTracks: onPaintTracks,
+                            onReverseTrack: onReverseTrack,
+                            onImportPressed: onImportPressed,
+                          ),
+                        ),
                       ),
                     ),
+
+                    // 🌟 COMPONENT EXPANDIBLE: El mòdul del mapa ara s'adaptarà al 100% de píxels
                     Expanded(
                       child: Column(
                         children: [
                           Expanded(child: mapModule),
 
-                          // 🎯 2. VISTA ESCRITORIO: Inyectamos el panel de datos justo por encima del gráfico
+                          // VISTA ESCRITORIO
                           const TrackStatsPanel(),
 
                           if (showElevationChart)
                             ElevationChartPanel(
-                              editorState: editorState,
+                              editorState: currentFullState,
                               height: 180,
                             ),
                         ],
@@ -249,16 +268,14 @@ class MainEditorLayout extends ConsumerWidget {
                   ],
                 );
               } else {
+                // VISTA MÓVIL
                 return Column(
                   children: [
                     Expanded(child: mapModule),
-
-                    // 🎯 3. VISTA MÓVIL: Inyectamos el mismo panel aquí también por encima del gráfico
                     const TrackStatsPanel(),
-
                     if (showElevationChart)
                       ElevationChartPanel(
-                        editorState: editorState,
+                        editorState: currentFullState,
                         height: 140,
                         textFontSize: 12,
                       ),

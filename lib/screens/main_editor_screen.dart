@@ -55,7 +55,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final showElevationChart = ref.watch(
       gpxEditorProvider.select((s) => s.showElevationChart),
     );
-    final editorState = ref.read(gpxEditorProvider);
+
+    final editorState = ref.watch(gpxEditorProvider);
+    final liveShowSidebar = ref.watch(
+      gpxEditorProvider.select((s) => s.showSidebar),
+    );
 
     final bool showReticle = [
       'split',
@@ -97,6 +101,37 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               _handleCameraMove(pos, ref.read(gpxEditorProvider)),
           onCameraIdle: _handleCameraIdle,
         ),
+        // ⭐ BOTÓ DEL SIDEBAR A SOBRE DEL MAPA
+        Positioned(
+          top: 12,
+          left: 12,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.85),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: Icon(
+                liveShowSidebar
+                    ? Icons.view_sidebar
+                    : Icons.view_sidebar_outlined,
+                color: Colors.blue,
+              ),
+              onPressed: () =>
+                  ref.read(gpxEditorProvider.notifier).toggleSidebar(),
+            ),
+          ),
+        ),
+
         if (showReticle)
           const Center(
             child: Icon(Icons.add_circle_outline, size: 40, color: Colors.red),
