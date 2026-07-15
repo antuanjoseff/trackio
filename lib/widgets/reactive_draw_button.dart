@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/l10n/app_localizations.dart';
+import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/screens/main_editor_screen.dart';
 
@@ -17,11 +19,9 @@ class ReactiveDrawButton extends ConsumerWidget {
       gpxEditorProvider.select((s) => s.drawingPoints.length),
     );
 
-    // Només es mostra si l'eina activa és exactament 'draw'
     if (activeTool != 'draw') return const SizedBox.shrink();
 
     return Positioned(
-      // 🌟 PAS A PAS 1: El fixem a dalt de tot del mapa per a una millor usabilitat
       top: 16,
       left: 16,
       right: 16,
@@ -61,8 +61,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
 
-                // 🌟 PAS A PAS 2: EL BOTÓ CENTRAL CRÍTIC PER FIXAR COORDENADES
-                // Llegeix el controlador públic de la pantalla principal i clava el node
+                // 🌟 2️⃣ RECUPERAT: BOTÓ BLAU CENTRAL PER FIXAR PUNTS EN VIU
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade700,
@@ -77,15 +76,18 @@ class ReactiveDrawButton extends ConsumerWidget {
                     final screenState = context
                         .findAncestorStateOfType<MainEditorScreenState>();
 
-                    // Comprovació de seguretat del controlador públic sense el guió baix
+                    // Comprovació de seguretat del controlador públic
                     if (screenState == null || screenState.controller == null)
                       return;
 
-                    // Capturem les coordenades en 2D exactes de la càmera de MapLibre
+                    // Netegem el focus per evitar conflictes amb la tecla Enter global
+                    FocusScope.of(context).unfocus();
+
+                    // Capturem la coordenada del centre de la pantalla
                     final center =
                         screenState.controller!.cameraPosition?.target;
                     if (center != null) {
-                      // Pugem el node al llistat temporal de Riverpod (resolent la Z a la cua)
+                      // Pugem el punt a Riverpod (l'alçada es calcula a la cua)
                       ref
                           .read(gpxEditorProvider.notifier)
                           .addPointToNewTrack(
@@ -93,7 +95,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                             center.longitude,
                           );
 
-                      // Forcem a la GPU a connectar immediatament la línia elàstica taronja
+                      // Forcem el repintat de la línia elàstica taronja
                       screenState.paintLiveOverlays(
                         ref.read(gpxEditorProvider),
                       );
@@ -128,7 +130,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
 
-                // 4️⃣ BOTÓ DESAR RUTA FINISHED
+                // 4️⃣ BOTÓ DESAR RUTA
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green.shade700,
@@ -146,16 +148,31 @@ class ReactiveDrawButton extends ConsumerWidget {
                           if (screenState == null) return;
 
                           final messenger = ScaffoldMessenger.of(context);
+                          final state = ref.read(gpxEditorProvider);
+
+                          final stats = _calculateDrawingStats(
+                            state.drawingPoints,
+                          );
+
                           final String defaultName =
                               "${t.drawnRouteDefaultName} ${DateTime.now().hour}:${DateTime.now().minute}";
 
-                          final String? trackName = await askTrackNameDialog(
-                            context,
-                            defaultName,
-                          );
+                          // Obrim el diàleg passant els strings obtinguts de la meva funció auxiliar
+                          final Map<String, dynamic>? result =
+                              await askTrackNameDialog(
+                                context: context,
+                                defaultName: defaultName,
+                                displayDistance: stats.distanceText,
+                                displayElevation: stats.elevationText,
+                              );
 
-                          if (trackName == null) return;
+                          if (result == null) return;
 
+                          final String trackName = result['name'] as String;
+                          final Duration estimatedTime =
+                              result['duration'] as Duration;
+
+                          // Guardem la ruta a Riverpod
                           ref
                               .read(gpxEditorProvider.notifier)
                               .saveDrawnTrack(trackName);
@@ -203,5 +220,60 @@ class ReactiveDrawButton extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  ({String distanceText, String elevationText}) _calculateDrawingStats(
+    List<TrackPointModel> points,
+  ) {
+    double totalMeters = 0.0;
+    double positiveElevation = 0.0;
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final p1 = points[i];
+      final p2 = points[i + 1];
+
+      if (p1.latitude != null &&
+          p1.longitude != null &&
+          p2.latitude != null &&
+          p2.longitude != null) {
+        totalMeters += _haversineDistance(
+          p1.latitude!,
+          p1.longitude!,
+          p2.latitude!,
+          p2.longitude!,
+        );
+
+        if (p1.elevation != null && p2.elevation != null) {
+          final double diff = p2.elevation! - p1.elevation!;
+          if (diff > 0) positiveElevation += diff;
+        }
+      }
+    }
+
+    final double distanceKm = totalMeters / 1000;
+    return (
+      distanceText: "${distanceKm.toStringAsFixed(2)} km",
+      elevationText: "${positiveElevation.toStringAsFixed(0)} m",
+    );
+  }
+
+  double _haversineDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const double radius = 6371000;
+    final double dLat = (lat2 - lat1) * math.pi / 180;
+    final double dLon = (lon2 - lon1) * math.pi / 180;
+
+    final double a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1 * math.pi / 180) *
+            math.cos(lat2 * math.pi / 180) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return radius * c;
   }
 }

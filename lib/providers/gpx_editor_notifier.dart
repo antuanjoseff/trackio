@@ -710,4 +710,23 @@ class GpxEditor extends _$GpxEditor {
 
     return state.drawingPoints;
   }
+
+  /// 📐 MOU LA RETÍCULA EN RÀFEGA SENSE CALCULOS DE Z (Per al moviment fluid 2D)
+  void updateDrawingLiveLocationWithoutZ(double lat, double lon) {
+    if (state.activeTool != 'draw') return;
+
+    // Creem el punt efímer mantenint l'alçada a 0 durant el desplaçament continu
+    final provisionalPoint = TrackPointModel(
+      latitude: lat,
+      longitude: lon,
+      elevation: 0.0,
+      timestamp: DateTime.now(),
+    );
+
+    state = state.copyWith(
+      drawingLivePoint: provisionalPoint,
+      // Forcem un mini-refresc visual lleuger per al gràfic en moviment
+      tracks: List.from(state.tracks),
+    );
+  }
 }

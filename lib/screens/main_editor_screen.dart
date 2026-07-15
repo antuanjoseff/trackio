@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -110,28 +111,61 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       ],
     );
 
-    return MainEditorLayout(
-      t: t,
-      editorState: editorState,
-      mapModule: mapModule,
-      showElevationChart: showElevationChart,
-      isReverseAnimating: _isReverseAnimating,
-      onPaintTracks: _paintTracksWrapper,
-      onReverseTrack: _reverseSelectedTrackWithAnimation,
-      onImportPressed: () => _importGpxFiles(context, ref),
+    return KeyboardListener(
+      // 🌟 Escotem de forma global els esdeveniments del teclat físic a la Web
+      focusNode: FocusNode()
+        ..requestFocus(), // Força el focus automàtic al teclat
+      onKeyEvent: (KeyEvent event) {
+        // Només capturem el moment de pitjar la tecla (evitem repeticions si es manté premuda)
+        if (event is KeyDownEvent) {
+          final currentState = ref.read(gpxEditorProvider);
+
+          // 🔒 Regla de seguretat: Només actuem si l'eina activa és 'draw' i premem Enter
+          if (currentState.activeTool == 'draw' &&
+              (event.logicalKey == LogicalKeyboardKey.enter ||
+                  event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+            // Reutilitzem exactament la mateixa lògica del teu botó blau central:
+            if (_controller != null) {
+              final center = _controller!.cameraPosition?.target;
+              if (center != null) {
+                // 1. Fixem el punt real a Riverpod
+                ref
+                    .read(gpxEditorProvider.notifier)
+                    .addPointToNewTrack(center.latitude, center.longitude);
+
+                // 2. Forcem el repintat instantani de la línia taronja del mapa i el gràfic
+                paintLiveOverlays(ref.read(gpxEditorProvider));
+              }
+            }
+          }
+        }
+      },
+      child: MainEditorLayout(
+        t: t,
+        editorState: editorState,
+        mapModule: mapModule,
+        showElevationChart: showElevationChart,
+        isReverseAnimating: _isReverseAnimating,
+        onPaintTracks: _paintTracksWrapper,
+        onReverseTrack: _reverseSelectedTrackWithAnimation,
+        onImportPressed: () => _importGpxFiles(context, ref),
+      ),
     );
   }
 
   void _handleCameraMove(CameraPosition pos, GpxEditorState state) {
-    // 🌟 BLOC AFÈGIT: Sincronització immediata de la línia elàstica i el gràfic en viu
+    // 🌟 EN MOVIMENT: Sincronització en 2D ultraràpida sense demanar la Z ni tocar la xarxa
     if (state.activeTool == 'draw') {
-      // 1. Envia la posició actual de la retícula central a Riverpod
+      // 1. Modifiquem només la lat/lon del punt efímer en memòria (amb Z=0 temporal)
       ref
           .read(gpxEditorProvider.notifier)
-          .updateDrawingLiveLocation(pos.target.latitude, pos.target.longitude);
-      // 2. Ordena a la GPU del mapa que estire la línia taronja de forma síncrona
+          .updateDrawingLiveLocationWithoutZ(
+            pos.target.latitude,
+            pos.target.longitude,
+          );
+      // 2. Pintem en viu a la GPU de MapLibre a 60 FPS purs
       paintLiveOverlays(ref.read(gpxEditorProvider));
-      return; // Sortida ràpida: Evitem passar pels filtres de snapping de sota
+      return; // Sortida ràpida de seguretat
     }
 
     if (state.activeTool == 'add_waypoint') {
@@ -156,6 +190,23 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
   void _handleCameraIdle() {
     final state = ref.read(gpxEditorProvider);
+
+    // 🌟 AL DETINDRE'S (DEBOUNCE): Resolem la Z real del punt central només quan el mapa es queda quiet
+    if (state.activeTool == 'draw') {
+      final pos = _controller?.cameraPosition;
+      if (pos != null) {
+        // Cridem al teu mètode original que activa la cua per calcular l'alçada real a Azure/Django
+        ref
+            .read(gpxEditorProvider.notifier)
+            .updateDrawingLiveLocation(
+              pos.target.latitude,
+              pos.target.longitude,
+            );
+      }
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
+
     if (state.activeTool == 'add_waypoint') {
       final pos = _controller?.cameraPosition;
       if (pos != null)
