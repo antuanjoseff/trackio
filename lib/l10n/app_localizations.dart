@@ -324,6 +324,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Added from the grid'**
   String get waypointCommentFromGrid;
+
+  /// No description provided for @toolDraw.
+  ///
+  /// In en, this message translates to:
+  /// **'Draw route'**
+  String get toolDraw;
+
+  /// No description provided for @selectDrawPoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Fix point on map'**
+  String get selectDrawPoint;
+
+  /// No description provided for @confirmDrawSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm and save route'**
+  String get confirmDrawSave;
+
+  /// No description provided for @cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @undo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo last point'**
+  String get undo;
+
+  /// No description provided for @drawnRouteDefaultName.
+  ///
+  /// In en, this message translates to:
+  /// **'Drawn Route'**
+  String get drawnRouteDefaultName;
+
+  /// No description provided for @routeSavedSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Route saved successfully'**
+  String get routeSavedSuccess;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

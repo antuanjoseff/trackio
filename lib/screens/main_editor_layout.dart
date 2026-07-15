@@ -173,6 +173,27 @@ class MainEditorLayout extends ConsumerWidget {
                           ),
               ),
 
+              // 🎨 5.2. NOU BOTÓ EN LA BARRA: EINA DIBUIXAR RUTA DE ZERO
+              IconButton(
+                tooltip: t
+                    .toolDraw, // "Dibuixar ruta" / "Dibujar ruta" / "Draw route"
+                isSelected: liveActiveTool == 'draw',
+                selectedIcon: const Icon(
+                  Icons.gesture_rounded,
+                  color: Colors.pinkAccent,
+                  size: 20,
+                ),
+                icon: const Icon(Icons.gesture_rounded, color: Colors.pink),
+                style: IconButton.styleFrom(
+                  backgroundColor: liveActiveTool == 'draw'
+                      ? Colors.pink.shade50
+                      : null,
+                ),
+                onPressed: () => ref
+                    .read(gpxEditorProvider.notifier)
+                    .setActiveTool(liveActiveTool == 'draw' ? 'none' : 'draw'),
+              ),
+
               const VerticalDivider(indent: 12, endIndent: 12, width: 16),
 
               // ↕️ 6. GRÀFIC D'ELEVACIONS (Aquest no es bloqueja si isDisabled és true)

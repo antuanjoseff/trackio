@@ -36,5 +36,12 @@
   "route": "RUTA",
   "waypointAddedToActiveTrack": "Waypoint añadido correctamente al track activo",
   "waypointNamePrefix": "WP",
-  "waypointCommentFromGrid": "Añadido desde la retícula"
+  "waypointCommentFromGrid": "Añadido desde la retícula",
+  "toolDraw": "Dibujar ruta",
+  "selectDrawPoint": "Fijar punto en el mapa",
+  "confirmDrawSave": "Confirmar y guardar ruta",
+  "cancel": "Cancelar",
+  "undo": "Deshacer último punto",
+  "drawnRouteDefaultName": "Ruta Dibujada",
+  "routeSavedSuccess": "Ruta guardada con éxito"
 }

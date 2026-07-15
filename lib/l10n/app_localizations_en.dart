@@ -121,4 +121,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get waypointCommentFromGrid => 'Added from the grid';
+
+  @override
+  String get toolDraw => 'Draw route';
+
+  @override
+  String get selectDrawPoint => 'Fix point on map';
+
+  @override
+  String get confirmDrawSave => 'Confirm and save route';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get undo => 'Undo last point';
+
+  @override
+  String get drawnRouteDefaultName => 'Drawn Route';
+
+  @override
+  String get routeSavedSuccess => 'Route saved successfully';
 }

@@ -12,6 +12,7 @@ import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/screens/main_editor_layout.dart';
+import 'package:trackio/widgets/reactive_draw_button.dart';
 import 'package:trackio/widgets/static_editor_map_widget.dart';
 import 'package:trackio/mixins/map_rendering_mixin.dart';
 import 'package:trackio/widgets/reactive_editor_buttons.dart';
@@ -60,6 +61,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       'range_map',
       'merge',
       'add_waypoint',
+      'draw',
     ].contains(activeTool);
 
     ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
@@ -104,6 +106,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         const ReactiveRangeButton(),
         const ReactiveMergeButton(),
         const ReactiveWaypointButton(),
+        const ReactiveDrawButton(),
       ],
     );
 
@@ -120,6 +123,17 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   }
 
   void _handleCameraMove(CameraPosition pos, GpxEditorState state) {
+    // 🌟 BLOC AFÈGIT: Sincronització immediata de la línia elàstica i el gràfic en viu
+    if (state.activeTool == 'draw') {
+      // 1. Envia la posició actual de la retícula central a Riverpod
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateDrawingLiveLocation(pos.target.latitude, pos.target.longitude);
+      // 2. Ordena a la GPU del mapa que estire la línia taronja de forma síncrona
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return; // Sortida ràpida: Evitem passar pels filtres de snapping de sota
+    }
+
     if (state.activeTool == 'add_waypoint') {
       if (state.isMapIdle)
         ref.read(gpxEditorProvider.notifier).setMapIdle(false);

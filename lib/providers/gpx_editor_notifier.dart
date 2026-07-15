@@ -3,6 +3,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
+import 'package:trackio/services/track_elevation_service.dart';
 
 part 'gpx_editor_notifier.g.dart';
 
@@ -564,5 +565,149 @@ class GpxEditor extends _$GpxEditor {
 
   void toggleSpeedChart() {
     state = state.copyWith(showSpeedInChart: !state.showSpeedInChart);
+  }
+
+  // =========================================================================
+  // 🎨 MÀQUINA D'ESTATS DE L'EINA "DIBUIXAR" (CREACIÓ DE RUTES EN 3D)
+  // =========================================================================
+
+  // Instanciem el teu servei de cua multithread protegit amb el Queue corregit
+  static final TrackElevationService _elevationService =
+      TrackElevationService();
+
+  /// 📐 1. RETÍCULA EN MOVIMENT (línia elàstica temporal)
+  /// Sincronitza la previsualització i demana l'alçada del centre de la pantalla
+  void updateDrawingLiveLocation(double lat, double lon) {
+    if (state.activeTool != 'draw') return;
+
+    final provisionalPoint = TrackPointModel(
+      latitude: lat,
+      longitude: lon,
+      elevation: 0.0,
+      timestamp: DateTime.now(),
+    );
+    state = state.copyWith(drawingLivePoint: provisionalPoint);
+
+    // Demanem Z asíncrona a la cua (el debounce del servei s'encarrega d'esperar el repòs)
+    _elevationService.requestPoint(
+      lat: lat,
+      lon: lon,
+      onResult: (resLat, resLon, ele) {
+        if (state.drawingLivePoint?.latitude == resLat &&
+            state.drawingLivePoint?.longitude == resLon) {
+          state = state.copyWith(
+            drawingLivePoint: TrackPointModel(
+              latitude: resLat,
+              longitude: resLon,
+              elevation: ele,
+              timestamp: state.drawingLivePoint?.timestamp ?? DateTime.now(),
+            ),
+            // 🔥 CLAU: Forcem un re-render de l'estat duplicant la llista de tracks temporals
+            // d'aquesta manera qualsevol giny (com el gràfic) que estigui escoltant reaccionarà en viu.
+            tracks: List.from(state.tracks),
+          );
+        }
+      },
+    );
+  }
+
+  /// 📍 2. FILET DE COORDENADES (CLIC AL MAPA)
+  /// Injecta la coordenada immediatament amb Z=0 i resol l'alçada en segon pla
+  void addPointToNewTrack(double lat, double lon) {
+    if (state.activeTool != 'draw') return;
+
+    final indexNouNode = state.drawingPoints.length;
+    final nouNodeInicial = TrackPointModel(
+      latitude: lat,
+      longitude: lon,
+      elevation: 0.0,
+      timestamp: DateTime.now(),
+    );
+
+    // Feedback instantani a la UI
+    final novesCoordenades = [...state.drawingPoints, nouNodeInicial];
+    state = state.copyWith(drawingPoints: novesCoordenades);
+
+    // Executem la interpolació bilineal des del CogService a través de la cua
+    _elevationService.requestPoint(
+      lat: lat,
+      lon: lon,
+      onResult: (resLat, resLon, ele) {
+        // Quan la tessel·la es descarrega d'Azure, mutem sàviament només l'alçada del node exacte
+        if (indexNouNode < state.drawingPoints.length) {
+          final llistaActualitzada = List<TrackPointModel>.from(
+            state.drawingPoints,
+          );
+          llistaActualitzada[indexNouNode] = TrackPointModel(
+            latitude: resLat,
+            longitude: resLon,
+            elevation: ele,
+            timestamp: llistaActualitzada[indexNouNode].timestamp,
+          );
+          state = state.copyWith(drawingPoints: llistaActualitzada);
+        }
+      },
+    );
+  }
+
+  /// ↩️ 3. DESFER (UNDO DIBUIX)
+  /// Elimina l'última coordenada pitjada per l'usuari
+  void removeLastDrawingPoint() {
+    if (state.drawingPoints.isEmpty) return;
+    final llistaReduida = List<TrackPointModel>.from(state.drawingPoints)
+      ..removeLast();
+    state = state.copyWith(drawingPoints: llistaReduida);
+  }
+
+  /// 🧹 4. CANCEL·LAR ACCIÓ
+  /// Aborta l'edició i buida les llistes temporals de treball
+  void cancelDrawing() {
+    state = state.copyWith(
+      drawingPoints: const [],
+      drawingLivePoint: null,
+      activeTool: 'none',
+    );
+  }
+
+  /// 💾 5. FINALITZAR I DESAR RUTA
+  /// Salva els nodes provisionals com a capa estable a l'editor amb el seu perfil d'elevacions complet
+  void saveDrawnTrack(String trackName) {
+    if (state.drawingPoints.isEmpty) return;
+
+    final int nouId = DateTime.now().microsecondsSinceEpoch;
+
+    final nouTrack = TrackModel(
+      id: nouId,
+      name: trackName.isNotEmpty ? trackName : "Nova Ruta Dibuixada",
+      points: List<TrackPointModel>.from(state.drawingPoints),
+      hexColor: "#E91E63", // Fúcsia d'edició
+      isVisible: true,
+      waypoints: const [],
+    );
+
+    state = state.copyWith(
+      tracks: [...state.tracks, nouTrack],
+      selectedTrackId: nouId, // Auto-enfocament
+      drawingPoints: const [],
+      drawingLivePoint: null,
+      activeTool: 'none',
+    );
+  }
+
+  /// 🌟 NOU PAS A PAS: Retorna la llista de punts clicats + el punt efímer actual de la retícula
+  List<TrackPointModel> getComputedDrawingPoints() {
+    if (state.drawingPoints.isEmpty) {
+      if (state.drawingLivePoint != null) {
+        return [state.drawingLivePoint!];
+      }
+      return const [];
+    }
+
+    // Si tenim un punt efímer actiu amb alçada, el concatenem de forma dinàmica al final
+    if (state.drawingLivePoint != null) {
+      return [...state.drawingPoints, state.drawingLivePoint!];
+    }
+
+    return state.drawingPoints;
   }
 }

@@ -8,7 +8,84 @@ mixin MapRenderingMixin {
   MapLibreMapController? get controller;
 
   void paintLiveOverlays(GpxEditorState state) async {
-    if (controller == null || state.selectedTrackId == null) return;
+    if (controller == null) return;
+
+    const Map<String, dynamic> emptyCollection = {
+      "type": "FeatureCollection",
+      "features": [],
+    };
+
+    // =========================================================================
+    // 🎨 BLOCK NOU: COMPORTAMENT EN VIU DE L'EINA DE DIBUIX LLIURE
+    // (Sortida ràpida abans de comprovar l'estat del selectedTrackId de sota)
+    // =========================================================================
+    if (state.activeTool == 'draw') {
+      if (state.drawingPoints.isEmpty && state.drawingLivePoint == null) {
+        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        await controller!.setGeoJsonSource(
+          "source_snapped_point",
+          emptyCollection,
+        );
+        return;
+      }
+
+      final drawCoords = <List<double>>[];
+
+      // 1. Inserim primer tots els nodes que l'usuari ja ha fixat amb clics a la pantalla
+      for (final p in state.drawingPoints) {
+        if (p.latitude != null && p.longitude != null) {
+          drawCoords.add([p.longitude!, p.latitude!]);
+        }
+      }
+
+      // 2. Si hi ha un punt dinàmic a la retícula, l'unim al final per fer l'efecte elàstic
+      if (state.drawingLivePoint != null) {
+        final live = state.drawingLivePoint!;
+        if (live.latitude != null && live.longitude != null) {
+          drawCoords.add([live.longitude!, live.latitude!]);
+
+          // Opcional: Si vols pintar el cercle blau de MapLibre a la retícula com a l'split:
+          await controller!.setGeoJsonSource("source_snapped_point", {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [live.longitude!, live.latitude!],
+                },
+              },
+            ],
+          });
+        }
+      } else {
+        await controller!.setGeoJsonSource(
+          "source_snapped_point",
+          emptyCollection,
+        );
+      }
+
+      // Pintem si tenim com a mínim un segment visible computable (2 coordenades o més)
+      if (drawCoords.length >= 2) {
+        await controller!.setGeoJsonSource("source_range", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {"type": "LineString", "coordinates": drawCoords},
+            },
+          ],
+        });
+      } else {
+        await controller!.setGeoJsonSource("source_range", emptyCollection);
+      }
+      return; // 🎯 SORTIDA RÀPIDA COMPLTA PER AL DIBUIX
+    }
+
+    // =========================================================================
+    // ✂️ EL TEU CODI ORIGINAL PER A LES ALTRESEINES (SENSE CORRUPCIONS)
+    // =========================================================================
+    if (state.selectedTrackId == null) return;
 
     final int? activeTrackId = int.tryParse(state.selectedTrackId.toString());
     final trackIndex = state.tracks.indexWhere((t) => t.id == activeTrackId);
@@ -16,10 +93,6 @@ mixin MapRenderingMixin {
 
     final track = state.tracks[trackIndex];
     final int? snappedIndex = state.snappedPointIndex;
-    const Map<String, dynamic> emptyCollection = {
-      "type": "FeatureCollection",
-      "features": [],
-    };
 
     if (state.snappedPoint != null) {
       final p = state.snappedPoint!;

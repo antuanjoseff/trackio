@@ -121,4 +121,25 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get waypointCommentFromGrid => 'Añadido desde la retícula';
+
+  @override
+  String get toolDraw => 'Dibujar ruta';
+
+  @override
+  String get selectDrawPoint => 'Fijar punto en el mapa';
+
+  @override
+  String get confirmDrawSave => 'Confirmar y guardar ruta';
+
+  @override
+  String get cancel => 'Cancelar';
+
+  @override
+  String get undo => 'Deshacer último punto';
+
+  @override
+  String get drawnRouteDefaultName => 'Ruta Dibujada';
+
+  @override
+  String get routeSavedSuccess => 'Ruta guardada con éxito';
 }

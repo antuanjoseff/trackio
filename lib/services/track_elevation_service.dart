@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:collection'; // 👈 Necessari per a la cua d'espera nativa
+import 'dart:collection';
 import 'cog_service.dart';
 
 class TrackElevationService {

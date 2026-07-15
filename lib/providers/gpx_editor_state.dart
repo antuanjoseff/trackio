@@ -5,14 +5,14 @@ import 'package:trackio/models/track_model.dart';
 class GpxEditorState {
   static const Object _noChange = Object();
 
-  final bool showSpeedInChart; // 🌟 Afegit correctament
+  final bool showSpeedInChart;
   final List<TrackModel> tracks;
   final int? selectedTrackId;
   final TrackPointModel? snappedPoint;
   final int? snappedPointIndex;
   final bool isMapIdle;
 
-  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint' 👈 NUEVA
+  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint', 'draw' 👈 NUEVA
   final String activeTool;
 
   final bool showElevationChart;
@@ -25,8 +25,13 @@ class GpxEditorState {
   final List<TrackPointModel>? previewPoints;
   final List<int> loadingTrackIds;
 
-  // 📍 NUEVO: Guarda la posición actual de la retícula central cuando la herramienta está activa
   final LatLng? waypointCameraPosition;
+
+  // 🌟 NOUS CAMPS COMPATIBLES PER A L'EINA DE DIBUIX INTERACTIU:
+  final List<TrackPointModel>
+  drawingPoints; // Nodes ja fixats al mapa amb clics
+  final TrackPointModel?
+  drawingLivePoint; // El node elàstic dinàmic de la retícula
 
   GpxEditorState({
     required this.tracks,
@@ -36,7 +41,7 @@ class GpxEditorState {
     this.isMapIdle = false,
     this.activeTool = 'none',
     this.showElevationChart = true,
-    this.showSpeedInChart = true, // 🌟 Inicialitzador
+    this.showSpeedInChart = true,
     this.selectionStartIndex,
     this.selectionEndIndex,
     this.isSelectingRange = false,
@@ -45,6 +50,9 @@ class GpxEditorState {
     this.previewPoints,
     this.loadingTrackIds = const [],
     this.waypointCameraPosition,
+    // 🌟 Inicialitzadors per defecte
+    this.drawingPoints = const [],
+    this.drawingLivePoint,
   });
 
   factory GpxEditorState.initial() {
@@ -60,7 +68,7 @@ class GpxEditorState {
     String? activeTool,
     Object? mapController = _noChange,
     bool? showElevationChart,
-    bool? showSpeedInChart, // 🌟 1. AFEGIT COM A PARÀMETRE OPTIONAL
+    bool? showSpeedInChart,
     Object? selectionStartIndex = _noChange,
     Object? selectionEndIndex = _noChange,
     bool? isSelectingRange,
@@ -69,6 +77,9 @@ class GpxEditorState {
     Object? previewPoints = _noChange,
     List<int>? loadingTrackIds,
     Object? waypointCameraPosition = _noChange,
+    // 🌟 Paràmetres opcionals per al copyWith
+    List<TrackPointModel>? drawingPoints,
+    Object? drawingLivePoint = _noChange,
   }) {
     final int? nextSelectionEndIndex;
     if (identical(selectionEndIndex, _noChange)) {
@@ -99,9 +110,7 @@ class GpxEditorState {
       isMapIdle: isMapIdle ?? this.isMapIdle,
       activeTool: activeTool ?? this.activeTool,
       showElevationChart: showElevationChart ?? this.showElevationChart,
-      showSpeedInChart:
-          showSpeedInChart ??
-          this.showSpeedInChart, // 🌟 2. INJECTAT EN RETORNAR EL NOU ESTAT
+      showSpeedInChart: showSpeedInChart ?? this.showSpeedInChart,
       selectionStartIndex: identical(selectionStartIndex, _noChange)
           ? this.selectionStartIndex
           : selectionStartIndex as int?,
@@ -118,6 +127,11 @@ class GpxEditorState {
       waypointCameraPosition: identical(waypointCameraPosition, _noChange)
           ? this.waypointCameraPosition
           : waypointCameraPosition as LatLng?,
+      // 🌟 Retorn dels nous estats calculats respectant el patró _noChange per poder fer null el live
+      drawingPoints: drawingPoints ?? this.drawingPoints,
+      drawingLivePoint: identical(drawingLivePoint, _noChange)
+          ? this.drawingLivePoint
+          : drawingLivePoint as TrackPointModel?,
     );
   }
 }

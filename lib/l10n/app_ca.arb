@@ -36,5 +36,13 @@
   "route": "RUTA",
   "waypointAddedToActiveTrack": "Waypoint afegit correctament al track actiu",
   "waypointNamePrefix": "WP",
-  "waypointCommentFromGrid": "Afegit des de la retícula"
+  "waypointCommentFromGrid": "Afegit des de la retícula",
+  "toolDraw": "Dibuixar ruta",
+  "selectDrawPoint": "Fixar punt al mapa",
+  "confirmDrawSave": "Confirmar i desar ruta",
+  "cancel": "Cancel·lar",
+  "undo": "Desfer últim punt",
+  "drawnRouteDefaultName": "Ruta Dibuixada",
+  "routeSavedSuccess": "Ruta desada amb èxit"
+
 }

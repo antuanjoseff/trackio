@@ -36,5 +36,12 @@
   "route": "ROUTE",
   "waypointAddedToActiveTrack": "Waypoint added to active track",
   "waypointNamePrefix": "WP",
-  "waypointCommentFromGrid": "Added from the grid"
+  "waypointCommentFromGrid": "Added from the grid",
+  "toolDraw": "Draw route",
+  "selectDrawPoint": "Fix point on map",
+  "confirmDrawSave": "Confirm and save route",
+  "cancel": "Cancel",
+  "undo": "Undo last point",
+  "drawnRouteDefaultName": "Drawn Route",
+  "routeSavedSuccess": "Route saved successfully"
 }

@@ -121,4 +121,25 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get waypointCommentFromGrid => 'Afegit des de la retícula';
+
+  @override
+  String get toolDraw => 'Dibuixar ruta';
+
+  @override
+  String get selectDrawPoint => 'Fixar punt al mapa';
+
+  @override
+  String get confirmDrawSave => 'Confirmar i desar ruta';
+
+  @override
+  String get cancel => 'Cancel·lar';
+
+  @override
+  String get undo => 'Desfer últim punt';
+
+  @override
+  String get drawnRouteDefaultName => 'Ruta Dibuixada';
+
+  @override
+  String get routeSavedSuccess => 'Ruta desada amb èxit';
 }
