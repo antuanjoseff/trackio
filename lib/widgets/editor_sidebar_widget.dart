@@ -7,7 +7,10 @@ import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/vars/track_colors.dart';
 import 'package:trackio/widgets/color_palette_dialog.dart';
-import 'package:web/web.dart' as web;
+
+// 🌟 EL PONT CONDICIONAL QUE SOLUCIONA L'ERROR DE L'APK D'ANDROID:
+import 'package:trackio/services/gpx_exporter_stub.dart'
+    if (dart.library.js_interop) 'package:trackio/services/gpx_exporter_web.dart';
 
 class EditorSidebarWidget extends ConsumerWidget {
   final GpxEditorState state;
@@ -67,7 +70,6 @@ class EditorSidebarWidget extends ConsumerWidget {
             ),
           ),
           const Divider(),
-
           // 📜 LLISTA REORDENABLE DE TRACKS
           Expanded(
             child: tracks.isEmpty
@@ -94,17 +96,13 @@ class EditorSidebarWidget extends ConsumerWidget {
                         margin: const EdgeInsets.symmetric(
                           vertical: 4.0,
                           horizontal: 2.0,
-                        ), // Separa les cel·les per fer-les semblar targetes (cards)
+                        ),
                         decoration: BoxDecoration(
-                          // Si està seleccionat, fons gris molt suau; si no, transparent/blanc
                           color: isSelected
                               ? Colors.grey.shade100
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(
-                            8,
-                          ), // Cantonades arrodonides més modernes
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            // Vora grisa subtil si està seleccionat, pràcticament invisible si no
                             color: isSelected
                                 ? Colors.grey.shade300
                                 : Colors.transparent,
@@ -123,14 +121,13 @@ class EditorSidebarWidget extends ConsumerWidget {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
-                            // Línia vertical a l'esquerra de la targeta que fa servir el color REAL del track
                             decoration: BoxDecoration(
                               border: Border(
                                 left: BorderSide(
                                   color: isSelected
                                       ? trackBaseColor
                                       : Colors.transparent,
-                                  width: 4.0, // Accent de color elegant
+                                  width: 4.0,
                                 ),
                               ),
                             ),
@@ -139,21 +136,18 @@ class EditorSidebarWidget extends ConsumerWidget {
                               selectedColor: Colors.black,
                               dense: true,
                               contentPadding: const EdgeInsets.only(
-                                left:
-                                    8, // Menys espai a l'esquerra per compensar la barra de color
+                                left: 8,
                                 right: 12,
                                 top: 4,
                                 bottom: 4,
                               ),
-                              // ⬅️ ESQUERRA: TIRADOR + COLOR + VISIBILITAT
                               leading: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   ReorderableDragStartListener(
                                     index: index,
                                     child: Icon(
-                                      Icons
-                                          .drag_indicator_rounded, // Icona de tirador més moderna
+                                      Icons.drag_indicator_rounded,
                                       size: 20,
                                       color: isSelected
                                           ? Colors.grey.shade600
@@ -162,7 +156,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                                   ),
                                   const SizedBox(width: 4),
 
-                                  // COLOR PICKER (Cercle indicador de color)
+                                  // COLOR PICKER
                                   GestureDetector(
                                     onTap: () => showDialog(
                                       context: context,
@@ -204,9 +198,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                                     value: track.isVisible,
                                     activeColor: trackBaseColor,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        4,
-                                      ), // Checkbox arrodonit
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
                                     onChanged: (bool? val) async {
                                       ref
@@ -219,8 +211,6 @@ class EditorSidebarWidget extends ConsumerWidget {
                                   ),
                                 ],
                               ),
-
-                              // 🏷️ CENTRE: NOM DEL TRACK INTENS
                               title: Text(
                                 track.name,
                                 style: TextStyle(
@@ -238,15 +228,12 @@ class EditorSidebarWidget extends ConsumerWidget {
                                       : TextDecoration.lineThrough,
                                 ),
                               ),
-
-                              // ➡️ DRETA (TRAILING): EXPORTAR I PAPERERA
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
                                     icon: Icon(
-                                      Icons
-                                          .file_download_outlined, // Icona outline més neta
+                                      Icons.file_download_outlined,
                                       color: isSelected
                                           ? Colors.blue.shade600
                                           : Colors.grey.shade500,
@@ -259,18 +246,12 @@ class EditorSidebarWidget extends ConsumerWidget {
                                       final gpxString = ref
                                           .read(gpxEditorProvider.notifier)
                                           .generateGpxString(track);
-                                      final bytes = utf8.encode(gpxString);
-                                      final base64String = base64.encode(bytes);
-                                      final dataUrl =
-                                          'data:application/gpx+xml;charset=utf-8;base64,$base64String';
 
-                                      web.HTMLAnchorElement()
-                                        ..href = dataUrl
-                                        ..setAttribute(
-                                          'download',
-                                          '${track.name}.gpx',
-                                        )
-                                        ..click();
+                                      // 🌟 CRIDA MULTIPLATAFORMA SEGURA AL PUENTE CONDICIONAL:
+                                      GpxExporter.exportTrackGpx(
+                                        track.name,
+                                        gpxString,
+                                      );
                                     },
                                   ),
                                   const SizedBox(width: 10),
@@ -307,8 +288,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                   ),
           ),
           const Divider(),
-          // 🛠️ INVOCACIÓ DEL SUB-WIDGET DE BOTONS
-          // _SidebarToolsPanel(t: t, onReverseTrack: onReverseTrack),
+          _SidebarToolsPanel(t: t, onReverseTrack: onReverseTrack),
         ],
       ),
     );
@@ -421,7 +401,6 @@ class _SidebarToolsPanel extends ConsumerWidget {
                     ),
         ),
         const SizedBox(height: 8),
-
         // 📊 SELECCIONAR TRAM (RANGE MAP)
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
