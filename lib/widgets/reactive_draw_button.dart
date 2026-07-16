@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/l10n/app_localizations.dart';
@@ -13,6 +14,7 @@ class ReactiveDrawButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
+    final hasMouse = RendererBinding.instance.mouseTracker.mouseIsConnected;
 
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final pointsCount = ref.watch(
@@ -61,48 +63,50 @@ class ReactiveDrawButton extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
 
-                // 🌟 2️⃣ RECUPERAT: BOTÓ BLAU CENTRAL PER FIXAR PUNTS EN VIU
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                if (!hasMouse) ...[
+                  // 🌟 2️⃣ RECUPERAT: BOTÓ BLAU CENTRAL PER FIXAR PUNTS EN VIU
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
+                    icon: const Icon(Icons.add_circle),
+                    label: Text(t.selectDrawPoint), // "Fixar punt al mapa"
+                    onPressed: () {
+                      final screenState = context
+                          .findAncestorStateOfType<MainEditorScreenState>();
+
+                      // Comprovació de seguretat del controlador públic
+                      if (screenState == null || screenState.controller == null)
+                        return;
+
+                      // Netegem el focus per evitar conflictes amb la tecla Enter global
+                      FocusScope.of(context).unfocus();
+
+                      // Capturem la coordenada del centre de la pantalla
+                      final center =
+                          screenState.controller!.cameraPosition?.target;
+                      if (center != null) {
+                        // Pugem el punt a Riverpod (l'alçada es calcula a la cua)
+                        ref
+                            .read(gpxEditorProvider.notifier)
+                            .addPointToNewTrack(
+                              center.latitude,
+                              center.longitude,
+                            );
+
+                        // Forcem el repintat de la línia elàstica taronja
+                        screenState.paintLiveOverlays(
+                          ref.read(gpxEditorProvider),
+                        );
+                      }
+                    },
                   ),
-                  icon: const Icon(Icons.add_circle),
-                  label: Text(t.selectDrawPoint), // "Fixar punt al mapa"
-                  onPressed: () {
-                    final screenState = context
-                        .findAncestorStateOfType<MainEditorScreenState>();
-
-                    // Comprovació de seguretat del controlador públic
-                    if (screenState == null || screenState.controller == null)
-                      return;
-
-                    // Netegem el focus per evitar conflictes amb la tecla Enter global
-                    FocusScope.of(context).unfocus();
-
-                    // Capturem la coordenada del centre de la pantalla
-                    final center =
-                        screenState.controller!.cameraPosition?.target;
-                    if (center != null) {
-                      // Pugem el punt a Riverpod (l'alçada es calcula a la cua)
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .addPointToNewTrack(
-                            center.latitude,
-                            center.longitude,
-                          );
-
-                      // Forcem el repintat de la línia elàstica taronja
-                      screenState.paintLiveOverlays(
-                        ref.read(gpxEditorProvider),
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
+                  const SizedBox(width: 8),
+                ],
 
                 // 3️⃣ BOTÓ DESFER (UNDO)
                 IconButton(
@@ -169,8 +173,6 @@ class ReactiveDrawButton extends ConsumerWidget {
                           if (result == null) return;
 
                           final String trackName = result['name'] as String;
-                          final Duration estimatedTime =
-                              result['duration'] as Duration;
 
                           // Guardem la ruta a Riverpod
                           ref

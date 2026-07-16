@@ -308,7 +308,7 @@ class EditorSidebarWidget extends ConsumerWidget {
           ),
           const Divider(),
           // 🛠️ INVOCACIÓ DEL SUB-WIDGET DE BOTONS
-          _SidebarToolsPanel(t: t, onReverseTrack: onReverseTrack),
+          // _SidebarToolsPanel(t: t, onReverseTrack: onReverseTrack),
         ],
       ),
     );

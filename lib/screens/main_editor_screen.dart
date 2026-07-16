@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
@@ -42,6 +44,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     super.dispose();
   }
 
+  bool get _hasMouseConnected =>
+      RendererBinding.instance.mouseTracker.mouseIsConnected;
+
   // Mètodes auxiliars propis de la pantalla
   Future<void> _paintTracksWrapper(List<TrackModel> tracks) async {
     final activeId = ref.read(gpxEditorProvider).selectedTrackId;
@@ -60,14 +65,20 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final liveShowSidebar = ref.watch(
       gpxEditorProvider.select((s) => s.showSidebar),
     );
+    final bool hasMouse = _hasMouseConnected;
+    final MouseCursor mapCursor = hasMouse && activeTool == 'add_waypoint'
+        ? SystemMouseCursors.precise
+        : MouseCursor.defer;
 
-    final bool showReticle = [
-      'split',
-      'range_map',
-      'merge',
-      'add_waypoint',
-      'draw',
-    ].contains(activeTool);
+    final bool showReticle =
+        [
+          'split',
+          'range_map',
+          'merge',
+          'add_waypoint',
+          'draw',
+        ].contains(activeTool) &&
+        !hasMouse;
 
     ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
       if (previous?.selectedTrackId != next.selectedTrackId) {
@@ -88,6 +99,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       children: [
         StaticEditorMapWidget(
           key: _mapKey,
+          cursor: mapCursor,
           onMapCreated: (c) => _controller = c,
           onStyleLoaded: () async {
             await _paintTracksWrapper(ref.read(gpxEditorProvider).tracks);
@@ -97,10 +109,112 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               ref.read(gpxEditorProvider).tracks,
             );
           },
-          onCameraMove: (pos) =>
-              _handleCameraMove(pos, ref.read(gpxEditorProvider)),
+          onCameraMove: (pos) {
+            if (hasMouse) return;
+            _handleCameraMove(pos, ref.read(gpxEditorProvider));
+          },
           onCameraIdle: _handleCameraIdle,
+          onMouseHoverMap: (coordinates) {
+            if (!hasMouse) return;
+            final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
+            _handleMouseMove(coordinates, zoom, ref.read(gpxEditorProvider));
+          },
+
+          // 🌟 CLIC DIRECTE EN MODE ESCRIPTORI
+          onMapClick: (coordinates) async {
+            if (!hasMouse) return;
+
+            FocusScope.of(context).requestFocus();
+
+            final state = ref.read(gpxEditorProvider);
+            final notifier = ref.read(gpxEditorProvider.notifier);
+            final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
+            final activeTool = state.activeTool;
+
+            if (activeTool == 'draw') {
+              notifier.addPointToNewTrack(
+                coordinates.latitude,
+                coordinates.longitude,
+              );
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              return;
+            }
+
+            if (activeTool == 'split') {
+              notifier.calculateSnapping(
+                coordinates.latitude,
+                coordinates.longitude,
+                zoom,
+              );
+              notifier.setMapIdle(true);
+              notifier.executeTrackSplit();
+
+              final stateAfterSplit = ref.read(gpxEditorProvider);
+              await paintTracks(
+                stateAfterSplit.tracks,
+                stateAfterSplit.selectedTrackId,
+              );
+              if (_controller != null) {
+                await _controller!.setGeoJsonSource("source_range", {
+                  "type": "FeatureCollection",
+                  "features": [],
+                });
+              }
+              return;
+            }
+
+            if (activeTool == 'range_map') {
+              notifier.calculateSnapping(
+                coordinates.latitude,
+                coordinates.longitude,
+                zoom,
+              );
+              notifier.setMapIdle(true);
+              notifier.handleMapPointSelection();
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              return;
+            }
+
+            if (activeTool == 'merge') {
+              notifier.calculateSnapping(
+                coordinates.latitude,
+                coordinates.longitude,
+                zoom,
+              );
+              notifier.setMapIdle(true);
+              notifier.executeTracksMerge();
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              return;
+            }
+
+            if (activeTool == 'add_waypoint') {
+              notifier.updateWaypointPosition(
+                coordinates.latitude,
+                coordinates.longitude,
+              );
+              notifier.setMapIdle(true);
+
+              final selectedTrackId = state.selectedTrackId;
+              if (selectedTrackId == null) return;
+              final track = state.tracks.firstWhere(
+                (t) => t.id == selectedTrackId,
+              );
+              final String defaultName = "Punt ${track.waypoints.length + 1}";
+              final String? name = await askWaypointNameDialog(
+                context,
+                defaultName,
+              );
+              if (name == null || name.isEmpty) return;
+
+              notifier.addWaypointToSelectedTrack(name: name, comment: "");
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              return;
+            }
+
+            _handleMouseMove(coordinates, zoom, state);
+          },
         ),
+
         // ⭐ BOTÓ DEL SIDEBAR A SOBRE DEL MAPA
         Positioned(
           top: 12,
@@ -137,11 +251,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             child: Icon(Icons.add_circle_outline, size: 40, color: Colors.red),
           ),
 
-        // 🌟 BOTONS NETS IMPORTATS:
-        const ReactiveSplitButton(),
-        const ReactiveRangeButton(),
-        const ReactiveMergeButton(),
-        const ReactiveWaypointButton(),
+        // 🌟 En ratolí ocultem botons contextuals, excepte el menú de dibuix
+        if (!hasMouse) ...[
+          const ReactiveSplitButton(),
+          const ReactiveRangeButton(),
+          const ReactiveMergeButton(),
+          const ReactiveWaypointButton(),
+        ],
         const ReactiveDrawButton(),
       ],
     );
@@ -223,7 +339,52 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     });
   }
 
+  void _handleMouseMove(
+    LatLng targetCoords,
+    double currentZoom,
+    GpxEditorState state,
+  ) {
+    if (state.activeTool == 'draw') {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateDrawingLiveLocationWithoutZ(
+            targetCoords.latitude,
+            targetCoords.longitude,
+          );
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
+
+    if (state.activeTool == 'add_waypoint') {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateWaypointPosition(
+            targetCoords.latitude,
+            targetCoords.longitude,
+          );
+      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      return;
+    }
+
+    if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
+    if (_throttleTimer?.isActive ?? false) return;
+
+    _throttleTimer = Timer(const Duration(milliseconds: 40), () {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .calculateSnapping(
+            targetCoords.latitude,
+            targetCoords.longitude,
+            currentZoom,
+          );
+      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+    });
+  }
+
   void _handleCameraIdle() {
+    if (_hasMouseConnected) return;
+
     final state = ref.read(gpxEditorProvider);
 
     // 🌟 AL DETINDRE'S (DEBOUNCE): Resolem la Z real del punt central només quan el mapa es queda quiet
