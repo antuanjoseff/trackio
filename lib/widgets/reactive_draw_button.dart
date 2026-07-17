@@ -15,6 +15,10 @@ class ReactiveDrawButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = AppLocalizations.of(context)!;
     final hasMouse = RendererBinding.instance.mouseTracker.mouseIsConnected;
+    final double screenWidth = MediaQuery.of(context).size.width;
+
+    // 📱 MODE COMPACTE AUTOMÀTIC: Icones pures sense text per a l'APK mòbil o pantalles estretes
+    final bool useCompactMode = !hasMouse || screenWidth < 600;
 
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final pointsCount = ref.watch(
@@ -23,8 +27,17 @@ class ReactiveDrawButton extends ConsumerWidget {
 
     if (activeTool != 'draw') return const SizedBox.shrink();
 
+    // Intentem buscar el pare pel context visual (Funciona perfectament a la Web)
+    final screenState = context
+        .findAncestorStateOfType<MainEditorScreenState>();
+
     return Positioned(
-      top: 16,
+      bottom: useCompactMode
+          ? 16
+          : null, // Al mòbil el tirem a BAIX perquè no col·lideixi amb les eines
+      top: useCompactMode
+          ? null
+          : 16, // A la Web el deixem a DALT tal com estava originalment
       left: 16,
       right: 16,
       child: Center(
@@ -40,72 +53,95 @@ class ReactiveDrawButton extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // 1️⃣ BOTÓ CANCEL·LAR
-                TextButton.icon(
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  icon: const Icon(Icons.close),
-                  label: Text(t.cancel),
-                  onPressed: () {
-                    final screenState = context
-                        .findAncestorStateOfType<MainEditorScreenState>();
-                    ref.read(gpxEditorProvider.notifier).cancelDrawing();
-
-                    if (screenState?.controller != null) {
-                      screenState!.controller!.setGeoJsonSource(
-                        "source_range",
-                        const {"type": "FeatureCollection", "features": []},
-                      );
-                      screenState.controller!.setGeoJsonSource(
-                        "source_snapped_point",
-                        const {"type": "FeatureCollection", "features": []},
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-
-                if (!hasMouse) ...[
-                  // 🌟 2️⃣ RECUPERAT: BOTÓ BLAU CENTRAL PER FIXAR PUNTS EN VIU
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    icon: const Icon(Icons.add_circle),
-                    label: Text(t.selectDrawPoint), // "Fixar punt al mapa"
+                if (useCompactMode)
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.red),
+                    tooltip: t.cancel,
                     onPressed: () {
-                      final screenState = context
-                          .findAncestorStateOfType<MainEditorScreenState>();
-
-                      // Comprovació de seguretat del controlador públic
-                      if (screenState == null || screenState.controller == null)
-                        return;
-
-                      // Netegem el focus per evitar conflictes amb la tecla Enter global
-                      FocusScope.of(context).unfocus();
-
-                      // Capturem la coordenada del centre de la pantalla
-                      final center =
-                          screenState.controller!.cameraPosition?.target;
-                      if (center != null) {
-                        // Pugem el punt a Riverpod (l'alçada es calcula a la cua)
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .addPointToNewTrack(
-                              center.latitude,
-                              center.longitude,
-                            );
-
-                        // Forcem el repintat de la línia elàstica taronja
-                        screenState.paintLiveOverlays(
-                          ref.read(gpxEditorProvider),
+                      ref.read(gpxEditorProvider.notifier).cancelDrawing();
+                      if (screenState?.controller != null) {
+                        screenState!.controller!.setGeoJsonSource(
+                          "source_range",
+                          const {"type": "FeatureCollection", "features": []},
+                        );
+                        screenState.controller!.setGeoJsonSource(
+                          "source_snapped_point",
+                          const {"type": "FeatureCollection", "features": []},
+                        );
+                      }
+                    },
+                  )
+                else
+                  TextButton.icon(
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    icon: const Icon(Icons.close),
+                    label: Text(t.cancel),
+                    onPressed: () {
+                      ref.read(gpxEditorProvider.notifier).cancelDrawing();
+                      if (screenState?.controller != null) {
+                        screenState!.controller!.setGeoJsonSource(
+                          "source_range",
+                          const {"type": "FeatureCollection", "features": []},
+                        );
+                        screenState.controller!.setGeoJsonSource(
+                          "source_snapped_point",
+                          const {"type": "FeatureCollection", "features": []},
                         );
                       }
                     },
                   ),
+
+                if (useCompactMode)
+                  const SizedBox(width: 4)
+                else
                   const SizedBox(width: 8),
+
+                // 🌟 2️⃣ BOTÓ BLAU CENTRAL PER FIXAR PUNTS EN VIU (Exclusiu per a mòbils/APK)
+                if (!hasMouse) ...[
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: const Icon(Icons.add_circle, size: 20),
+                    onPressed: () {
+                      FocusScope.of(context).unfocus();
+
+                      final notifier = ref.read(gpxEditorProvider.notifier);
+                      final drawState = ref.read(gpxEditorProvider);
+                      final stateActive =
+                          screenState ??
+                          context
+                              .findAncestorStateOfType<MainEditorScreenState>();
+
+                      final livePoint = drawState.drawingLivePoint;
+                      if (livePoint?.latitude != null &&
+                          livePoint?.longitude != null) {
+                        notifier.addPointToNewTrack(
+                          livePoint!.latitude!,
+                          livePoint.longitude!,
+                        );
+                        return;
+                      }
+
+                      final center =
+                          stateActive?.controller?.cameraPosition?.target;
+                      if (center == null) return;
+
+                      notifier.addPointToNewTrack(
+                        center.latitude,
+                        center.longitude,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 4),
                 ],
 
                 // 3️⃣ BOTÓ DESFER (UNDO)
@@ -122,8 +158,6 @@ class ReactiveDrawButton extends ConsumerWidget {
                           ref
                               .read(gpxEditorProvider.notifier)
                               .removeLastDrawingPoint();
-                          final screenState = context
-                              .findAncestorStateOfType<MainEditorScreenState>();
                           if (screenState != null) {
                             screenState.paintLiveOverlays(
                               ref.read(gpxEditorProvider),
@@ -132,90 +166,47 @@ class ReactiveDrawButton extends ConsumerWidget {
                         }
                       : null,
                 ),
-                const SizedBox(width: 8),
+
+                if (useCompactMode)
+                  const SizedBox(width: 4)
+                else
+                  const SizedBox(width: 8),
 
                 // 4️⃣ BOTÓ DESAR RUTA
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade700,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                if (useCompactMode)
+                  Badge(
+                    label: Text('$pointsCount'),
+                    backgroundColor: Colors.green.shade800,
+                    isLabelVisible: pointsCount > 0,
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.check_circle,
+                        color: pointsCount > 0
+                            ? Colors.green.shade700
+                            : Colors.grey.shade400,
+                        size: 24,
+                      ),
+                      tooltip: t.confirmDrawSave,
+                      onPressed: pointsCount > 0
+                          ? () => _handleOnSave(context, ref, t, screenState)
+                          : null,
                     ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    icon: const Icon(Icons.check),
+                    label: Text('${t.confirmDrawSave} ($pointsCount)'),
+                    onPressed: pointsCount > 0
+                        ? () => _handleOnSave(context, ref, t, screenState)
+                        : null,
                   ),
-                  icon: const Icon(Icons.check),
-                  label: Text('${t.confirmDrawSave} ($pointsCount)'),
-                  onPressed: pointsCount > 0
-                      ? () async {
-                          final screenState = context
-                              .findAncestorStateOfType<MainEditorScreenState>();
-                          if (screenState == null) return;
-
-                          final messenger = ScaffoldMessenger.of(context);
-                          final state = ref.read(gpxEditorProvider);
-
-                          final stats = _calculateDrawingStats(
-                            state.drawingPoints,
-                          );
-
-                          final String defaultName =
-                              "${t.drawnRouteDefaultName} ${DateTime.now().hour}:${DateTime.now().minute}";
-
-                          // Obrim el diàleg passant els strings obtinguts de la meva funció auxiliar
-                          final Map<String, dynamic>? result =
-                              await askTrackNameDialog(
-                                context: context,
-                                defaultName: defaultName,
-                                displayDistance: stats.distanceText,
-                                displayElevation: stats.elevationText,
-                              );
-
-                          if (result == null) return;
-
-                          final String trackName = result['name'] as String;
-
-                          // Guardem la ruta a Riverpod
-                          ref
-                              .read(gpxEditorProvider.notifier)
-                              .saveDrawnTrack(trackName);
-
-                          if (context.mounted) {
-                            final finalState = ref.read(gpxEditorProvider);
-
-                            if (screenState.controller != null) {
-                              await screenState.controller!.setGeoJsonSource(
-                                "source_range",
-                                const {
-                                  "type": "FeatureCollection",
-                                  "features": [],
-                                },
-                              );
-                              await screenState.controller!.setGeoJsonSource(
-                                "source_snapped_point",
-                                const {
-                                  "type": "FeatureCollection",
-                                  "features": [],
-                                },
-                              );
-                            }
-
-                            await screenState.paintTracks(
-                              finalState.tracks,
-                              finalState.selectedTrackId,
-                            );
-                          }
-
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                "${t.routeSavedSuccess}: $trackName",
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      : null,
-                ),
               ],
             ),
           ),
@@ -224,6 +215,66 @@ class ReactiveDrawButton extends ConsumerWidget {
     );
   }
 
+  // 💾 Lògica del diàleg i el desament adaptatiu (Reemplaça tota la secció asíncrona vella)
+  void _handleOnSave(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations t,
+    MainEditorScreenState? screenState,
+  ) async {
+    if (screenState == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final state = ref.read(gpxEditorProvider);
+
+    // Executem les teves línies de distàncies i altituds reals
+    final stats = _calculateDrawingStats(state.drawingPoints);
+    final String defaultName =
+        "${t.drawnRouteDefaultName} ${DateTime.now().hour}:${DateTime.now().minute}";
+
+    // Obrim el teu diàleg passant els strings obtinguts de la teva funció auxiliar
+    final Map<String, dynamic>? result = await askTrackNameDialog(
+      context: context,
+      defaultName: defaultName,
+      displayDistance: stats.distanceText,
+      displayElevation: stats.elevationText,
+    );
+
+    if (result == null) return;
+    final String trackName = result['name'] as String;
+
+    // Guardem oficialment la ruta a Riverpod
+    ref.read(gpxEditorProvider.notifier).saveDrawnTrack(trackName);
+
+    if (context.mounted) {
+      final finalState = ref.read(gpxEditorProvider);
+
+      if (screenState.controller != null) {
+        await screenState.controller!.setGeoJsonSource("source_range", const {
+          "type": "FeatureCollection",
+          "features": [],
+        });
+        await screenState.controller!.setGeoJsonSource(
+          "source_snapped_point",
+          const {"type": "FeatureCollection", "features": []},
+        );
+      }
+
+      await screenState.paintTracks(
+        finalState.tracks,
+        finalState.selectedTrackId,
+      );
+    }
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text("${t.routeSavedSuccess}: $trackName"),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // 📐 LES TEVES FÓRMULES MATEMÀTIQUES INTENSIVES ORIGINALES CONSERVADES EXACTAMENT IGUAL:
   ({String distanceText, String elevationText}) _calculateDrawingStats(
     List<TrackPointModel> points,
   ) {

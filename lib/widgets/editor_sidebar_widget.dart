@@ -35,42 +35,50 @@ class EditorSidebarWidget extends ConsumerWidget {
       gpxEditorProvider.select((s) => s.selectedTrackId),
     );
 
+    // 🌟 NOVEDAT: Avaluem si estem a l'APK mòbil o pantalles compactes per estilitzar la fila
+    final bool isMobile = MediaQuery.of(context).size.width <= 800;
+
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(
+        12.0,
+      ), // Una mica més estret als marges mòbils
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 📥 BOTÓ IMPORTAR GPX
-          InkWell(
-            onTap: onImportPressed,
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 4.0,
-                horizontal: 2.0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    t.importGpx.toUpperCase(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      letterSpacing: 1,
+          // 📥 BOTÓ IMPORTAR GPX (Només es mostra a la Web, ja que a l'APK va a dalt de l'AppBar)
+          if (!isMobile) ...[
+            InkWell(
+              onTap: onImportPressed,
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 4.0,
+                  horizontal: 2.0,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      t.importGpx.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        letterSpacing: 1,
+                      ),
                     ),
-                  ),
-                  const Icon(
-                    Icons.add_circle_outline,
-                    size: 16,
-                    color: Colors.blue,
-                  ),
-                ],
+                    const Icon(
+                      Icons.add_circle_outline,
+                      size: 16,
+                      color: Colors.blue,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const Divider(),
-          // 📜 LLISTA REORDENABLE DE TRACKS
+            const Divider(),
+          ],
+
+          // 📜 LLISTA REORDENABLE DE TRACKS TOTALMENT ADAPTADA PER EVITAR COLUMNES VERTICALS
           Expanded(
             child: tracks.isEmpty
                 ? Center(child: Text(t.noTracksLoaded))
@@ -136,11 +144,13 @@ class EditorSidebarWidget extends ConsumerWidget {
                               selectedColor: Colors.black,
                               dense: true,
                               contentPadding: const EdgeInsets.only(
-                                left: 8,
-                                right: 12,
-                                top: 4,
-                                bottom: 4,
+                                left: 6,
+                                right: 8,
+                                top: 2,
+                                bottom: 2,
                               ),
+
+                              // 🌟 SECCIÓ ESQUERRA COMPACTADA: En mòbils reduïm espais per donar aire al nom
                               leading: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -148,13 +158,13 @@ class EditorSidebarWidget extends ConsumerWidget {
                                     index: index,
                                     child: Icon(
                                       Icons.drag_indicator_rounded,
-                                      size: 20,
+                                      size: 18,
                                       color: isSelected
                                           ? Colors.grey.shade600
                                           : Colors.grey.shade400,
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: 2),
 
                                   // COLOR PICKER
                                   GestureDetector(
@@ -172,8 +182,8 @@ class EditorSidebarWidget extends ConsumerWidget {
                                       ),
                                     ),
                                     child: Container(
-                                      width: 14,
-                                      height: 14,
+                                      width: 12,
+                                      height: 12,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: trackBaseColor,
@@ -181,38 +191,53 @@ class EditorSidebarWidget extends ConsumerWidget {
                                           color: Colors.white,
                                           width: 1.5,
                                         ),
-                                        boxShadow: const [
+                                        boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black12,
+                                            color: Colors.black.withAlpha(
+                                              30,
+                                            ), // Ara és dinàmic i legal amb un enter!
                                             blurRadius: 2,
-                                            offset: Offset(0, 1),
+                                            offset: const Offset(
+                                              0,
+                                              1,
+                                            ), // El const es queda només a l'Offset que és fix
                                           ),
                                         ],
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: 2),
 
                                   // CHECKBOX VISIBILITAT
-                                  Checkbox(
-                                    value: track.isVisible,
-                                    activeColor: trackBaseColor,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
+                                  SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: Checkbox(
+                                      value: track.isVisible,
+                                      activeColor: trackBaseColor,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      onChanged: (bool? val) async {
+                                        ref
+                                            .read(gpxEditorProvider.notifier)
+                                            .toggleTrackVisibility(track.id);
+                                        await onPaintTracks(
+                                          ref.read(gpxEditorProvider).tracks,
+                                        );
+                                      },
                                     ),
-                                    onChanged: (bool? val) async {
-                                      ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .toggleTrackVisibility(track.id);
-                                      await onPaintTracks(
-                                        ref.read(gpxEditorProvider).tracks,
-                                      );
-                                    },
                                   ),
                                 ],
                               ),
+
+                              // 🌟 EL CANVI CRÍTIC: Emboliquem el títol perquè es pinti en línia horitzontal àmplia
                               title: Text(
                                 track.name,
+                                maxLines:
+                                    1, // Forçem una sola línia per a una estètica polida
+                                overflow: TextOverflow
+                                    .ellipsis, // Si és hiperllarg, posa punts suspensius
                                 style: TextStyle(
                                   fontWeight: isSelected
                                       ? FontWeight.w600
@@ -247,14 +272,14 @@ class EditorSidebarWidget extends ConsumerWidget {
                                           .read(gpxEditorProvider.notifier)
                                           .generateGpxString(track);
 
-                                      // 🌟 CRIDA MULTIPLATAFORMA SEGURA AL PUENTE CONDICIONAL:
+                                      // Crida multiplataforma segura al pont condicional
                                       GpxExporter.exportTrackGpx(
                                         track.name,
                                         gpxString,
                                       );
                                     },
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(width: 8),
                                   IconButton(
                                     icon: Icon(
                                       Icons.delete_outline_rounded,
@@ -287,8 +312,14 @@ class EditorSidebarWidget extends ConsumerWidget {
                     },
                   ),
           ),
-          const Divider(),
-          _SidebarToolsPanel(t: t, onReverseTrack: onReverseTrack),
+
+          // 🌟 EL CANVI DE BOTONS INFERIORS:
+          // Si som a l'APK mòbil (isMobile), la llista de botons inferiors de dalt d'aquesta línia
+          // S'ELIMINA PER COMPLET, evitant duplicats amb les noves icones flotants verticals!
+          if (!isMobile) ...[
+            const Divider(),
+            _SidebarToolsPanel(t: t, onReverseTrack: onReverseTrack),
+          ],
         ],
       ),
     );
@@ -401,6 +432,7 @@ class _SidebarToolsPanel extends ConsumerWidget {
                     ),
         ),
         const SizedBox(height: 8),
+
         // 📊 SELECCIONAR TRAM (RANGE MAP)
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
@@ -523,7 +555,7 @@ class TrackioIcons {
       children: [
         Icon(
           Icons.timeline_rounded,
-          color: color.withOpacity(0.35),
+          color: color.withAlpha(89), // 🌟 MODIFICAT: 0.35 * 255 = ~89 en Alpha
           size: size,
         ),
         Positioned(
@@ -549,7 +581,7 @@ class TrackioIcons {
       children: [
         Icon(
           Icons.check_box_outline_blank_rounded,
-          color: color.withOpacity(0.4),
+          color: color.withAlpha(102),
           size: size,
         ),
         Icon(Icons.insights_rounded, color: color, size: size * 0.75),
@@ -561,8 +593,13 @@ class TrackioIcons {
     return Stack(
       alignment: Alignment.center,
       children: [
-        Icon(Icons.location_on_outlined, color: color, size: size),
+        Icon(
+          Icons.location_on_outlined,
+          color: color,
+          size: size,
+        ), // 🌟 REPARAT: Ara és una coma, no un punt i coma
         Positioned(
+          // 🌟 REPARAT: S'ha afegit el parèntesi obert que faltava
           top: size * 0.15,
           child: Icon(Icons.add, color: color, size: size * 0.45),
         ),

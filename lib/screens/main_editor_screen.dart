@@ -20,6 +20,12 @@ import 'package:trackio/widgets/static_editor_map_widget.dart';
 import 'package:trackio/mixins/map_rendering_mixin.dart';
 import 'package:trackio/widgets/reactive_editor_buttons.dart';
 
+TrackModel _parseGpxOnBackgroundIsolate(Map<String, String> payload) {
+  final content = payload['content'] ?? '';
+  final fileName = payload['fileName'] ?? 'imported_track';
+  return GpxParser.parse(content, fileName);
+}
+
 class MainEditorScreen extends ConsumerStatefulWidget {
   const MainEditorScreen({super.key});
 
@@ -93,6 +99,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           previous?.snappedPoint != next.snappedPoint) {
         paintLiveOverlays(next);
       }
+      if (previous?.drawingPoints != next.drawingPoints ||
+          previous?.drawingLivePoint != next.drawingLivePoint ||
+          previous?.activeTool != next.activeTool) {
+        paintLiveOverlays(next);
+      }
     });
 
     final Widget mapModule = Stack(
@@ -120,16 +131,22 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             _handleMouseMove(coordinates, zoom, ref.read(gpxEditorProvider));
           },
 
-          // 🌟 CLIC DIRECTE EN MODE ESCRIPTORI
+          // 🌟 CLIC DIRECTE EN MODE ESCRIPTORI / MÒBIL REGULAT
           onMapClick: (coordinates) async {
-            if (!hasMouse) return;
-
             FocusScope.of(context).requestFocus();
 
             final state = ref.read(gpxEditorProvider);
             final notifier = ref.read(gpxEditorProvider.notifier);
             final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
             final activeTool = state.activeTool;
+
+            // En dispositius sense ratolí, split/range/merge confirmen sempre
+            // el punt sota la retícula central (camera target), igual que el cursor.
+            final LatLng snapTarget =
+                !hasMouse &&
+                    ['split', 'range_map', 'merge'].contains(activeTool)
+                ? (_controller?.cameraPosition?.target ?? coordinates)
+                : coordinates;
 
             if (activeTool == 'draw') {
               notifier.addPointToNewTrack(
@@ -142,8 +159,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
             if (activeTool == 'split') {
               notifier.calculateSnapping(
-                coordinates.latitude,
-                coordinates.longitude,
+                snapTarget.latitude,
+                snapTarget.longitude,
                 zoom,
               );
               notifier.setMapIdle(true);
@@ -165,8 +182,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
             if (activeTool == 'range_map') {
               notifier.calculateSnapping(
-                coordinates.latitude,
-                coordinates.longitude,
+                snapTarget.latitude,
+                snapTarget.longitude,
                 zoom,
               );
               notifier.setMapIdle(true);
@@ -177,8 +194,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
             if (activeTool == 'merge') {
               notifier.calculateSnapping(
-                coordinates.latitude,
-                coordinates.longitude,
+                snapTarget.latitude,
+                snapTarget.longitude,
                 zoom,
               );
               notifier.setMapIdle(true);
@@ -215,36 +232,37 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           },
         ),
 
-        // ⭐ BOTÓ DEL SIDEBAR A SOBRE DEL MAPA
-        Positioned(
-          top: 12,
-          left: 12,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.85),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: IconButton(
-              icon: Icon(
-                liveShowSidebar
-                    ? Icons.view_sidebar
-                    : Icons.view_sidebar_outlined,
-                color: Colors.blue,
+        // ⭐ BOTÓ DEL SIDEBAR A SOBRE DEL MAPA (Ocult a l'APK mòbil per no duplicar amb l'AppBar)
+        if (hasMouse)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.85),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              onPressed: () =>
-                  ref.read(gpxEditorProvider.notifier).toggleSidebar(),
+              child: IconButton(
+                icon: Icon(
+                  liveShowSidebar
+                      ? Icons.view_sidebar
+                      : Icons.view_sidebar_outlined,
+                  color: Colors.blue,
+                ),
+                onPressed: () =>
+                    ref.read(gpxEditorProvider.notifier).toggleSidebar(),
+              ),
             ),
           ),
-        ),
 
         if (showReticle)
           const Center(
@@ -325,6 +343,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
     if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
+    if (state.isMapIdle) {
+      ref.read(gpxEditorProvider.notifier).setMapIdle(false);
+    }
     if (_throttleTimer?.isActive ?? false) return;
 
     _throttleTimer = Timer(const Duration(milliseconds: 60), () {
@@ -383,48 +404,38 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   }
 
   void _handleCameraIdle() {
+    // 🌐 WEB CONTEXT: Si hi ha un ratolí físic, ens saltem el repòs perquè tot es calcula a '_handleMouseMove'
     if (_hasMouseConnected) return;
 
     final state = ref.read(gpxEditorProvider);
+    final pos = _controller?.cameraPosition;
+    if (pos == null) return;
 
-    // 🌟 AL DETINDRE'S (DEBOUNCE): Resolem la Z real del punt central només quan el mapa es queda quiet
+    // 🎨 EINA DIBUIXAR (Mòbil): Resolem la Z real del punt central només quan el mapa es queda quiet
     if (state.activeTool == 'draw') {
-      final pos = _controller?.cameraPosition;
-      if (pos != null) {
-        // Cridem al teu mètode original que activa la cua per calcular l'alçada real a Azure/Django
-        ref
-            .read(gpxEditorProvider.notifier)
-            .updateDrawingLiveLocation(
-              pos.target.latitude,
-              pos.target.longitude,
-            );
-      }
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateDrawingLiveLocation(pos.target.latitude, pos.target.longitude);
       paintLiveOverlays(ref.read(gpxEditorProvider));
       return;
     }
 
     if (state.activeTool == 'add_waypoint') {
-      final pos = _controller?.cameraPosition;
-      if (pos != null)
-        ref
-            .read(gpxEditorProvider.notifier)
-            .updateWaypointPosition(pos.target.latitude, pos.target.longitude);
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateWaypointPosition(pos.target.latitude, pos.target.longitude);
       ref.read(gpxEditorProvider.notifier).setMapIdle(true);
       return;
     }
 
     if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
 
-    final pos = _controller?.cameraPosition;
-    if (pos != null) {
-      ref
-          .read(gpxEditorProvider.notifier)
-          .calculateSnapping(
-            pos.target.latitude,
-            pos.target.longitude,
-            pos.zoom,
-          );
-    }
+    // 🌟 SINCRO APK MÒBIL: Calculem snapping exactament on apunta el centre de la retícula
+    ref
+        .read(gpxEditorProvider.notifier)
+        .calculateSnapping(pos.target.latitude, pos.target.longitude, pos.zoom);
+
+    // Això activa els teus botons contextuals flotants de confirmació de l'APK (split, merge...)
     ref.read(gpxEditorProvider.notifier).setMapIdle(true);
     paintLiveOverlays(ref.read(gpxEditorProvider));
   }
@@ -456,26 +467,58 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   }
 
   Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
+    // 1️⃣ REPARACIÓ PLATAFORMA: Forcem la instància unificada nativa de FilePicker
+    // Això permet que Android obri el selector de documents de l'APK de forma correcta
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['gpx'],
-      withData: true,
+      withData:
+          true, // 🌟 Carrega els bytes directament a la RAM de la Web i de l'APK mòbil
       allowMultiple: kIsWeb,
     );
     if (result == null || result.files.isEmpty) return;
 
+    // Activem l'animació de processament en segon pla (pantalla borrosa de càrrega)
     setState(() => _isReverseAnimating = true);
     await Future.delayed(const Duration(milliseconds: 50));
 
     try {
       final List<TrackModel> parsed = [];
       for (final file in result.files) {
-        await Future.delayed(Duration.zero);
-        final content = file.bytes != null
-            ? utf8.decode(file.bytes!)
-            : await File(file.path!).readAsString();
-        parsed.add(GpxParser.parse(content, file.name));
+        // Fem una lectura robusta: bytes (web/mòbil) i fallback a path (Android)
+        String? content;
+        if (file.bytes != null) {
+          content = utf8.decode(file.bytes!, allowMalformed: true);
+        } else if (!kIsWeb && file.path != null) {
+          content = await File(file.path!).readAsString();
+        }
+
+        if (content == null || content.trim().isEmpty) {
+          debugPrint("Avís: no s'ha pogut llegir el fitxer ${file.name}.");
+          continue;
+        }
+
+        if (kIsWeb) {
+          // 🌐 RUTA WEB: Parseig síncron clàssic ràpid en ordinadors
+          parsed.add(GpxParser.parse(content, file.name));
+        } else {
+          // A Android release, compute requereix callback top-level/static.
+          final TrackModel trackModel = await compute(
+            _parseGpxOnBackgroundIsolate,
+            {'content': content, 'fileName': file.name},
+          );
+          parsed.add(trackModel);
+        }
       }
+
+      if (parsed.isEmpty) {
+        debugPrint(
+          "No s'ha importat cap track vàlid des dels fitxers seleccionats.",
+        );
+        return;
+      }
+
+      // Inserim les rutes noves a Riverpod i redibuixem el mapa de MapLibre de cop
       ref.read(gpxEditorProvider.notifier).addImportedTracks(parsed);
       await _paintTracksWrapper(ref.read(gpxEditorProvider).tracks);
       await _focusTrack(
@@ -483,7 +526,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         ref.read(gpxEditorProvider).tracks,
       );
     } catch (e) {
-      debugPrint("Error: $e");
+      debugPrint("Error analitzant el fitxer a l'APK mòbil o Web: $e");
     } finally {
       if (mounted) setState(() => _isReverseAnimating = false);
     }
@@ -498,7 +541,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     setState(() => _isReverseAnimating = true);
     try {
-      // 1. Neteja higiènica de les capes i línies taronges de selecció a la GPU
       const Map<String, dynamic> emptyCollection = {
         "type": "FeatureCollection",
         "features": [],
@@ -512,18 +554,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         "source_snapped_point",
         emptyCollection,
       );
-
-      // 2. Girarem el track en memòria amb el teu Notifier de Riverpod
       ref.read(gpxEditorProvider.notifier).reverseCurrentTrackWithCleanState();
-
-      // 3. Recuperem el track ja girat per poder fer l'animació de dibuixat
       final after = ref.read(gpxEditorProvider);
       final trackIndex = after.tracks.indexWhere(
         (t) => t.id == selectedTrackId,
       );
       if (trackIndex == -1) return;
-
-      // 4. Executem la teva animació nativa a 60 FPS
       await _animateTrackRedraw(after.tracks[trackIndex]);
     } catch (e) {
       debugPrint("Error en invertir el track: $e");
@@ -532,26 +568,21 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     }
   }
 
-  // 🌟 RECUPERAT: Mantens la teva funció nativa d'animació frame a frame per al redibuix progressiu
-  Future<void> _animateTrackRedraw(TrackModel track) async {
+  Future _animateTrackRedraw(TrackModel track) async {
     if (_controller == null) return;
-
     final sourceId = "source_${track.id}";
     final validCoords = track.points
         .where((p) => p.latitude != null && p.longitude != null)
         .map((p) => [p.longitude!, p.latitude!])
         .toList();
     if (validCoords.isEmpty) return;
-
     const int framesCount = 60;
     final Duration perFrameDelay = reverseAnimationDuration ~/ framesCount;
-    final progressive = <List<double>>[];
+    final progressive = <List>[];
     final int step = (validCoords.length / framesCount).ceil();
-
     for (int i = 0; i < validCoords.length; i += step) {
       if (!mounted || _controller == null) return;
       progressive.add(validCoords[i]);
-
       await _controller!.setGeoJsonSource(sourceId, {
         "type": "FeatureCollection",
         "features": [
@@ -559,14 +590,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             "type": "Feature",
             "geometry": {
               "type": "LineString",
-              "coordinates": List<List<double>>.from(progressive),
+              "coordinates": List<List>.from(progressive),
             },
           },
         ],
       });
       await Future.delayed(perFrameDelay);
     }
-
     await _controller!.setGeoJsonSource(sourceId, {
       "type": "FeatureCollection",
       "features": [
