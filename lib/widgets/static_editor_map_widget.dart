@@ -81,9 +81,11 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
         behavior: HitTestBehavior.translucent,
         onPointerDown: _handleMousePrimaryDown,
         child: MapLibreMap(
+          compassEnabled: false, // Amaga la brúixola de manera efectiva
           styleString: "assets/map/style.json",
+
           initialCameraPosition: const CameraPosition(
-            target: LatLng(41.98311, 2.82493),
+            target: LatLng(41.98311, 2.82493), // Girona
             zoom: 13.0,
           ),
           onMapCreated: (controller) {

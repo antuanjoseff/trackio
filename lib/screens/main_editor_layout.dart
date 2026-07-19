@@ -285,27 +285,6 @@ class MainEditorLayout extends ConsumerWidget {
                     ref.read(gpxEditorProvider.notifier).toggleElevationChart(),
               ),
 
-              // 🛠️ 7. BOTÓ DE VISIBILITAT DEL SIDEBAR REPARAT
-              Builder(
-                builder: (context) => IconButton(
-                  tooltip: "Sidebar",
-                  icon: Icon(
-                    liveShowSidebar
-                        ? Icons.view_sidebar
-                        : Icons.view_sidebar_outlined,
-                    color: Colors.blue,
-                  ),
-                  onPressed: () {
-                    if (isMobile) {
-                      // 📱 MÒBIL: Obre el menú lateral Drawer lliscant natiu
-                      Scaffold.of(context).openDrawer();
-                    } else {
-                      // 🖥️ WEB: Obre amb el teu toggle d'amplada clàssic
-                      ref.read(gpxEditorProvider.notifier).toggleSidebar();
-                    }
-                  },
-                ),
-              ),
               const SizedBox(width: 8),
             ],
           ),
@@ -354,7 +333,7 @@ class MainEditorLayout extends ConsumerWidget {
                   ],
                 );
               } else {
-                // 📱 VISTA MÒBIL REPARADA (L'APK mòbil s'executa aquí)
+                // VISTA MÒBIL REPARADA (L'APK mòbil s'executa aquí)
                 return Column(
                   children: [
                     Expanded(
@@ -362,6 +341,47 @@ class MainEditorLayout extends ConsumerWidget {
                         children: [
                           // 🗺️ El mapa base ocupant tot el fons
                           mapModule,
+
+                          // 🌟 NOU BOTÓ FLOTANT AL COSTAT SUPERIOR ESQUERRE DEL MAPA
+                          Positioned(
+                            top: 16,
+                            left: 16,
+                            child: Builder(
+                              builder: (context) => Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.9),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.15),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  tooltip: "Sidebar",
+                                  icon: Icon(
+                                    isMobile
+                                        ? Icons.menu_rounded
+                                        : Icons.view_sidebar,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  onPressed: () {
+                                    if (isMobile) {
+                                      // 📱 MÒBIL: Obre el Drawer natiu utilitzant el context d'aquest Builder
+                                      Scaffold.of(context).openDrawer();
+                                    } else {
+                                      // 🖥️ WEB: Fa el toggle de l'amplada clàssic
+                                      ref
+                                          .read(gpxEditorProvider.notifier)
+                                          .toggleSidebar();
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
 
                           // 🛠️ BARRA FLOTANT VERTICAL (A la part dreta del mapa)
                           Positioned(
@@ -514,6 +534,7 @@ class MainEditorLayout extends ConsumerWidget {
                         ],
                       ),
                     ),
+
                     SafeArea(
                       top: false,
                       bottom: !showElevationChart,

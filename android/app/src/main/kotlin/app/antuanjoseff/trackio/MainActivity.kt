@@ -1,4 +1,4 @@
-package com.example.trackio
+package app.antuanjoseff.trackio
 
 import io.flutter.embedding.android.FlutterActivity
 

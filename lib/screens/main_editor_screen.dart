@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as gmath;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -38,6 +39,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   Timer? _throttleTimer;
   MapLibreMapController? _controller;
   bool _isReverseAnimating = false;
+  int _snapRevision = 0;
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
   final GlobalKey _mapKey = GlobalKey(debugLabel: "main_editor_map");
 
@@ -132,6 +134,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           },
 
           // 🌟 CLIC DIRECTE EN MODE ESCRIPTORI / MÒBIL REGULAT
+          // 🌟 DINS DEL TEU StaticEditorMapWidget -> onMapClick:
           onMapClick: (coordinates) async {
             FocusScope.of(context).requestFocus();
 
@@ -139,14 +142,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             final notifier = ref.read(gpxEditorProvider.notifier);
             final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
             final activeTool = state.activeTool;
-
-            // En dispositius sense ratolí, split/range/merge confirmen sempre
-            // el punt sota la retícula central (camera target), igual que el cursor.
-            final LatLng snapTarget =
-                !hasMouse &&
-                    ['split', 'range_map', 'merge'].contains(activeTool)
-                ? (_controller?.cameraPosition?.target ?? coordinates)
-                : coordinates;
 
             if (activeTool == 'draw') {
               notifier.addPointToNewTrack(
@@ -157,12 +152,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               return;
             }
 
+            // ✂️ MÒDUL TALLAR (SPLIT) REPARAT:
             if (activeTool == 'split') {
-              notifier.calculateSnapping(
-                snapTarget.latitude,
-                snapTarget.longitude,
-                zoom,
-              );
+              // 🔒 SEGURETAT: Ja no calculem snapping geogràfic aquí perquè
+              // la càmera ja ha fet el snap a base de píxels durant el moviment!
               notifier.setMapIdle(true);
               notifier.executeTrackSplit();
 
@@ -180,24 +173,16 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               return;
             }
 
+            // 📐 MÒDUL SELECCIÓ (RANGE_MAP) REPARAT:
             if (activeTool == 'range_map') {
-              notifier.calculateSnapping(
-                snapTarget.latitude,
-                snapTarget.longitude,
-                zoom,
-              );
               notifier.setMapIdle(true);
               notifier.handleMapPointSelection();
               paintLiveOverlays(ref.read(gpxEditorProvider));
               return;
             }
 
+            // 🔗 MÒDUL UNIR (MERGE) REPARAT:
             if (activeTool == 'merge') {
-              notifier.calculateSnapping(
-                snapTarget.latitude,
-                snapTarget.longitude,
-                zoom,
-              );
               notifier.setMapIdle(true);
               notifier.executeTracksMerge();
               paintLiveOverlays(ref.read(gpxEditorProvider));
@@ -293,19 +278,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           if (currentState.activeTool == 'draw' &&
               (event.logicalKey == LogicalKeyboardKey.enter ||
                   event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-            // Reutilitzem exactament la mateixa lògica del teu botó blau central:
-            if (_controller != null) {
-              final center = _controller!.cameraPosition?.target;
-              if (center != null) {
-                // 1. Fixem el punt real a Riverpod
-                ref
-                    .read(gpxEditorProvider.notifier)
-                    .addPointToNewTrack(center.latitude, center.longitude);
-
-                // 2. Forcem el repintat instantani de la línia taronja del mapa i el gràfic
-                paintLiveOverlays(ref.read(gpxEditorProvider));
-              }
-            }
+            unawaited(_addDrawPointAtVisibleReticle());
           }
         }
       },
@@ -322,49 +295,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     );
   }
 
-  void _handleCameraMove(CameraPosition pos, GpxEditorState state) {
-    // 🌟 EN MOVIMENT: Sincronització en 2D ultraràpida sense demanar la Z ni tocar la xarxa
-    if (state.activeTool == 'draw') {
-      // 1. Modifiquem només la lat/lon del punt efímer en memòria (amb Z=0 temporal)
-      ref
-          .read(gpxEditorProvider.notifier)
-          .updateDrawingLiveLocationWithoutZ(
-            pos.target.latitude,
-            pos.target.longitude,
-          );
-      // 2. Pintem en viu a la GPU de MapLibre a 60 FPS purs
-      paintLiveOverlays(ref.read(gpxEditorProvider));
-      return; // Sortida ràpida de seguretat
-    }
-
-    if (state.activeTool == 'add_waypoint') {
-      if (state.isMapIdle)
-        ref.read(gpxEditorProvider.notifier).setMapIdle(false);
-      return;
-    }
-    if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
-    if (state.isMapIdle) {
-      ref.read(gpxEditorProvider.notifier).setMapIdle(false);
-    }
-    if (_throttleTimer?.isActive ?? false) return;
-
-    _throttleTimer = Timer(const Duration(milliseconds: 60), () {
-      ref
-          .read(gpxEditorProvider.notifier)
-          .calculateSnapping(
-            pos.target.latitude,
-            pos.target.longitude,
-            pos.zoom,
-          );
-      paintLiveOverlays(ref.read(gpxEditorProvider));
-    });
-  }
-
   void _handleMouseMove(
     LatLng targetCoords,
     double currentZoom,
     GpxEditorState state,
   ) {
+    // 🎨 1. EINA DIBUIXAR: Si estem tirant línies de zero amb ratolí
     if (state.activeTool == 'draw') {
       ref
           .read(gpxEditorProvider.notifier)
@@ -376,6 +312,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
+    // 📍 2. EINA WAYPOINT: Mou la posició del punt efímer sota el punter
     if (state.activeTool == 'add_waypoint') {
       ref
           .read(gpxEditorProvider.notifier)
@@ -387,10 +324,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
+    // ✂️ 3. EINES CONTEXTUALS (SPLIT, RANGE_MAP, MERGE) PER A RATOLÍ:
     if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
     if (_throttleTimer?.isActive ?? false) return;
 
     _throttleTimer = Timer(const Duration(milliseconds: 40), () {
+      // Executa el snapping clàssic enviant de forma directa la coordenada del punter
       ref
           .read(gpxEditorProvider.notifier)
           .calculateSnapping(
@@ -398,20 +337,108 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             targetCoords.longitude,
             currentZoom,
           );
+
+      // Sincronitza l'estat d'espera perquè el botó de tallar reaccioni si cal
       ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+
+      // Força a la GPU de MapLibre a repintar el cercle taronja imantat sota el ratolí
       paintLiveOverlays(ref.read(gpxEditorProvider));
     });
   }
 
-  void _handleCameraIdle() {
-    // 🌐 WEB CONTEXT: Si hi ha un ratolí físic, ens saltem el repòs perquè tot es calcula a '_handleMouseMove'
-    if (_hasMouseConnected) return;
+  Future<LatLng?> _getVisibleReticleLatLng() async {
+    if (_controller == null) return null;
 
+    final RenderBox? renderBox =
+        _mapKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) {
+      return _controller!.cameraPosition?.target;
+    }
+
+    final gmath.Point<double> centerPixel = gmath.Point(
+      renderBox.size.width / 2,
+      renderBox.size.height / 2,
+    );
+
+    try {
+      return await _controller!.toLatLng(centerPixel);
+    } catch (_) {
+      return _controller!.cameraPosition?.target;
+    }
+  }
+
+  Future<void> _addDrawPointAtVisibleReticle() async {
+    final LatLng? target =
+        await _getVisibleReticleLatLng() ?? _controller?.cameraPosition?.target;
+    if (!mounted || target == null) return;
+
+    ref
+        .read(gpxEditorProvider.notifier)
+        .addPointToNewTrack(target.latitude, target.longitude);
+    paintLiveOverlays(ref.read(gpxEditorProvider));
+  }
+
+  Future<void> _handleCameraMove(
+    CameraPosition pos,
+    GpxEditorState state,
+  ) async {
+    if (state.activeTool == 'draw') {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateDrawingLiveLocationWithoutZ(
+            pos.target.latitude,
+            pos.target.longitude,
+          );
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
+
+    if (state.activeTool == 'add_waypoint') {
+      final LatLng? coordsReticula = await _getVisibleReticleLatLng();
+      if (coordsReticula != null) {
+        ref
+            .read(gpxEditorProvider.notifier)
+            .updateWaypointPosition(
+              coordsReticula.latitude,
+              coordsReticula.longitude,
+            );
+      }
+      if (state.isMapIdle) {
+        ref.read(gpxEditorProvider.notifier).setMapIdle(false);
+      }
+      return;
+    }
+
+    if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
+
+    if (state.isMapIdle) {
+      ref.read(gpxEditorProvider.notifier).setMapIdle(false);
+    }
+
+    // 🌟 LA REPARACIÓ CRÍTICA SÍNCRONA:
+    // Cridem al teu helper per esbrinar quina coordenada real hi ha sota de la creu vermella
+    final LatLng? centreReticulaReal = await _getVisibleReticleLatLng();
+    final LatLng puntDestiCalcul = centreReticulaReal ?? pos.target;
+
+    // 🔥 INJECCIÓ CORRECTA: Enviem les coordenades geogràfiques reals corregides del Viewport.
+    // En rebre el punt exacte, el Fallback Geogràfic del teu Notifier s'activarà correctament dins del radi
+    // de tolerància sota el dit. El cercle blau s'alliberarà de l'índex 0 i farà l'snap perfecte frame a frame.
+    ref
+        .read(gpxEditorProvider.notifier)
+        .calculateSnapping(
+          puntDestiCalcul.latitude,
+          puntDestiCalcul.longitude,
+          pos.zoom,
+        );
+
+    paintLiveOverlays(ref.read(gpxEditorProvider));
+  }
+
+  Future<void> _handleCameraIdle() async {
     final state = ref.read(gpxEditorProvider);
     final pos = _controller?.cameraPosition;
     if (pos == null) return;
 
-    // 🎨 EINA DIBUIXAR (Mòbil): Resolem la Z real del punt central només quan el mapa es queda quiet
     if (state.activeTool == 'draw') {
       ref
           .read(gpxEditorProvider.notifier)
@@ -421,21 +448,47 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     }
 
     if (state.activeTool == 'add_waypoint') {
-      ref
-          .read(gpxEditorProvider.notifier)
-          .updateWaypointPosition(pos.target.latitude, pos.target.longitude);
+      final LatLng? coordsReticula = await _getVisibleReticleLatLng();
+      if (coordsReticula != null) {
+        ref
+            .read(gpxEditorProvider.notifier)
+            .updateWaypointPosition(
+              coordsReticula.latitude,
+              coordsReticula.longitude,
+            );
+      }
       ref.read(gpxEditorProvider.notifier).setMapIdle(true);
       return;
     }
 
     if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
 
-    // 🌟 SINCRO APK MÒBIL: Calculem snapping exactament on apunta el centre de la retícula
+    _throttleTimer?.cancel();
+
+    // Sincronització definitiva amb màxima precisió sobre la creu visible en aturar el mapa
+    final LatLng? centreReticulaReal = await _getVisibleReticleLatLng();
+    final LatLng puntDeCercar = centreReticulaReal ?? pos.target;
+
     ref
         .read(gpxEditorProvider.notifier)
-        .calculateSnapping(pos.target.latitude, pos.target.longitude, pos.zoom);
+        .calculateSnapping(
+          puntDeCercar.latitude,
+          puntDeCercar.longitude,
+          pos.zoom,
+        );
 
-    // Això activa els teus botons contextuals flotants de confirmació de l'APK (split, merge...)
+    // 🌟 EFECTE CENTRAT DE SEGURETAT DE SENDA:
+    // Si l'snap és correcte, centrem suaument el mapa a sobre del punt imantat per segellar l'alineació
+    final currentState = ref.read(gpxEditorProvider);
+    if (currentState.snappedPoint != null && _controller != null) {
+      final p = currentState.snappedPoint!;
+      if (p.latitude != null && p.longitude != null) {
+        _controller!.moveCamera(
+          CameraUpdate.newLatLng(LatLng(p.latitude!, p.longitude!)),
+        );
+      }
+    }
+
     ref.read(gpxEditorProvider.notifier).setMapIdle(true);
     paintLiveOverlays(ref.read(gpxEditorProvider));
   }
@@ -467,25 +520,30 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   }
 
   Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
-    // 1️⃣ REPARACIÓ PLATAFORMA: Forcem la instància unificada nativa de FilePicker
-    // Això permet que Android obri el selector de documents de l'APK de forma correcta
+    // 1️⃣ REPARACIÓ PLATAFORMA: Afegim .platform i filtrem majúscules/minúscules
     final result = await FilePicker.pickFiles(
+      // 🔥 MANTINGUT CORREGIT: .platform
       type: FileType.custom,
-      allowedExtensions: ['gpx'],
-      withData:
-          true, // 🌟 Carrega els bytes directament a la RAM de la Web i de l'APK mòbil
+      allowedExtensions: ['gpx', 'GPX'],
+      withData: true,
       allowMultiple: kIsWeb,
     );
     if (result == null || result.files.isEmpty) return;
 
-    // Activem l'animació de processament en segon pla (pantalla borrosa de càrrega)
+    // Activem l'animació de processament en segon pla
     setState(() => _isReverseAnimating = true);
     await Future.delayed(const Duration(milliseconds: 50));
 
     try {
       final List<TrackModel> parsed = [];
       for (final file in result.files) {
-        // Fem una lectura robusta: bytes (web/mòbil) i fallback a path (Android)
+        // 🔍 FILTRE DE SEGURETAT EXTRA: Validació manual del nom del fitxer
+        final extension = file.name.split('.').last.toLowerCase();
+        if (extension != 'gpx') {
+          debugPrint("Fitxer ignorat per no ser GPX: ${file.name}");
+          continue;
+        }
+
         String? content;
         if (file.bytes != null) {
           content = utf8.decode(file.bytes!, allowMalformed: true);
@@ -499,10 +557,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         }
 
         if (kIsWeb) {
-          // 🌐 RUTA WEB: Parseig síncron clàssic ràpid en ordinadors
           parsed.add(GpxParser.parse(content, file.name));
         } else {
-          // A Android release, compute requereix callback top-level/static.
           final TrackModel trackModel = await compute(
             _parseGpxOnBackgroundIsolate,
             {'content': content, 'fileName': file.name},
@@ -518,9 +574,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         return;
       }
 
-      // Inserim les rutes noves a Riverpod i redibuixem el mapa de MapLibre de cop
       ref.read(gpxEditorProvider.notifier).addImportedTracks(parsed);
       await _paintTracksWrapper(ref.read(gpxEditorProvider).tracks);
+
+      // 🌟 REPARACIÓ / FIT TO GPX: El teu mètode _focusTrack ja s'encarrega d'analitzar
+      // tots els punts del track seleccionat i moure la càmera amb bounding box.
+      // Forcem l'espera asíncrona immediata per centrar la pantalla de cop.
       await _focusTrack(
         ref.read(gpxEditorProvider).selectedTrackId,
         ref.read(gpxEditorProvider).tracks,
@@ -533,13 +592,15 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   }
 
   Future<void> _reverseSelectedTrackWithAnimation(WidgetRef ref) async {
-    if (_controller == null || _isReverseAnimating) return;
+    // 🌟 Eliminem el filtre de _isReverseAnimating perquè ja no hi haurà bloqueig
+    if (_controller == null) return;
 
     final before = ref.read(gpxEditorProvider);
     final selectedTrackId = before.selectedTrackId;
     if (selectedTrackId == null) return;
 
-    setState(() => _isReverseAnimating = true);
+    // ❌ ELIMINAT: Ja no posem la pantalla gràfica a "true" (no es mostrarà el fons borrós)
+
     try {
       const Map<String, dynamic> emptyCollection = {
         "type": "FeatureCollection",
@@ -554,18 +615,22 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         "source_snapped_point",
         emptyCollection,
       );
+
+      // Executa la inversió síncrona a la memòria
       ref.read(gpxEditorProvider.notifier).reverseCurrentTrackWithCleanState();
+
       final after = ref.read(gpxEditorProvider);
       final trackIndex = after.tracks.indexWhere(
         (t) => t.id == selectedTrackId,
       );
       if (trackIndex == -1) return;
+
+      // Executa el redibuix progressiu de la línia directament sobre el mapa
       await _animateTrackRedraw(after.tracks[trackIndex]);
     } catch (e) {
       debugPrint("Error en invertir el track: $e");
-    } finally {
-      if (mounted) setState(() => _isReverseAnimating = false);
     }
+    // ❌ ELIMINAT: Esborrat el bloc finally amb el setState de tancament
   }
 
   Future _animateTrackRedraw(TrackModel track) async {

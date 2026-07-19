@@ -7,7 +7,7 @@ mixin MapRenderingMixin {
   // Aquest mixin obligarà la pantalla a oferir accés al controlador del mapa
   MapLibreMapController? get controller;
 
-  void paintLiveOverlays(GpxEditorState state) async {
+  void paintLiveOverlays(GpxEditorState state, {LatLng? reticleLatLng}) async {
     if (controller == null) return;
 
     const Map<String, dynamic> emptyCollection = {
@@ -16,8 +16,7 @@ mixin MapRenderingMixin {
     };
 
     // =========================================================================
-    // 🎨 BLOCK NOU: COMPORTAMENT EN VIU DE L'EINA DE DIBUIX LLIURE
-    // (Sortida ràpida abans de comprovar l'estat del selectedTrackId de sota)
+    // 🎨 EINA DE DIBUIX LLIURE (Es queda 100% intacta tal com la tenies)
     // =========================================================================
     if (state.activeTool == 'draw') {
       if (state.drawingPoints.isEmpty && state.drawingLivePoint == null) {
@@ -30,21 +29,16 @@ mixin MapRenderingMixin {
       }
 
       final drawCoords = <List<double>>[];
-
-      // 1. Inserim primer tots els nodes que l'usuari ja ha fixat amb clics a la pantalla
       for (final p in state.drawingPoints) {
         if (p.latitude != null && p.longitude != null) {
           drawCoords.add([p.longitude!, p.latitude!]);
         }
       }
 
-      // 2. Si hi ha un punt dinàmic a la retícula, l'unim al final per fer l'efecte elàstic
       if (state.drawingLivePoint != null) {
         final live = state.drawingLivePoint!;
         if (live.latitude != null && live.longitude != null) {
           drawCoords.add([live.longitude!, live.latitude!]);
-
-          // Opcional: Si vols pintar el cercle blau de MapLibre a la retícula com a l'split:
           await controller!.setGeoJsonSource("source_snapped_point", {
             "type": "FeatureCollection",
             "features": [
@@ -65,7 +59,6 @@ mixin MapRenderingMixin {
         );
       }
 
-      // Pintem si tenim com a mínim un segment visible computable (2 coordenades o més)
       if (drawCoords.length >= 2) {
         await controller!.setGeoJsonSource("source_range", {
           "type": "FeatureCollection",
@@ -79,11 +72,11 @@ mixin MapRenderingMixin {
       } else {
         await controller!.setGeoJsonSource("source_range", emptyCollection);
       }
-      return; // 🎯 SORTIDA RÀPIDA COMPLTA PER AL DIBUIX
+      return;
     }
 
     // =========================================================================
-    // ✂️ EL TEU CODI ORIGINAL PER A LES ALTRESEINES (SENSE CORRUPCIONS)
+    // ✂️ EXPERT OVERLAYS: REPARACIÓ DE TRAMS EFÍMERS EN MOVIMENT
     // =========================================================================
     if (state.selectedTrackId == null) return;
 
@@ -94,6 +87,7 @@ mixin MapRenderingMixin {
     final track = state.tracks[trackIndex];
     final int? snappedIndex = state.snappedPointIndex;
 
+    // 📍 1. Pintar el cercle blau imantat (Cicle actiu constant)
     if (state.snappedPoint != null) {
       final p = state.snappedPoint!;
       if (p.longitude != null && p.latitude != null) {
@@ -120,6 +114,7 @@ mixin MapRenderingMixin {
     int lo = 0;
     int hi = snappedIndex ?? 0;
 
+    // 🔗 A) MÒDUL MERGE (Es queda intacte)
     if (state.activeTool == 'merge') {
       if (state.previewPoints != null && state.previewPoints!.isNotEmpty) {
         final previewCoords = state.previewPoints!
@@ -139,40 +134,31 @@ mixin MapRenderingMixin {
         await controller!.setGeoJsonSource("source_range", emptyCollection);
       }
       return;
-    } else if (state.activeTool == 'range_map') {
+    }
+    // 📐 B) MÒDUL RANGE_MAP REPARAT SENSE RETORNS PREMATURS
+    else if (state.activeTool == 'range_map') {
       if (state.selectionStartIndex == null) {
-        await controller!.setGeoJsonSource("source_range", emptyCollection);
-        return;
+        lo = 0;
+        hi = snappedIndex ?? 0;
       } else if (state.selectionStartIndex != null &&
           state.selectionEndIndex != null &&
           state.selectionEndIndex != -1 &&
           !state.isSelectingRange) {
         lo = state.selectionStartIndex!;
         hi = state.selectionEndIndex!;
-        final segment = <List<double>>[];
-        for (int i = lo; i <= hi; i++) {
-          final p = track.points[i];
-          if (p.longitude != null && p.latitude != null)
-            segment.add([p.longitude!, p.latitude!]);
-        }
-        await controller!.setGeoJsonSource("source_range", {
-          "type": "FeatureCollection",
-          "features": [
-            {
-              "type": "Feature",
-              "geometry": {"type": "LineString", "coordinates": segment},
-            },
-          ],
-        });
-        return;
       } else {
         if (snappedIndex == null) return;
         final int start = state.selectionStartIndex!;
         lo = start < snappedIndex ? start : snappedIndex;
         hi = start < snappedIndex ? snappedIndex : start;
       }
-    } else if (state.activeTool == 'split') {
-      if (snappedIndex == null) return;
+    }
+    // ✂️ C) MÒDUL SPLIT (TALLAR)
+    else if (state.activeTool == 'split') {
+      if (snappedIndex == null) {
+        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        return;
+      }
       lo = 0;
       hi = snappedIndex;
     } else {
@@ -180,22 +166,43 @@ mixin MapRenderingMixin {
       return;
     }
 
-    final segment = <List<double>>[];
+    // 📦 3. CONSTRUCCIÓ I INJECCIÓ DEL GEOMETRIC LINESTRING EFÍMER
+    // 🌟 REPARACIÓ DE TIPUS GRÀFIC: Canviem <List<double>> per una llista genèrica <List>[]
+    // per evitar que Android bloquegi de forma asíncrona la renderització a 60 FPS.
+    final segment = <List>[];
     for (int i = lo; i <= hi; i++) {
+      if (i >= track.points.length) break;
       final p = track.points[i];
-      if (p.longitude != null && p.latitude != null)
+      if (p.longitude != null && p.latitude != null) {
         segment.add([p.longitude!, p.latitude!]);
+      }
     }
 
-    await controller!.setGeoJsonSource("source_range", {
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "geometry": {"type": "LineString", "coordinates": segment},
-        },
-      ],
-    });
+    final bool shouldExtendToReticle =
+        reticleLatLng != null &&
+        (state.activeTool == 'split' || state.activeTool == 'range_map');
+    if (shouldExtendToReticle) {
+      segment.add([reticleLatLng.longitude, reticleLatLng.latitude]);
+    }
+
+    // Actualitzem les línies taronja/blanca ("source_range") en temps real sota la GPU
+    if (segment.length >= 2) {
+      await controller!.setGeoJsonSource("source_range", {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "LineString",
+              // 🌟 NETEJA DE BUFFER: Forcem la conversió de llista genèrica compatible amb el canal natiu
+              "coordinates": List<List>.from(segment),
+            },
+          },
+        ],
+      });
+    } else {
+      await controller!.setGeoJsonSource("source_range", emptyCollection);
+    }
   }
 
   Future<void> createGlobalLayers() async {
