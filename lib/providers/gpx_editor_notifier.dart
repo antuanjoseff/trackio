@@ -109,132 +109,109 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   void calculateSnapping(
     double centerLat,
     double centerLng,
-    double currentZoom, {
-    math.Point<double>? reticulaPixel,
-    List<math.Point<double>?>? trackPixels,
-  }) {
+    double currentZoom,
+  ) {
+    debugPrint("SNAP CALLED lat=$centerLat lng=$centerLng zoom=$currentZoom");
+
     if (state.tracks.isEmpty || state.selectedTrackId == null) return;
 
     final bool isSplitMode = state.activeTool == 'split';
     final bool isRangeMapMode = state.activeTool == 'range_map';
     final bool isMergeMode = state.activeTool == 'merge';
+
     if (!isSplitMode && !isRangeMapMode && !isMergeMode) return;
 
-    const int step = 1; // Analitzem cada punt linealment per a màxima precisió
-
-    // =========================================================================
-    // 🤝 LÒGICA PER AL MERGE (Es manté intacta amb graus)
-    // =========================================================================
     if (isMergeMode) {
-      double minGlobalDistance = double.infinity;
+      double minDistance = double.infinity;
       int? closestTrackId;
-      List<TrackPointModel>? closestTrackPoints;
+      List<TrackPointModel>? closestPoints;
 
       for (final track in state.tracks) {
         if (track.id == state.selectedTrackId) continue;
-        for (int i = 0; i < track.points.length; i += step) {
-          final p = track.points[i];
+
+        for (final p in track.points) {
           if (p.latitude == null || p.longitude == null) continue;
-          final double dLat = p.latitude! - centerLat;
-          final double dLng = p.longitude! - centerLng;
-          final double distance = dLat * dLat + dLng * dLng;
-          if (distance < minGlobalDistance) {
-            minGlobalDistance = distance;
+
+          final lat = (p.latitude! - centerLat) * 111320;
+          final lng =
+              (p.longitude! - centerLng) *
+              111320 *
+              math.cos(centerLat * math.pi / 180);
+
+          final d = lat * lat + lng * lng;
+
+          if (d < minDistance) {
+            minDistance = d;
             closestTrackId = track.id;
-            closestTrackPoints = track.points;
+            closestPoints = track.points;
           }
         }
       }
-      const double safetyThreshold = 0.0005;
-      if (minGlobalDistance < safetyThreshold &&
-          closestTrackId != null &&
-          closestTrackPoints != null) {
-        if (state.previewTrackId == closestTrackId) return;
+
+      const threshold = 50.0;
+
+      if (closestTrackId != null &&
+          closestPoints != null &&
+          minDistance < threshold * threshold) {
         final trackA = state.tracks.firstWhere(
           (t) => t.id == state.selectedTrackId,
         );
+
         state = state.copyWith(
           previewTrackId: closestTrackId,
-          previewPoints: [...trackA.points, ...closestTrackPoints],
-          isMapIdle: false,
+          previewPoints: [...trackA.points, ...closestPoints],
         );
-      } else if (state.previewTrackId != null) {
+      } else {
         state = state.copyWith(previewTrackId: null, previewPoints: null);
       }
+
       return;
     }
 
-    // =========================================================================
-    // ✂️ EL NOU SNAPPING ROBUST DE PÍXELS EN 2D PARA 'SPLIT' I 'RANGE_MAP'
-    // =========================================================================
-    final int? activeTrackId = int.tryParse(state.selectedTrackId.toString());
-    final trackIndex = state.tracks.indexWhere((t) => t.id == activeTrackId);
-    if (trackIndex == -1) return;
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
 
-    final activeTrack = state.tracks[trackIndex];
-    final points = activeTrack.points;
-    if (points.isEmpty) return;
+    if (track.points.isEmpty) return;
 
-    // 🌟 CONTROL DE CAPA: Si estem al mòbil i ens envien la llista de píxels projectats
-    if (reticulaPixel != null &&
-        trackPixels != null &&
-        trackPixels.isNotEmpty) {
-      double minDistanceSquared = double.infinity;
-      TrackPointModel? closestPoint;
-      int closestIndex = -1;
+    double bestDistance = double.infinity;
+    int bestIndex = -1;
 
-      for (int i = 0; i < points.length; i += step) {
-        if (i >= trackPixels.length) break;
-        final pixelNode = trackPixels[i];
-        if (pixelNode == null) continue;
+    for (int i = 0; i < track.points.length; i++) {
+      final p = track.points[i];
 
-        // Pitàgores 2D net a la pantalla de l'S24: dx^2 + dy^2
-        final double dx = pixelNode.x - reticulaPixel.x;
-        final double dy = pixelNode.y - reticulaPixel.y;
-        final double distanceSquared = dx * dx + dy * dy;
+      if (p.latitude == null || p.longitude == null) continue;
 
-        if (distanceSquared < minDistanceSquared) {
-          minDistanceSquared = distanceSquared;
-          closestPoint = points[i];
-          closestIndex = i;
-        }
-      }
+      final lat = (p.latitude! - centerLat) * 111320;
+      final lng =
+          (p.longitude! - centerLng) *
+          111320 *
+          math.cos(centerLat * math.pi / 180);
 
-      // Llindar de sensibilitat de la busca: El camí ha d'estar a un màxim de 100 píxels de la creu
-      const double maxRadius = 100.0;
-      if (closestPoint != null &&
-          closestIndex >= 0 &&
-          minDistanceSquared < (maxRadius * maxRadius)) {
-        state = state.copyWith(
-          snappedPoint: closestPoint,
-          snappedPointIndex: closestIndex,
-        );
-        return; // Retorn immediat amb èxit
+      final distance = lat * lat + lng * lng;
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
       }
     }
 
-    // 🔄 FALLBACK GEOGRÀFIC: Sols si la llista de píxels arriba buida o és a la Web
-    double minDistance = double.infinity;
-    TrackPointModel? closestPointGeographic;
-    int closestIndexGeographic = -1;
+    double maxDistance;
 
-    for (int i = 0; i < points.length; i += step) {
-      final point = points[i];
-      if (point.latitude == null || point.longitude == null) continue;
-      final double dLat = point.latitude! - centerLat;
-      final double dLng = point.longitude! - centerLng;
-      final double distance = dLat * dLat + dLng * dLng;
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestPointGeographic = point;
-        closestIndexGeographic = i;
-      }
+    if (currentZoom < 12) {
+      maxDistance = 120;
+    } else if (currentZoom < 15) {
+      maxDistance = 60;
+    } else {
+      maxDistance = 25;
     }
 
-    if (closestPointGeographic != null && closestIndexGeographic >= 0) {
+    debugPrint(
+      "BEST INDEX=$bestIndex DISTANCE=${math.sqrt(bestDistance)}m LIMIT=$maxDistance",
+    );
+
+    if (bestIndex >= 0 && bestDistance < maxDistance * maxDistance) {
       state = state.copyWith(
-        snappedPoint: closestPointGeographic,
-        snappedPointIndex: closestIndexGeographic,
+        snappedPoint: track.points[bestIndex],
+        snappedPointIndex: bestIndex,
       );
     } else {
       state = state.copyWith(snappedPoint: null, snappedPointIndex: null);

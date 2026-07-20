@@ -52,8 +52,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     super.dispose();
   }
 
+  bool get _isMobileApp =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
   bool get _hasMouseConnected =>
-      RendererBinding.instance.mouseTracker.mouseIsConnected;
+      !_isMobileApp && RendererBinding.instance.mouseTracker.mouseIsConnected;
 
   // Mètodes auxiliars propis de la pantalla
   Future<void> _paintTracksWrapper(List<TrackModel> tracks) async {
@@ -123,7 +127,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             );
           },
           onCameraMove: (pos) {
-            if (hasMouse) return;
+            if (!_isMobileApp) return;
+
             _handleCameraMove(pos, ref.read(gpxEditorProvider));
           },
           onCameraIdle: _handleCameraIdle,
@@ -378,66 +383,14 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     paintLiveOverlays(ref.read(gpxEditorProvider));
   }
 
-  Future<void> _handleCameraMove(
-    CameraPosition pos,
-    GpxEditorState state,
-  ) async {
-    if (state.activeTool == 'draw') {
-      ref
-          .read(gpxEditorProvider.notifier)
-          .updateDrawingLiveLocationWithoutZ(
-            pos.target.latitude,
-            pos.target.longitude,
-          );
-      paintLiveOverlays(ref.read(gpxEditorProvider));
-      return;
-    }
-
-    if (state.activeTool == 'add_waypoint') {
-      final LatLng? coordsReticula = await _getVisibleReticleLatLng();
-      if (coordsReticula != null) {
-        ref
-            .read(gpxEditorProvider.notifier)
-            .updateWaypointPosition(
-              coordsReticula.latitude,
-              coordsReticula.longitude,
-            );
-      }
-      if (state.isMapIdle) {
-        ref.read(gpxEditorProvider.notifier).setMapIdle(false);
-      }
-      return;
-    }
-
-    if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
-
-    if (state.isMapIdle) {
-      ref.read(gpxEditorProvider.notifier).setMapIdle(false);
-    }
-
-    // 🌟 LA REPARACIÓ CRÍTICA SÍNCRONA:
-    // Cridem al teu helper per esbrinar quina coordenada real hi ha sota de la creu vermella
-    final LatLng? centreReticulaReal = await _getVisibleReticleLatLng();
-    final LatLng puntDestiCalcul = centreReticulaReal ?? pos.target;
-
-    // 🔥 INJECCIÓ CORRECTA: Enviem les coordenades geogràfiques reals corregides del Viewport.
-    // En rebre el punt exacte, el Fallback Geogràfic del teu Notifier s'activarà correctament dins del radi
-    // de tolerància sota el dit. El cercle blau s'alliberarà de l'índex 0 i farà l'snap perfecte frame a frame.
-    ref
-        .read(gpxEditorProvider.notifier)
-        .calculateSnapping(
-          puntDestiCalcul.latitude,
-          puntDestiCalcul.longitude,
-          pos.zoom,
-        );
-
-    paintLiveOverlays(ref.read(gpxEditorProvider));
-  }
-
   Future<void> _handleCameraIdle() async {
-    final state = ref.read(gpxEditorProvider);
     final pos = _controller?.cameraPosition;
+    debugPrint(
+      "Camera idle: ${pos?.target.latitude}, ${pos?.target.longitude}, zoom: ${pos?.zoom}",
+    );
     if (pos == null) return;
+
+    final state = ref.read(gpxEditorProvider);
 
     if (state.activeTool == 'draw') {
       ref
@@ -448,7 +401,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     }
 
     if (state.activeTool == 'add_waypoint') {
-      final LatLng? coordsReticula = await _getVisibleReticleLatLng();
+      final coordsReticula = await _getVisibleReticleLatLng();
       if (coordsReticula != null) {
         ref
             .read(gpxEditorProvider.notifier)
@@ -465,32 +418,68 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     _throttleTimer?.cancel();
 
-    // Sincronització definitiva amb màxima precisió sobre la creu visible en aturar el mapa
-    final LatLng? centreReticulaReal = await _getVisibleReticleLatLng();
-    final LatLng puntDeCercar = centreReticulaReal ?? pos.target;
+    final coordsReticula = await _getVisibleReticleLatLng();
+    final target = coordsReticula ?? pos.target;
 
     ref
         .read(gpxEditorProvider.notifier)
-        .calculateSnapping(
-          puntDeCercar.latitude,
-          puntDeCercar.longitude,
-          pos.zoom,
-        );
-
-    // 🌟 EFECTE CENTRAT DE SEGURETAT DE SENDA:
-    // Si l'snap és correcte, centrem suaument el mapa a sobre del punt imantat per segellar l'alineació
-    final currentState = ref.read(gpxEditorProvider);
-    if (currentState.snappedPoint != null && _controller != null) {
-      final p = currentState.snappedPoint!;
-      if (p.latitude != null && p.longitude != null) {
-        _controller!.moveCamera(
-          CameraUpdate.newLatLng(LatLng(p.latitude!, p.longitude!)),
-        );
-      }
-    }
+        .calculateSnapping(target.latitude, target.longitude, pos.zoom);
 
     ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+
     paintLiveOverlays(ref.read(gpxEditorProvider));
+  }
+
+  Future<void> _handleCameraMove(
+    CameraPosition pos,
+    GpxEditorState state,
+  ) async {
+    final currentState = ref.read(gpxEditorProvider);
+
+    debugPrint("Camera moving tool=${currentState.activeTool}");
+
+    if (currentState.activeTool == 'draw') {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateDrawingLiveLocationWithoutZ(
+            pos.target.latitude,
+            pos.target.longitude,
+          );
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
+
+    if (currentState.activeTool == 'add_waypoint') {
+      final coords = await _getVisibleReticleLatLng();
+
+      if (coords != null) {
+        ref
+            .read(gpxEditorProvider.notifier)
+            .updateWaypointPosition(coords.latitude, coords.longitude);
+      }
+
+      return;
+    }
+
+    if (!['split', 'range_map', 'merge'].contains(currentState.activeTool)) {
+      debugPrint("CameraMove sense eina de snap: ${currentState.activeTool}");
+      return;
+    }
+
+    if (_throttleTimer?.isActive ?? false) return;
+
+    _throttleTimer = Timer(const Duration(milliseconds: 50), () async {
+      final coords = await _getVisibleReticleLatLng();
+      final target = coords ?? pos.target;
+
+      debugPrint("CALCULATE SNAP ${target.latitude}, ${target.longitude}");
+
+      ref
+          .read(gpxEditorProvider.notifier)
+          .calculateSnapping(target.latitude, target.longitude, pos.zoom);
+
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+    });
   }
 
   Future<void> _focusTrack(int? trackId, List<TrackModel> tracks) async {
