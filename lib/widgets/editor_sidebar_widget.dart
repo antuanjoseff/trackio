@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/l10n/app_localizations.dart';
@@ -307,10 +306,11 @@ class EditorSidebarWidget extends ConsumerWidget {
                                         ],
                                       ),
 
-                                      // Grup d'accions (Exportar i Esborrar)
+                                      // Grup d'accions (ComparitExportar i Esborrar)
+                                      // Grup d'accions (Exportar, Compartir i Esborrar)
                                       Row(
                                         children: [
-                                          // 💾 EXPORTAR
+                                          // 💾 DESCARREGAR DIRECTE (Guarda a Descàrregues / Localment)
                                           IconButton(
                                             icon: const Icon(
                                               Icons.file_download_outlined,
@@ -319,11 +319,11 @@ class EditorSidebarWidget extends ConsumerWidget {
                                             color: isSelected
                                                 ? Colors.blue.shade700
                                                 : Colors.grey.shade600,
-                                            tooltip: t.exportGpx,
+                                            tooltip: t.downloadGpx,
                                             constraints: const BoxConstraints(
-                                              minWidth: 44,
+                                              minWidth: 40,
                                               minHeight: 44,
-                                            ), // Mida estàndard mòbil
+                                            ),
                                             onPressed: () async {
                                               final gpxString = ref
                                                   .read(
@@ -331,9 +331,46 @@ class EditorSidebarWidget extends ConsumerWidget {
                                                   )
                                                   .generateGpxString(track);
 
+                                              // Crida al mètode amb paràmetres nominals i traducció
+                                              await GpxExporter.downloadTrackGpx(
+                                                name: track.name,
+                                                content: gpxString,
+                                                dialogTitle:
+                                                    AppLocalizations.of(
+                                                      context,
+                                                    )!.saveGpxDialogTitle,
+                                              );
+                                            },
+                                          ),
+
+                                          // 📤 COMPARTIR (El teu mètode original de share_plus)
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.share_outlined,
+                                              size: 20,
+                                            ),
+                                            color: isSelected
+                                                ? Colors.blue.shade700
+                                                : Colors.grey.shade600,
+                                            tooltip: t.shareGpx,
+                                            constraints: const BoxConstraints(
+                                              minWidth: 40,
+                                              minHeight: 44,
+                                            ),
+                                            onPressed: () async {
+                                              final gpxString = ref
+                                                  .read(
+                                                    gpxEditorProvider.notifier,
+                                                  )
+                                                  .generateGpxString(track);
+
+                                              // Crida al mètode de compartir modern i multillenguatge
                                               await GpxExporter.exportTrackGpx(
-                                                track.name,
-                                                gpxString,
+                                                name: track.name,
+                                                content: gpxString,
+                                                shareSubject: AppLocalizations.of(
+                                                  context,
+                                                )!.shareGpxSubject, // 👈 El teu text traduït (Ex: "Exportar ruta")
                                               );
                                             },
                                           ),

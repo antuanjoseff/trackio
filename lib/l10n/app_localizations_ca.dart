@@ -151,4 +151,16 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get color => 'Color';
+
+  @override
+  String get shareGpx => 'Compartir';
+
+  @override
+  String get downloadGpx => 'Descarregar';
+
+  @override
+  String get saveGpxDialogTitle => 'Desa el fitxer GPX';
+
+  @override
+  String get shareGpxSubject => 'Exportar ruta GPX';
 }

@@ -384,6 +384,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Color'**
   String get color;
+
+  /// No description provided for @shareGpx.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareGpx;
+
+  /// No description provided for @downloadGpx.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get downloadGpx;
+
+  /// No description provided for @saveGpxDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save GPX file'**
+  String get saveGpxDialogTitle;
+
+  /// No description provided for @shareGpxSubject.
+  ///
+  /// In en, this message translates to:
+  /// **'Export GPX route'**
+  String get shareGpxSubject;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -151,4 +151,16 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get color => 'Color';
+
+  @override
+  String get shareGpx => 'Compartir';
+
+  @override
+  String get downloadGpx => 'Descargar';
+
+  @override
+  String get saveGpxDialogTitle => 'Guardar archivo GPX';
+
+  @override
+  String get shareGpxSubject => 'Exportar ruta GPX';
 }

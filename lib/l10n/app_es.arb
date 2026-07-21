@@ -47,6 +47,11 @@
 
   "visible": "Visible",
   "hidden": "Oculto",
-  "color": "Color"
+  "color": "Color",
+  "shareGpx": "Compartir",
+  "downloadGpx": "Descargar",
+
+  "saveGpxDialogTitle": "Guardar archivo GPX",
+  "shareGpxSubject": "Exportar ruta GPX"  
 }
 
