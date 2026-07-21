@@ -41,7 +41,7 @@ class GpxEditorState {
     this.snappedPointIndex,
     this.isMapIdle = false,
     this.activeTool = 'none',
-    this.showElevationChart = true,
+    this.showElevationChart = false,
     this.showSpeedInChart = true,
     this.selectionStartIndex,
     this.selectionEndIndex,

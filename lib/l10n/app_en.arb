@@ -43,5 +43,10 @@
   "cancel": "Cancel",
   "undo": "Undo last point",
   "drawnRouteDefaultName": "Drawn Route",
-  "routeSavedSuccess": "Route saved successfully"
+  "routeSavedSuccess": "Route saved successfully",
+
+  "visible": "Visible",
+  "hidden": "Hidden",
+  "color": "Color"
 }
+

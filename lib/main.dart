@@ -5,9 +5,13 @@ import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/screens/main_editor_screen.dart';
 
 void main() {
+  // 🧠 Assegurem la inicialització correcta dels serveis del framework
+  // abans de muntar l'arbre de ginys de Flutter.
+  WidgetsFlutterBinding.ensureInitialized();
+
   runApp(
-    // 🧠 GENT DEL CEREBRE: Envoltem tota la app amb ProviderScope
-    // per activar Riverpod 2 a totes les pantalles de Trackio
+    // Envoltem tota la app amb ProviderScope per activar Riverpod 2
+    // a totes les pantalles de Trackio de forma global.
     const ProviderScope(child: MyApp()),
   );
 }
@@ -38,8 +42,8 @@ class MyApp extends StatelessWidget {
         Locale('en'), // English
       ],
 
-      // 🚀 PANTALLA D'INICI: Apuntem directament al Layout responsive adaptatiu
-      home: MainEditorScreen(),
+      // 🚀 PANTALLA D'INICI: Apuntem al Layout responsive optimitzat amb const
+      home: const MainEditorScreen(),
     );
   }
 }

@@ -142,4 +142,13 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get routeSavedSuccess => 'Ruta desada amb èxit';
+
+  @override
+  String get visible => 'Visible';
+
+  @override
+  String get hidden => 'Ocult';
+
+  @override
+  String get color => 'Color';
 }

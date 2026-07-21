@@ -43,6 +43,9 @@
   "cancel": "Cancel·lar",
   "undo": "Desfer últim punt",
   "drawnRouteDefaultName": "Ruta Dibuixada",
-  "routeSavedSuccess": "Ruta desada amb èxit"
+  "routeSavedSuccess": "Ruta desada amb èxit",
 
+  "visible": "Visible",
+  "hidden": "Ocult",
+  "color": "Color"
 }

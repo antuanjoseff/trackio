@@ -13,7 +13,6 @@ class StaticEditorMapWidget extends StatefulWidget {
   final Function(LatLng coordinates)? onMouseHoverMap;
   final MouseCursor cursor;
 
-  // 🌟 AÑADIMOS EL NUEVO CALLBACK PARA EL CLIC DEL RATÓN
   final Function(LatLng coordinates)? onMapClick;
 
   const StaticEditorMapWidget({
@@ -24,7 +23,7 @@ class StaticEditorMapWidget extends StatefulWidget {
     required this.onCameraIdle,
     this.cursor = MouseCursor.defer,
     this.onMouseHoverMap,
-    this.onMapClick, // Parámetro opcional
+    this.onMapClick,
   });
 
   @override
@@ -65,7 +64,6 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     );
     if (!mounted) return;
 
-    // Evita dobles insercions quan també arriba onMapClick natiu de MapLibre.
     _suppressNativeMapClickUntil = DateTime.now().add(
       const Duration(milliseconds: 120),
     );
@@ -73,7 +71,20 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    debugPrint("trackio Map initState");
+  }
+
+  @override
+  void dispose() {
+    debugPrint("trackio trackio Map dispose");
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    debugPrint("trackio Map build");
     return MouseRegion(
       cursor: widget.cursor,
       onHover: _hasMouse ? _handleMouseHover : null,
@@ -81,28 +92,42 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
         behavior: HitTestBehavior.translucent,
         onPointerDown: _handleMousePrimaryDown,
         child: MapLibreMap(
+          key: widget.key,
           compassEnabled: false,
+          rotateGesturesEnabled: false,
+          tiltGesturesEnabled: false,
           styleString: "assets/map/style.json",
           trackCameraPosition: true,
           initialCameraPosition: const CameraPosition(
-            target: LatLng(41.98311, 2.82493), // Girona
+            target: LatLng(41.98311, 2.82493),
             zoom: 13.0,
           ),
+
           onMapCreated: (controller) {
+            debugPrint("trackio Map created");
             _mapController = controller;
             widget.onMapCreated(controller);
           },
-          onStyleLoadedCallback: widget.onStyleLoaded,
-          onCameraMove: widget.onCameraMove,
-          onCameraIdle: widget.onCameraIdle,
 
-          // 🌟 CONECTAMOS EL EVENTO NATIVO DE MAPLIBRE
+          onStyleLoadedCallback: () {
+            widget.onStyleLoaded();
+          },
+
+          onCameraMove: (pos) {
+            widget.onCameraMove(pos);
+          },
+
+          onCameraIdle: () {
+            widget.onCameraIdle();
+          },
+
           onMapClick: (point, coordinates) {
             final suppressUntil = _suppressNativeMapClickUntil;
             if (suppressUntil != null &&
                 DateTime.now().isBefore(suppressUntil)) {
               return;
             }
+
             if (widget.onMapClick != null) {
               widget.onMapClick!(coordinates);
             }

@@ -9,7 +9,7 @@ import 'package:trackio/vars/track_colors.dart';
 import 'package:trackio/widgets/color_palette_dialog.dart';
 
 // 🌟 EL PONT CONDICIONAL QUE SOLUCIONA L'ERROR DE L'APK D'ANDROID:
-import 'package:trackio/services/gpx_exporter_stub.dart'
+import 'package:trackio/services/gpx_exporter_io.dart'
     if (dart.library.js_interop) 'package:trackio/services/gpx_exporter_web.dart';
 
 class EditorSidebarWidget extends ConsumerWidget {
@@ -78,18 +78,17 @@ class EditorSidebarWidget extends ConsumerWidget {
             const Divider(),
           ],
 
-          // 📜 LLISTA REORDENABLE DE TRACKS TOTALMENT ADAPTADA PER EVITAR COLUMNES VERTICALS
+          // 📜 LLISTA REORDENABLE DE TRACKS ADAPTADA AMB FILA D'ACCIONS SECUNDÀRIES PER A MÒBILS
           Expanded(
             child: tracks.isEmpty
                 ? Center(child: Text(t.noTracksLoaded))
                 : ReorderableListView.builder(
                     buildDefaultDragHandles: false,
                     itemCount: tracks.length,
-                    onReorder: (old, next) async {
+                    onReorder: (old, next) {
                       ref
                           .read(gpxEditorProvider.notifier)
                           .reorderTracks(old, next);
-                      await onPaintTracks(ref.read(gpxEditorProvider).tracks);
                     },
                     itemBuilder: (context, index) {
                       final track = tracks[index];
@@ -98,213 +97,276 @@ class EditorSidebarWidget extends ConsumerWidget {
                         track.hexColor,
                       );
 
-                      return AnimatedContainer(
+                      return Card(
                         key: ValueKey("track_row_${track.id}"),
-                        duration: const Duration(milliseconds: 150),
+                        elevation: isSelected ? 2 : 0,
                         margin: const EdgeInsets.symmetric(
-                          vertical: 4.0,
-                          horizontal: 2.0,
+                          vertical: 6.0,
+                          horizontal: 4.0,
                         ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Colors.grey.shade100
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
+                        color: isSelected ? Colors.grey.shade50 : Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          side: BorderSide(
                             color: isSelected
                                 ? Colors.grey.shade300
-                                : Colors.transparent,
+                                : Colors.grey.shade200,
                             width: 1,
                           ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.03),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : null,
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                           child: Container(
                             decoration: BoxDecoration(
                               border: Border(
                                 left: BorderSide(
                                   color: isSelected
                                       ? trackBaseColor
-                                      : Colors.transparent,
-                                  width: 4.0,
+                                      : Colors.grey.shade300,
+                                  width: 5.0,
                                 ),
                               ),
                             ),
-                            child: ListTile(
-                              selected: isSelected,
-                              selectedColor: Colors.black,
-                              dense: true,
-                              contentPadding: const EdgeInsets.only(
-                                left: 6,
-                                right: 8,
-                                top: 2,
-                                bottom: 2,
-                              ),
-
-                              // 🌟 SECCIÓ ESQUERRA COMPACTADA: En mòbils reduïm espais per donar aire al nom
-                              leading: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ReorderableDragStartListener(
-                                    index: index,
-                                    child: Icon(
-                                      Icons.drag_indicator_rounded,
-                                      size: 18,
-                                      color: isSelected
-                                          ? Colors.grey.shade600
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // 🔝 LÍNIA 1: NOM DEL TRACK I DRAG HANDLE (Accessible i net)
+                                ListTile(
+                                  dense: true,
+                                  title: Text(
+                                    track.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      fontSize: 14,
+                                      color: track.isVisible
+                                          ? Colors.black87
                                           : Colors.grey.shade400,
+                                      decoration: track.isVisible
+                                          ? TextDecoration.none
+                                          : TextDecoration.lineThrough,
                                     ),
                                   ),
-                                  const SizedBox(width: 2),
-
-                                  // COLOR PICKER
-                                  GestureDetector(
-                                    onTap: () => showDialog(
-                                      context: context,
-                                      builder: (_) => ColorPaletteDialog(
-                                        onColorSelected: (hex) async {
-                                          ref
-                                              .read(gpxEditorProvider.notifier)
-                                              .updateTrackColor(track.id, hex);
-                                          await onPaintTracks(
-                                            ref.read(gpxEditorProvider).tracks,
-                                          );
-                                        },
+                                  trailing: ReorderableDragStartListener(
+                                    index: index,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(
+                                        8.0,
+                                      ), // Àrea de toc gran per moure
+                                      child: Icon(
+                                        Icons.drag_indicator_rounded,
+                                        size: 20,
+                                        color: isSelected
+                                            ? Colors.grey.shade700
+                                            : Colors.grey.shade400,
                                       ),
                                     ),
-                                    child: Container(
-                                      width: 12,
-                                      height: 12,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: trackBaseColor,
-                                        border: Border.all(
-                                          color: Colors.white,
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withAlpha(
-                                              30,
-                                            ), // Ara és dinàmic i legal amb un enter!
-                                            blurRadius: 2,
-                                            offset: const Offset(
-                                              0,
-                                              1,
-                                            ), // El const es queda només a l'Offset que és fix
+                                  ),
+                                  onTap: () => ref
+                                      .read(gpxEditorProvider.notifier)
+                                      .selectTrack(track.id),
+                                ),
+
+                                const Divider(height: 1, thickness: 0.5),
+
+                                // 🛠️ LÍNIA 2: BARRA D'EINES INFERIOR AMB HITBOX COMDES (48px d'alçada mínima per a dits)
+                                Container(
+                                  color: isSelected
+                                      ? Colors.grey.shade100
+                                      : Colors.grey.shade50,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8.0,
+                                    vertical: 2.0,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      // Grup d'estat (Visibilitat i Color)
+                                      Row(
+                                        children: [
+                                          // 👁️ CHECKBOX VISIBILITAT (Ampliat)
+                                          InkWell(
+                                            onTap: () => ref
+                                                .read(
+                                                  gpxEditorProvider.notifier,
+                                                )
+                                                .toggleTrackVisibility(
+                                                  track.id,
+                                                ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10.0,
+                                                    vertical: 8.0,
+                                                  ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    track.isVisible
+                                                        ? Icons
+                                                              .visibility_outlined
+                                                        : Icons
+                                                              .visibility_off_outlined,
+                                                    size: 18,
+                                                    color: track.isVisible
+                                                        ? trackBaseColor
+                                                        : Colors.grey,
+                                                  ),
+                                                  if (!isMobile)
+                                                    const SizedBox(width: 4),
+                                                  if (!isMobile)
+                                                    Text(
+                                                      track.isVisible
+                                                          ? t.visible
+                                                          : t.hidden,
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+
+                                          // 🎨 SELECTOR DE COLOR (Àrea ampliada amb cercle gran per no fallar el tap)
+                                          InkWell(
+                                            onTap: () => showDialog(
+                                              context: context,
+                                              // 🔥 PROTECCIÓ ANDROID: Evita saltar al context de navegació de l'arrel de l'app
+                                              useRootNavigator: false,
+                                              // 🔥 PROTECCIÓ GRÀFICA: Opacitat mínima del fons per estalviar-li recàlculs i sobrecàrrega a la GPU
+                                              barrierColor: Colors.black
+                                                  .withOpacity(0.01),
+                                              builder: (_) =>
+                                                  ColorPaletteDialog(
+                                                    onColorSelected: (hex) {
+                                                      ref
+                                                          .read(
+                                                            gpxEditorProvider
+                                                                .notifier,
+                                                          )
+                                                          .updateTrackColor(
+                                                            track.id,
+                                                            hex,
+                                                          );
+                                                    },
+                                                  ),
+                                            ),
+
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12.0,
+                                                    vertical: 8.0,
+                                                  ),
+                                              child: Row(
+                                                children: [
+                                                  Container(
+                                                    width:
+                                                        16, // Abans era 12, ara és molt més fàcil de premer
+                                                    height: 16,
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      color: trackBaseColor,
+                                                      border: Border.all(
+                                                        color: Colors.white,
+                                                        width: 1.5,
+                                                      ),
+                                                      boxShadow: const [
+                                                        BoxShadow(
+                                                          color: Colors.black26,
+                                                          blurRadius: 2,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    t.color ?? "Color",
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color:
+                                                          Colors.grey.shade700,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 2),
 
-                                  // CHECKBOX VISIBILITAT
-                                  SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: Checkbox(
-                                      value: track.isVisible,
-                                      activeColor: trackBaseColor,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(4),
+                                      // Grup d'accions (Exportar i Esborrar)
+                                      Row(
+                                        children: [
+                                          // 💾 EXPORTAR
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.file_download_outlined,
+                                              size: 20,
+                                            ),
+                                            color: isSelected
+                                                ? Colors.blue.shade700
+                                                : Colors.grey.shade600,
+                                            tooltip: t.exportGpx,
+                                            constraints: const BoxConstraints(
+                                              minWidth: 44,
+                                              minHeight: 44,
+                                            ), // Mida estàndard mòbil
+                                            onPressed: () async {
+                                              final gpxString = ref
+                                                  .read(
+                                                    gpxEditorProvider.notifier,
+                                                  )
+                                                  .generateGpxString(track);
+
+                                              await GpxExporter.exportTrackGpx(
+                                                track.name,
+                                                gpxString,
+                                              );
+                                            },
+                                          ),
+                                          const SizedBox(width: 4),
+
+                                          // 🗑️ ESBORRAR
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline_rounded,
+                                              size: 20,
+                                            ),
+                                            color: isSelected
+                                                ? Colors.red.shade600
+                                                : Colors.grey.shade500,
+                                            tooltip: t.deleteTrack,
+                                            constraints: const BoxConstraints(
+                                              minWidth: 44,
+                                              minHeight: 44,
+                                            ),
+                                            onPressed: () {
+                                              ref
+                                                  .read(
+                                                    gpxEditorProvider.notifier,
+                                                  )
+                                                  .deleteTrack(track.id);
+                                            },
+                                          ),
+                                        ],
                                       ),
-                                      onChanged: (bool? val) async {
-                                        ref
-                                            .read(gpxEditorProvider.notifier)
-                                            .toggleTrackVisibility(track.id);
-                                        await onPaintTracks(
-                                          ref.read(gpxEditorProvider).tracks,
-                                        );
-                                      },
-                                    ),
+                                    ],
                                   ),
-                                ],
-                              ),
-
-                              // 🌟 EL CANVI CRÍTIC: Emboliquem el títol perquè es pinti en línia horitzontal àmplia
-                              title: Text(
-                                track.name,
-                                maxLines:
-                                    1, // Forçem una sola línia per a una estètica polida
-                                overflow: TextOverflow
-                                    .ellipsis, // Si és hiperllarg, posa punts suspensius
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                  fontSize: 13,
-                                  color: track.isVisible
-                                      ? (isSelected
-                                            ? Colors.black
-                                            : Colors.black87)
-                                      : Colors.grey.shade400,
-                                  decoration: track.isVisible
-                                      ? TextDecoration.none
-                                      : TextDecoration.lineThrough,
                                 ),
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.file_download_outlined,
-                                      color: isSelected
-                                          ? Colors.blue.shade600
-                                          : Colors.grey.shade500,
-                                      size: 18,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    tooltip: t.exportGpx,
-                                    onPressed: () {
-                                      final gpxString = ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .generateGpxString(track);
-
-                                      // Crida multiplataforma segura al pont condicional
-                                      GpxExporter.exportTrackGpx(
-                                        track.name,
-                                        gpxString,
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.delete_outline_rounded,
-                                      color: isSelected
-                                          ? Colors.red.shade600
-                                          : Colors.grey.shade400,
-                                      size: 18,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    tooltip: t.deleteTrack,
-                                    onPressed: () async {
-                                      ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .deleteTrack(track.id);
-                                      await onPaintTracks(
-                                        ref.read(gpxEditorProvider).tracks,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                              onTap: () => ref
-                                  .read(gpxEditorProvider.notifier)
-                                  .selectTrack(track.id),
+                              ],
                             ),
                           ),
                         ),

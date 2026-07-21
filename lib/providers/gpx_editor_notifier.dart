@@ -100,9 +100,6 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   /// 🌟 NOU: Alterna la visibilitat del panell lateral esquerre
   void toggleSidebar() {
-    debugPrint(
-      "🌟 TOGGLE SIDEBAR: ${state.showSidebar ? 'CERRANDO' : 'ABRIEND'}",
-    );
     state = state.copyWith(showSidebar: !state.showSidebar);
   }
 
@@ -111,16 +108,21 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     double centerLng,
     double currentZoom,
   ) {
-    debugPrint("SNAP CALLED lat=$centerLat lng=$centerLng zoom=$currentZoom");
-
-    if (state.tracks.isEmpty || state.selectedTrackId == null) return;
+    if (state.tracks.isEmpty || state.selectedTrackId == null) {
+      return;
+    }
 
     final bool isSplitMode = state.activeTool == 'split';
     final bool isRangeMapMode = state.activeTool == 'range_map';
     final bool isMergeMode = state.activeTool == 'merge';
 
-    if (!isSplitMode && !isRangeMapMode && !isMergeMode) return;
+    if (!isSplitMode && !isRangeMapMode && !isMergeMode) {
+      return;
+    }
 
+    // ---------------------------------------------------------
+    // MERGE MODE
+    // ---------------------------------------------------------
     if (isMergeMode) {
       double minDistance = double.infinity;
       int? closestTrackId;
@@ -168,9 +170,14 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       return;
     }
 
+    // ---------------------------------------------------------
+    // SPLIT / RANGE_MAP MODE
+    // ---------------------------------------------------------
     final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
 
-    if (track.points.isEmpty) return;
+    if (track.points.isEmpty) {
+      return;
+    }
 
     double bestDistance = double.infinity;
     int bestIndex = -1;
@@ -203,10 +210,6 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     } else {
       maxDistance = 25;
     }
-
-    debugPrint(
-      "BEST INDEX=$bestIndex DISTANCE=${math.sqrt(bestDistance)}m LIMIT=$maxDistance",
-    );
 
     if (bestIndex >= 0 && bestDistance < maxDistance * maxDistance) {
       state = state.copyWith(
@@ -260,10 +263,6 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       previewTrackId: null,
       previewPoints: null,
       activeTool: 'none',
-    );
-
-    debugPrint(
-      "🤝 MERGE SUCCESS: Creado track unificado conservando los originales.",
     );
   }
 

@@ -16,6 +16,10 @@ Future<Map<String, dynamic>?> askTrackNameDialog({
 
   return showDialog<Map<String, dynamic>>(
     context: context,
+    // 🔥 PROTECCIÓ ANDROID: Evita saltar al context de navegació superior
+    useRootNavigator: false,
+    // 🔥 PROTECCIÓ GRÀFICA: Opacitat mínima del fons amb enters d'Alpha per estalviar càrrega a la GPU
+    barrierColor: Colors.black.withAlpha(2),
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setDialogState) {
@@ -167,6 +171,10 @@ Future<String?> askWaypointNameDialog(
 
   return showDialog<String>(
     context: context,
+    // 🔥 PROTECCIÓ ANDROID: Evita saltar al context de navegació superior
+    useRootNavigator: false,
+    // 🔥 PROTECCIÓ GRÀFICA: Opacitat mínima utilitzant un valor enter d'Alpha (2 és gairebé transparent sobre 255)
+    barrierColor: Colors.black.withAlpha(2),
     builder: (context) => AlertDialog(
       title: Text(t.addWaypoint),
       content: TextField(

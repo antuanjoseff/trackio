@@ -34,6 +34,9 @@ class MainEditorLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    debugPrint(
+      "Trackio media.query viewinsets bottom: ${MediaQuery.of(context).viewInsets.bottom}",
+    );
     // Determinació de plataforma segons l'amplada física de la pantalla
     final bool isMobile = MediaQuery.of(context).size.width <= 800;
 
@@ -57,6 +60,7 @@ class MainEditorLayout extends ConsumerWidget {
     return Stack(
       children: [
         Scaffold(
+          resizeToAvoidBottomInset: false,
           // 📱 APARTAT MÒBIL: El sidebar es converteix en un menú lateral natiu (Drawer)
           drawer: isMobile
               ? Drawer(

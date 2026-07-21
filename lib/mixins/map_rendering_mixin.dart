@@ -8,16 +8,16 @@ mixin MapRenderingMixin {
   MapLibreMapController? get controller;
 
   void paintLiveOverlays(GpxEditorState state, {LatLng? reticleLatLng}) async {
-    if (controller == null) return;
+    if (controller == null) {
+      return;
+    }
 
     const Map<String, dynamic> emptyCollection = {
       "type": "FeatureCollection",
       "features": [],
     };
 
-    // =========================================================================
-    // 🎨 EINA DE DIBUIX LLIURE (Es queda 100% intacta tal com la tenies)
-    // =========================================================================
+    // ========================= DRAW =========================
     if (state.activeTool == 'draw') {
       if (state.drawingPoints.isEmpty && state.drawingLivePoint == null) {
         await controller!.setGeoJsonSource("source_range", emptyCollection);
@@ -39,6 +39,7 @@ mixin MapRenderingMixin {
         final live = state.drawingLivePoint!;
         if (live.latitude != null && live.longitude != null) {
           drawCoords.add([live.longitude!, live.latitude!]);
+
           await controller!.setGeoJsonSource("source_snapped_point", {
             "type": "FeatureCollection",
             "features": [
@@ -75,35 +76,37 @@ mixin MapRenderingMixin {
       return;
     }
 
-    // =========================================================================
-    // ✂️ EXPERT OVERLAYS: REPARACIÓ DE TRAMS EFÍMERS EN MOVIMENT
-    // =========================================================================
-    if (state.selectedTrackId == null) return;
+    // ========================= OTHER TOOLS =========================
+
+    if (state.selectedTrackId == null) {
+      return;
+    }
 
     final int? activeTrackId = int.tryParse(state.selectedTrackId.toString());
     final trackIndex = state.tracks.indexWhere((t) => t.id == activeTrackId);
-    if (trackIndex == -1) return;
+    if (trackIndex == -1) {
+      return;
+    }
 
     final track = state.tracks[trackIndex];
     final int? snappedIndex = state.snappedPointIndex;
 
-    // 📍 1. Pintar el cercle blau imantat (Cicle actiu constant)
+    // ------------------ POINT BLUE ------------------
     if (state.snappedPoint != null) {
       final p = state.snappedPoint!;
-      if (p.longitude != null && p.latitude != null) {
-        await controller!.setGeoJsonSource("source_snapped_point", {
-          "type": "FeatureCollection",
-          "features": [
-            {
-              "type": "Feature",
-              "geometry": {
-                "type": "Point",
-                "coordinates": [p.longitude!, p.latitude!],
-              },
+
+      await controller!.setGeoJsonSource("source_snapped_point", {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [p.longitude!, p.latitude!],
             },
-          ],
-        });
-      }
+          },
+        ],
+      });
     } else {
       await controller!.setGeoJsonSource(
         "source_snapped_point",
@@ -114,13 +117,14 @@ mixin MapRenderingMixin {
     int lo = 0;
     int hi = snappedIndex ?? 0;
 
-    // 🔗 A) MÒDUL MERGE (Es queda intacte)
+    // ------------------ MERGE ------------------
     if (state.activeTool == 'merge') {
       if (state.previewPoints != null && state.previewPoints!.isNotEmpty) {
         final previewCoords = state.previewPoints!
             .where((p) => p.latitude != null && p.longitude != null)
             .map((p) => [p.longitude!, p.latitude!])
             .toList();
+
         await controller!.setGeoJsonSource("source_range", {
           "type": "FeatureCollection",
           "features": [
@@ -135,25 +139,38 @@ mixin MapRenderingMixin {
       }
       return;
     }
-    // 📐 B) MÒDUL RANGE_MAP REPARAT SENSE RETORNS PREMATURS
-    else if (state.activeTool == 'range_map') {
+
+    // ------------------ RANGE_MAP ------------------
+    if (state.activeTool == 'range_map') {
+      // 1️⃣ Fase Inicial: Si encara no s'ha triat cap punt d'origen, esborrem el tram efímer i marxem
       if (state.selectionStartIndex == null) {
-        lo = 0;
-        hi = snappedIndex ?? 0;
-      } else if (state.selectionStartIndex != null &&
+        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        return;
+      }
+
+      // 2️⃣ Fase Final (Tram Tancat): Tenim origen i final consolidats i ja no estem arrossegant
+      if (state.selectionStartIndex != null &&
           state.selectionEndIndex != null &&
           state.selectionEndIndex != -1 &&
           !state.isSelectingRange) {
         lo = state.selectionStartIndex!;
         hi = state.selectionEndIndex!;
-      } else {
-        if (snappedIndex == null) return;
+      }
+      // 3️⃣ Fase d'Espera Elàstica: L'usuari ha fixat l'origen i està movent el mapa buscant el final
+      else {
+        // Si el mapa s'està movent per una zona buida i el SNAP falla, usem l'últim conegut
+        // o simplement no pintem la línia elàstica fins que s'imanti a un altre node proper.
+        if (snappedIndex == null) {
+          return;
+        }
+
         final int start = state.selectionStartIndex!;
+        // Ordenem els indexos de forma dinàmica per si l'usuari arrossega cap enrere del track original
         lo = start < snappedIndex ? start : snappedIndex;
         hi = start < snappedIndex ? snappedIndex : start;
       }
     }
-    // ✂️ C) MÒDUL SPLIT (TALLAR)
+    // ------------------ SPLIT ------------------
     else if (state.activeTool == 'split') {
       if (snappedIndex == null) {
         await controller!.setGeoJsonSource("source_range", emptyCollection);
@@ -166,9 +183,7 @@ mixin MapRenderingMixin {
       return;
     }
 
-    // 📦 3. CONSTRUCCIÓ I INJECCIÓ DEL GEOMETRIC LINESTRING EFÍMER
-    // 🌟 REPARACIÓ DE TIPUS GRÀFIC: Canviem <List<double>> per una llista genèrica <List>[]
-    // per evitar que Android bloquegi de forma asíncrona la renderització a 60 FPS.
+    // ------------------ BUILD SEGMENT ------------------
     final segment = <List>[];
     for (int i = lo; i <= hi; i++) {
       if (i >= track.points.length) break;
@@ -181,11 +196,11 @@ mixin MapRenderingMixin {
     final bool shouldExtendToReticle =
         reticleLatLng != null &&
         (state.activeTool == 'split' || state.activeTool == 'range_map');
+
     if (shouldExtendToReticle) {
       segment.add([reticleLatLng.longitude, reticleLatLng.latitude]);
     }
 
-    // Actualitzem les línies taronja/blanca ("source_range") en temps real sota la GPU
     if (segment.length >= 2) {
       await controller!.setGeoJsonSource("source_range", {
         "type": "FeatureCollection",
@@ -194,7 +209,6 @@ mixin MapRenderingMixin {
             "type": "Feature",
             "geometry": {
               "type": "LineString",
-              // 🌟 NETEJA DE BUFFER: Forcem la conversió de llista genèrica compatible amb el canal natiu
               "coordinates": List<List>.from(segment),
             },
           },
@@ -251,7 +265,9 @@ mixin MapRenderingMixin {
   }
 
   Future<void> paintTracks(List<TrackModel> tracks, int? activeTrackId) async {
-    if (controller == null) return;
+    if (controller == null) {
+      return;
+    }
 
     final Set<String> wantedLayerIds = tracks
         .expand(
@@ -286,7 +302,9 @@ mixin MapRenderingMixin {
           .toSet();
 
       for (final track in tracks) {
-        if (track.points.isEmpty) continue;
+        if (track.points.isEmpty) {
+          continue;
+        }
 
         final sourceId = "source_${track.id}";
         final layerId = "layer_${track.id}";
@@ -299,12 +317,15 @@ mixin MapRenderingMixin {
             .where((p) => p.latitude != null && p.longitude != null)
             .map((p) => [p.longitude!, p.latitude!])
             .toList();
+
         final waypointCoords = track.waypoints
             .where((p) => p.latitude != null && p.longitude != null)
             .map((p) => [p.longitude!, p.latitude!])
             .toList();
 
-        if (coords.isEmpty) continue;
+        if (coords.isEmpty) {
+          continue;
+        }
 
         final Map<String, dynamic> trackGeojson = {
           "type": "FeatureCollection",
@@ -315,6 +336,7 @@ mixin MapRenderingMixin {
             },
           ],
         };
+
         final Map<String, dynamic> waypointGeojson = {
           "type": "FeatureCollection",
           "features": waypointCoords
@@ -327,6 +349,7 @@ mixin MapRenderingMixin {
               .toList(),
         };
 
+        // SOURCE TRACK
         if (existingSourceSet.contains(sourceId)) {
           await controller!.setGeoJsonSource(sourceId, trackGeojson);
         } else {
@@ -337,6 +360,7 @@ mixin MapRenderingMixin {
           existingSourceSet.add(sourceId);
         }
 
+        // SOURCE WAYPOINTS
         if (existingSourceSet.contains(waypointSourceId)) {
           await controller!.setGeoJsonSource(waypointSourceId, waypointGeojson);
         } else {
@@ -347,24 +371,17 @@ mixin MapRenderingMixin {
           existingSourceSet.add(waypointSourceId);
         }
 
-        if (currentLayerSet.contains(layerId)) {
-          try {
-            await controller!.removeLayer(layerId);
-          } catch (_) {}
-        }
-        if (currentLayerSet.contains(glowWhiteLayerId)) {
-          try {
-            await controller!.removeLayer(glowWhiteLayerId);
-          } catch (_) {}
-        }
-        if (currentLayerSet.contains(glowYellowLayerId)) {
-          try {
-            await controller!.removeLayer(glowYellowLayerId);
-          } catch (_) {}
+        // REMOVE OLD LAYERS
+        for (final lid in [layerId, glowWhiteLayerId, glowYellowLayerId]) {
+          if (currentLayerSet.contains(lid)) {
+            try {
+              await controller!.removeLayer(lid);
+            } catch (_) {}
+          }
         }
 
         final bool isActiveTrack = track.id == activeTrackId;
-
+        // GLOW WHITE
         if (isActiveTrack && track.isVisible) {
           await controller!.addLineLayer(
             sourceId,
@@ -380,6 +397,7 @@ mixin MapRenderingMixin {
           currentLayerSet.add(glowWhiteLayerId);
         }
 
+        // GLOW YELLOW
         if (isActiveTrack && track.isVisible) {
           await controller!.addLineLayer(
             sourceId,
@@ -395,6 +413,7 @@ mixin MapRenderingMixin {
           currentLayerSet.add(glowYellowLayerId);
         }
 
+        // MAIN TRACK LAYER
         await controller!.addLineLayer(
           sourceId,
           layerId,
@@ -407,6 +426,7 @@ mixin MapRenderingMixin {
         );
         currentLayerSet.add(layerId);
 
+        // WAYPOINT LAYER
         if (currentLayerSet.contains(waypointLayerId)) {
           try {
             await controller!.removeLayer(waypointLayerId);
@@ -428,7 +448,7 @@ mixin MapRenderingMixin {
         currentLayerSet.add(waypointLayerId);
       }
     } catch (e) {
-      debugPrint("Avís netejant capes velles: $e");
+      debugPrint("🟥 paintTracks ERROR: $e");
     }
   }
 }

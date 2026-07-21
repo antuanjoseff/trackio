@@ -26,6 +26,8 @@ dependencies:
   riverpod_annotation:
   file_picker: ^11.0.2
   http:
+  share_plus:
+  path_provider:
 
 dev_dependencies:
   flutter_test:

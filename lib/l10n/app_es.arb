@@ -43,5 +43,10 @@
   "cancel": "Cancelar",
   "undo": "Deshacer último punto",
   "drawnRouteDefaultName": "Ruta Dibujada",
-  "routeSavedSuccess": "Ruta guardada con éxito"
+  "routeSavedSuccess": "Ruta guardada con éxito",
+
+  "visible": "Visible",
+  "hidden": "Oculto",
+  "color": "Color"
 }
+

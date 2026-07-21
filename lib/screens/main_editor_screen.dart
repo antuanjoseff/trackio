@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as gmath;
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -117,7 +117,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         StaticEditorMapWidget(
           key: _mapKey,
           cursor: mapCursor,
-          onMapCreated: (c) => _controller = c,
+          onMapCreated: (c) {
+            _controller = c;
+          },
+
           onStyleLoaded: () async {
             await _paintTracksWrapper(ref.read(gpxEditorProvider).tracks);
             await createGlobalLayers();
@@ -126,6 +129,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               ref.read(gpxEditorProvider).tracks,
             );
           },
+
           onCameraMove: (pos) {
             if (!_isMobileApp) return;
 
@@ -138,8 +142,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             _handleMouseMove(coordinates, zoom, ref.read(gpxEditorProvider));
           },
 
-          // 🌟 CLIC DIRECTE EN MODE ESCRIPTORI / MÒBIL REGULAT
-          // 🌟 DINS DEL TEU StaticEditorMapWidget -> onMapClick:
           onMapClick: (coordinates) async {
             FocusScope.of(context).requestFocus();
 
@@ -195,25 +197,40 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             }
 
             if (activeTool == 'add_waypoint') {
+              // 1. Capturem la coordenada real on està mirant la retícula en aquest instant precís
+              final LatLng? reticleCoords = await _getVisibleReticleLatLng();
+              if (reticleCoords == null) return;
+
+              // 2. Sincronitzem l'estat inicial de seguretat
               notifier.updateWaypointPosition(
-                coordinates.latitude,
-                coordinates.longitude,
+                reticleCoords.latitude,
+                reticleCoords.longitude,
               );
               notifier.setMapIdle(true);
 
               final selectedTrackId = state.selectedTrackId;
               if (selectedTrackId == null) return;
+
               final track = state.tracks.firstWhere(
                 (t) => t.id == selectedTrackId,
               );
               final String defaultName = "Punt ${track.waypoints.length + 1}";
+
+              // 3. Llançem el diàleg del nom de forma asíncrona.
+              // Tot i que la càmera es mogui amb el teclat, la nostra variable 'reticleCoords' està congelada a la memòria.
               final String? name = await askWaypointNameDialog(
                 context,
                 defaultName,
               );
               if (name == null || name.isEmpty) return;
 
+              // 4. Modifiquem la crida del notifier per assegurar-nos que insereixi la coordenada capturada:
+              notifier.updateWaypointPosition(
+                reticleCoords.latitude,
+                reticleCoords.longitude,
+              );
               notifier.addWaypointToSelectedTrack(name: name, comment: "");
+
               paintLiveOverlays(ref.read(gpxEditorProvider));
               return;
             }
@@ -352,24 +369,25 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   }
 
   Future<LatLng?> _getVisibleReticleLatLng() async {
-    if (_controller == null) return null;
-
-    final RenderBox? renderBox =
-        _mapKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) {
-      return _controller!.cameraPosition?.target;
+    if (_controller == null) {
+      return null;
     }
 
-    final gmath.Point<double> centerPixel = gmath.Point(
+    final renderBox = _mapKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (renderBox == null || !renderBox.hasSize) {
+      final fallback = _controller!.cameraPosition?.target;
+      return fallback;
+    }
+
+    // 🔥 FIX REAL: MapLibre vol Point<num>, no Point<double>
+    final pixelCenter = math.Point<num>(
       renderBox.size.width / 2,
       renderBox.size.height / 2,
     );
 
-    try {
-      return await _controller!.toLatLng(centerPixel);
-    } catch (_) {
-      return _controller!.cameraPosition?.target;
-    }
+    final latLng = await _controller!.toLatLng(pixelCenter);
+    return latLng;
   }
 
   Future<void> _addDrawPointAtVisibleReticle() async {
@@ -385,9 +403,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
   Future<void> _handleCameraIdle() async {
     final pos = _controller?.cameraPosition;
-    debugPrint(
-      "Camera idle: ${pos?.target.latitude}, ${pos?.target.longitude}, zoom: ${pos?.zoom}",
-    );
     if (pos == null) return;
 
     final state = ref.read(gpxEditorProvider);
@@ -401,7 +416,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     }
 
     if (state.activeTool == 'add_waypoint') {
-      final coordsReticula = await _getVisibleReticleLatLng();
+      // final coordsReticula = await _getVisibleReticleLatLng();
+      final coordsReticula = _controller?.cameraPosition?.target;
       if (coordsReticula != null) {
         ref
             .read(gpxEditorProvider.notifier)
@@ -418,8 +434,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     _throttleTimer?.cancel();
 
-    final coordsReticula = await _getVisibleReticleLatLng();
-    final target = coordsReticula ?? pos.target;
+    final target = pos.target;
 
     ref
         .read(gpxEditorProvider.notifier)
@@ -435,8 +450,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     GpxEditorState state,
   ) async {
     final currentState = ref.read(gpxEditorProvider);
-
-    debugPrint("Camera moving tool=${currentState.activeTool}");
 
     if (currentState.activeTool == 'draw') {
       ref
@@ -462,17 +475,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     }
 
     if (!['split', 'range_map', 'merge'].contains(currentState.activeTool)) {
-      debugPrint("CameraMove sense eina de snap: ${currentState.activeTool}");
       return;
     }
 
     if (_throttleTimer?.isActive ?? false) return;
 
     _throttleTimer = Timer(const Duration(milliseconds: 50), () async {
-      final coords = await _getVisibleReticleLatLng();
-      final target = coords ?? pos.target;
-
-      debugPrint("CALCULATE SNAP ${target.latitude}, ${target.longitude}");
+      final target = pos.target;
 
       ref
           .read(gpxEditorProvider.notifier)
@@ -529,7 +538,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         // 🔍 FILTRE DE SEGURETAT EXTRA: Validació manual del nom del fitxer
         final extension = file.name.split('.').last.toLowerCase();
         if (extension != 'gpx') {
-          debugPrint("Fitxer ignorat per no ser GPX: ${file.name}");
           continue;
         }
 
@@ -541,7 +549,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         }
 
         if (content == null || content.trim().isEmpty) {
-          debugPrint("Avís: no s'ha pogut llegir el fitxer ${file.name}.");
           continue;
         }
 
@@ -557,9 +564,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       }
 
       if (parsed.isEmpty) {
-        debugPrint(
-          "No s'ha importat cap track vàlid des dels fitxers seleccionats.",
-        );
         return;
       }
 
