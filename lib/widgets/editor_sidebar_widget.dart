@@ -649,25 +649,7 @@ class TrackioIcons {
   }
 
   static Widget cutGpx({required Color color, double size = 16}) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Icon(
-          Icons.timeline_rounded,
-          color: color.withAlpha(89), // 🌟 MODIFICAT: 0.35 * 255 = ~89 en Alpha
-          size: size,
-        ),
-        Positioned(
-          right: 0,
-          bottom: 0,
-          child: Icon(
-            Icons.content_cut_rounded,
-            color: color,
-            size: size * 0.75,
-          ),
-        ),
-      ],
-    );
+    return Icon(Icons.content_cut_rounded, color: color, size: size * 0.75);
   }
 
   static Widget joinGpx({required Color color, double size = 18}) {

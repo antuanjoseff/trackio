@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -84,56 +84,69 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint("trackio Map build");
-    return MouseRegion(
-      cursor: widget.cursor,
-      onHover: _hasMouse ? _handleMouseHover : null,
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: _handleMousePrimaryDown,
-        child: MapLibreMap(
-          key: widget.key,
-          compassEnabled: false,
-          rotateGesturesEnabled: false,
-          tiltGesturesEnabled: false,
-          styleString: "assets/map/style.json",
-          trackCameraPosition: true,
-          initialCameraPosition: const CameraPosition(
-            target: LatLng(41.98311, 2.82493),
-            zoom: 13.0,
+    debugPrint("trackio Map build. IsWeb: $kIsWeb");
+
+    // 🌐 CONFIGURACIÓ EXCLUSIVA PER A WEB
+    if (kIsWeb) {
+      return MouseRegion(
+        cursor: widget.cursor,
+        onHover: _hasMouse ? _handleMouseHover : null,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _handleMousePrimaryDown,
+          child: MapLibreMap(
+            key: widget.key,
+            compassEnabled: false,
+            rotateGesturesEnabled: false,
+            tiltGesturesEnabled: false,
+            styleString: "assets/map/style.json",
+            trackCameraPosition: true,
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(41.98311, 2.82493),
+              zoom: 13.0,
+            ),
+            onMapCreated: (controller) {
+              _mapController = controller;
+              widget.onMapCreated(controller);
+            },
+            onStyleLoadedCallback: widget.onStyleLoaded,
+            onCameraMove: widget.onCameraMove,
+            onCameraIdle: widget.onCameraIdle,
+            onMapClick: (point, coordinates) {
+              final suppressUntil = _suppressNativeMapClickUntil;
+              if (suppressUntil != null &&
+                  DateTime.now().isBefore(suppressUntil))
+                return;
+              if (widget.onMapClick != null) widget.onMapClick!(coordinates);
+            },
           ),
-
-          onMapCreated: (controller) {
-            debugPrint("trackio Map created");
-            _mapController = controller;
-            widget.onMapCreated(controller);
-          },
-
-          onStyleLoadedCallback: () {
-            widget.onStyleLoaded();
-          },
-
-          onCameraMove: (pos) {
-            widget.onCameraMove(pos);
-          },
-
-          onCameraIdle: () {
-            widget.onCameraIdle();
-          },
-
-          onMapClick: (point, coordinates) {
-            final suppressUntil = _suppressNativeMapClickUntil;
-            if (suppressUntil != null &&
-                DateTime.now().isBefore(suppressUntil)) {
-              return;
-            }
-
-            if (widget.onMapClick != null) {
-              widget.onMapClick!(coordinates);
-            }
-          },
         ),
+      );
+    }
+
+    // 📱 CONFIGURACIÓ EXCLUSIVA PER A MÒBIL (APK i iOS)
+    // S'eliminen per complet els "MouseRegion" i "Listener" que donen problemes amb els dits
+    return MapLibreMap(
+      key: widget.key,
+      compassEnabled: false, // Aquí al mòbil sí que funcionarà perfectament
+      rotateGesturesEnabled: false,
+      tiltGesturesEnabled: false,
+      styleString: "assets/map/style.json",
+      trackCameraPosition: true,
+      initialCameraPosition: const CameraPosition(
+        target: LatLng(41.98311, 2.82493),
+        zoom: 13.0,
       ),
+      onMapCreated: (controller) {
+        _mapController = controller;
+        widget.onMapCreated(controller);
+      },
+      onStyleLoadedCallback: widget.onStyleLoaded,
+      onCameraMove: widget.onCameraMove,
+      onCameraIdle: widget.onCameraIdle,
+      onMapClick: (point, coordinates) {
+        if (widget.onMapClick != null) widget.onMapClick!(coordinates);
+      },
     );
   }
 }

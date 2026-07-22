@@ -8,7 +8,8 @@ import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/elevation_chart_panel.dart';
 import 'package:trackio/widgets/range_track_selection.dart';
 import 'package:trackio/widgets/track_stats_panel.dart';
-import 'package:trackio/widgets/reactive_editor_buttons.dart'; // Mantén els teus imports reals d'icones
+import 'package:trackio/widgets/reactive_editor_buttons.dart';
+import 'package:trackio/widgets/trackio_large_icon.dart'; // Mantén els teus imports reals d'icones
 
 class MainEditorLayout extends ConsumerWidget {
   const MainEditorLayout({
@@ -197,20 +198,19 @@ class MainEditorLayout extends ConsumerWidget {
                 ),
 
                 // 📐 4. SELECCIONAR TRAM
-                IconButton(
+                _buildFloatingButton(
+                  isActive: liveActiveTool == 'range_map',
+                  icon: TrackioLargeIcon(
+                    scale: 1.0,
+                    child: TrackRangeSelection(
+                      color: isDisabled
+                          ? Colors.grey.shade400
+                          : (liveActiveTool == 'range_map'
+                                ? Colors.orange.shade700
+                                : Colors.orange),
+                    ),
+                  ),
                   tooltip: t.selectRange,
-                  isSelected: liveActiveTool == 'range_map',
-                  selectedIcon: TrackRangeSelection(
-                    color: Colors.orange.shade700,
-                  ),
-                  icon: TrackRangeSelection(
-                    color: isDisabled ? Colors.grey.shade400 : Colors.orange,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: liveActiveTool == 'range_map'
-                        ? Colors.orange.shade50
-                        : null,
-                  ),
                   onPressed: isDisabled
                       ? null
                       : () => ref
@@ -394,25 +394,14 @@ class MainEditorLayout extends ConsumerWidget {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // 🧭 0. ICONA DE LA BRÚIXOLA (Control de mapa)
-                                _buildFloatingButton(
-                                  icon: const Icon(
-                                    Icons.explore_rounded,
-                                    color: Colors.blue,
-                                  ),
-                                  tooltip: "Brúixola",
-                                  onPressed: () {
-                                    // Aquí pots reiniciar la rotació si tens el controlador a mà
-                                  },
-                                ),
-                                const SizedBox(height: 10),
-
                                 // 🔄 1. INVERTIR TRACK
                                 _buildFloatingButton(
-                                  icon: TrackioIcons.reverseDirection(
-                                    color: isDisabled
-                                        ? Colors.grey.shade400
-                                        : Colors.blue,
+                                  icon: TrackioLargeIcon(
+                                    child: TrackioIcons.reverseDirection(
+                                      color: isDisabled
+                                          ? Colors.grey.shade400
+                                          : Colors.blue,
+                                    ),
                                   ),
                                   tooltip: t.toolInverse,
                                   onPressed: isDisabled
@@ -424,12 +413,14 @@ class MainEditorLayout extends ConsumerWidget {
                                 // ✂️ 2. TALLAR TRACK (SPLIT)
                                 _buildFloatingButton(
                                   isActive: liveActiveTool == 'split',
-                                  icon: TrackioIcons.cutGpx(
-                                    color: isDisabled
-                                        ? Colors.grey.shade400
-                                        : (liveActiveTool == 'split'
-                                              ? Colors.purple.shade700
-                                              : Colors.purple),
+                                  icon: TrackioLargeIcon(
+                                    child: TrackioIcons.cutGpx(
+                                      color: isDisabled
+                                          ? Colors.grey.shade400
+                                          : (liveActiveTool == 'split'
+                                                ? Colors.purple.shade700
+                                                : Colors.purple),
+                                    ),
                                   ),
                                   tooltip: t.toolSplit,
                                   onPressed: isDisabled
@@ -447,12 +438,14 @@ class MainEditorLayout extends ConsumerWidget {
                                 // 🔗 3. UNIR TRACKS (MERGE)
                                 _buildFloatingButton(
                                   isActive: liveActiveTool == 'merge',
-                                  icon: TrackioIcons.joinGpx(
-                                    color: isDisabled
-                                        ? Colors.grey.shade400
-                                        : (liveActiveTool == 'merge'
-                                              ? Colors.teal.shade700
-                                              : Colors.teal),
+                                  icon: TrackioLargeIcon(
+                                    child: TrackioIcons.joinGpx(
+                                      color: isDisabled
+                                          ? Colors.grey.shade400
+                                          : (liveActiveTool == 'merge'
+                                                ? Colors.teal.shade700
+                                                : Colors.teal),
+                                    ),
                                   ),
                                   tooltip: t.toolMerge,
                                   onPressed: isDisabled
@@ -470,12 +463,14 @@ class MainEditorLayout extends ConsumerWidget {
                                 // 📐 4. SELECCIONAR TRAM
                                 _buildFloatingButton(
                                   isActive: liveActiveTool == 'range_map',
-                                  icon: TrackRangeSelection(
-                                    color: isDisabled
-                                        ? Colors.grey.shade400
-                                        : (liveActiveTool == 'range_map'
-                                              ? Colors.orange.shade700
-                                              : Colors.orange),
+                                  icon: TrackioLargeIcon(
+                                    child: TrackRangeSelection(
+                                      color: isDisabled
+                                          ? Colors.grey.shade400
+                                          : (liveActiveTool == 'range_map'
+                                                ? Colors.orange.shade700
+                                                : Colors.orange),
+                                    ),
                                   ),
                                   tooltip: t.selectRange,
                                   onPressed: isDisabled
@@ -493,12 +488,14 @@ class MainEditorLayout extends ConsumerWidget {
                                 // 📍 5. AFEGIR WAYPOINT
                                 _buildFloatingButton(
                                   isActive: liveActiveTool == 'add_waypoint',
-                                  icon: TrackioIcons.addWaypoint(
-                                    color: isDisabled
-                                        ? Colors.grey.shade400
-                                        : (liveActiveTool == 'add_waypoint'
-                                              ? Colors.indigo.shade700
-                                              : Colors.indigo),
+                                  icon: TrackioLargeIcon(
+                                    child: TrackioIcons.addWaypoint(
+                                      color: isDisabled
+                                          ? Colors.grey.shade400
+                                          : (liveActiveTool == 'add_waypoint'
+                                                ? Colors.indigo.shade700
+                                                : Colors.indigo),
+                                    ),
                                   ),
                                   tooltip: t.addWaypoint,
                                   onPressed: isDisabled
@@ -521,7 +518,8 @@ class MainEditorLayout extends ConsumerWidget {
                                     color: liveActiveTool == 'draw'
                                         ? Colors.pinkAccent
                                         : Colors.pink,
-                                    size: 20,
+                                    size:
+                                        28, // Manté l'escala nativa gran de Flutter
                                   ),
                                   tooltip: t.toolDraw,
                                   onPressed: () => ref
