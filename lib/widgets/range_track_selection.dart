@@ -13,8 +13,8 @@ class TrackRangeSelection extends StatelessWidget {
     final double widgetHeight = size * 1.6;
 
     // Definim la base exacta on descansen les icones i la línia
-    final double lineThickness = size * 0.15;
-    final double lineBottomPosition = size * 0.2;
+    final double lineThickness = size * 0.05;
+    final double lineBottomPosition = size * 0.4;
 
     return SizedBox(
       width: widgetWidth,
@@ -23,8 +23,8 @@ class TrackRangeSelection extends StatelessWidget {
         children: [
           // 1. LÍNIA HORITZONTAL MÉS CURTA
           Positioned(
-            left: size * 0.7, // Molt més curta per l'esquerra
-            right: size * 0.7, // Molt més curta per la dreta
+            left: size * 0.7,
+            right: size * 0.7,
             bottom: lineBottomPosition,
             child: Container(
               height: lineThickness,
@@ -36,19 +36,19 @@ class TrackRangeSelection extends StatelessWidget {
           ),
           // 2. ICONA ESQUERRA (Just a sobre de la línia)
           Positioned(
-            left: size * 0.1,
+            left: size * 0.65,
             bottom:
                 lineBottomPosition +
                 lineThickness, // Altura exacta sobre el text de la línia
-            child: Icon(Icons.location_on, size: size, color: color),
+            child: Icon(Icons.location_on, size: size * 0.7, color: color),
           ),
           // 3. ICONA DRETA (Just a sobre de la línia)
           Positioned(
-            right: size * 0.1,
+            right: size * 0.66,
             bottom:
                 lineBottomPosition +
                 lineThickness, // Altura exacta sobre el text de la línia
-            child: Icon(Icons.location_on, size: size, color: color),
+            child: Icon(Icons.location_on, size: size * 0.7, color: color),
           ),
         ],
       ),
