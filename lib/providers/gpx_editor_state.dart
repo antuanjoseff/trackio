@@ -13,7 +13,7 @@ class GpxEditorState {
   final bool isMapIdle;
   final bool showSidebar;
 
-  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint', 'draw' 👈 NUEVA
+  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint', 'draw'
   final String activeTool;
 
   final bool showElevationChart;
@@ -28,11 +28,14 @@ class GpxEditorState {
 
   final LatLng? waypointCameraPosition;
 
-  // 🌟 NOUS CAMPS COMPATIBLES PER A L'EINA DE DIBUIX INTERACTIU:
-  final List<TrackPointModel>
-  drawingPoints; // Nodes ja fixats al mapa amb clics
-  final TrackPointModel?
-  drawingLivePoint; // El node elàstic dinàmic de la retícula
+  // 🌟 Dibuix interactiu
+  final List<TrackPointModel> drawingPoints;
+  final TrackPointModel? drawingLivePoint;
+
+  // 🌟 NOUS CAMPS PER AL GRÀFIC (agulles i rang)
+  final int? chartNeedleIndex;
+  final int? chartRangeStartIndex;
+  final int? chartRangeEndIndex;
 
   GpxEditorState({
     required this.tracks,
@@ -52,9 +55,13 @@ class GpxEditorState {
     this.loadingTrackIds = const [],
     this.waypointCameraPosition,
     this.showSidebar = true,
-    // 🌟 Inicialitzadors per defecte
     this.drawingPoints = const [],
     this.drawingLivePoint,
+
+    // 🌟 NOUS CAMPS
+    this.chartNeedleIndex,
+    this.chartRangeStartIndex,
+    this.chartRangeEndIndex,
   });
 
   factory GpxEditorState.initial() {
@@ -80,26 +87,25 @@ class GpxEditorState {
     List<int>? loadingTrackIds,
     Object? waypointCameraPosition = _noChange,
     bool? showSidebar,
-    // 🌟 Paràmetres opcionals per al copyWith
     List<TrackPointModel>? drawingPoints,
     Object? drawingLivePoint = _noChange,
-  }) {
-    final int? nextSelectionEndIndex;
-    if (identical(selectionEndIndex, _noChange)) {
-      nextSelectionEndIndex = this.selectionEndIndex;
-    } else {
-      final int? provided = selectionEndIndex as int?;
-      nextSelectionEndIndex = provided == -1 ? null : provided;
-    }
 
-    final int? nextSelectedTrackId;
-    if (identical(selectedTrackId, _noChange)) {
-      nextSelectedTrackId = this.selectedTrackId;
-    } else if (selectedTrackId == null) {
-      nextSelectedTrackId = null;
-    } else {
-      nextSelectedTrackId = int.tryParse(selectedTrackId.toString());
-    }
+    // 🌟 NOUS PARÀMETRES
+    Object? chartNeedleIndex = _noChange,
+    Object? chartRangeStartIndex = _noChange,
+    Object? chartRangeEndIndex = _noChange,
+  }) {
+    final int? nextSelectionEndIndex = identical(selectionEndIndex, _noChange)
+        ? this.selectionEndIndex
+        : ((selectionEndIndex as int?) == -1
+              ? null
+              : selectionEndIndex as int?);
+
+    final int? nextSelectedTrackId = identical(selectedTrackId, _noChange)
+        ? this.selectedTrackId
+        : (selectedTrackId == null
+              ? null
+              : int.tryParse(selectedTrackId.toString()));
 
     return GpxEditorState(
       tracks: tracks ?? this.tracks,
@@ -130,11 +136,22 @@ class GpxEditorState {
       waypointCameraPosition: identical(waypointCameraPosition, _noChange)
           ? this.waypointCameraPosition
           : waypointCameraPosition as LatLng?,
-      showSidebar: showSidebar ?? this.showSidebar, // 👈 AFEGIT
+      showSidebar: showSidebar ?? this.showSidebar,
       drawingPoints: drawingPoints ?? this.drawingPoints,
       drawingLivePoint: identical(drawingLivePoint, _noChange)
           ? this.drawingLivePoint
           : drawingLivePoint as TrackPointModel?,
+
+      // 🌟 NOUS CAMPS
+      chartNeedleIndex: identical(chartNeedleIndex, _noChange)
+          ? this.chartNeedleIndex
+          : chartNeedleIndex as int?,
+      chartRangeStartIndex: identical(chartRangeStartIndex, _noChange)
+          ? this.chartRangeStartIndex
+          : chartRangeStartIndex as int?,
+      chartRangeEndIndex: identical(chartRangeEndIndex, _noChange)
+          ? this.chartRangeEndIndex
+          : chartRangeEndIndex as int?,
     );
   }
 }

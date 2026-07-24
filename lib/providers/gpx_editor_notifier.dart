@@ -1,5 +1,4 @@
 // 🌟 EL NOU PROVIDER TRADICIONAL (KeepAlive per defecte, no es reinicia mai sol)
-import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/models/track_model.dart';
@@ -498,37 +497,111 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   // 📈 SELECCIÓ DES DEL GRÀFIC (SINCRONITZACIÓ BIDIRECCIONAL)
   // =========================================================================
 
-  /// Es crida quan l'usuari fa el primer toc a la muntanya del gràfic
-  void startChartRangeSelection(int index) {
+  // 🌟 1) Actualitza l’agulla blava (hover / drag)
+  // =========================================================================
+  // 📈 SELECCIÓ DES DEL GRÀFIC (SINCRONITZACIÓ BIDIRECCIONAL COMPLETA)
+  // =========================================================================
+
+  /// 🌟 1) Actualitza l’agulla blava (hover / drag de posició)
+  void updateChartNeedle(int idx) {
+    state = state.copyWith(chartNeedleIndex: idx);
+  }
+
+  /// 🌟 2) INICIALITZACIÓ DEL RANG AMB LONGPRESS (Agulla verda al 25% i vermella al 75%)
+  void startChartRangeSelectionWithPercent() {
+    if (state.selectedTrackId == null) return;
+
+    final activeTrack = state.tracks.firstWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    final int totalPoints = activeTrack.points.length;
+    if (totalPoints <= 0) return;
+
+    // Calculem les posicions inicials fixes relatives (25% i 75%) de la longitud del track
+    final int startIdx = (totalPoints * 0.25).floor().clamp(0, totalPoints - 1);
+    final int endIdx = (totalPoints * 0.75).floor().clamp(0, totalPoints - 1);
+
     state = state.copyWith(
-      selectionStartIndex: index,
-      selectionEndIndex:
-          -1, // Netegem qualsevol final anterior (-1 es tradueix a null al teu copyWith)
+      activeTool: 'range_map',
+      selectionStartIndex: startIdx,
+      selectionEndIndex: endIdx,
+      chartRangeStartIndex: startIdx,
+      chartRangeEndIndex: endIdx,
       isSelectingRange: true,
-      snappedPointIndex: index,
+      chartNeedleIndex: null, // Netegem l'agulla blava inicial per deixar espai
     );
   }
 
-  /// Es crida contínuament frame a frame mentre es mou el dit pel perfil d'altituds
-  void updateChartRangeSelection(int index, TrackPointModel point) {
-    state = state.copyWith(snappedPointIndex: index, snappedPoint: point);
+  /// 🌟 3) ACTUALITZACIÓ D'UNA AGULLA INDIVIDUAL DEL RANG (Mentre l'usuari arrossega els handles)
+  /// Permet actualitzar l'extrem esquerre (agulla verda) o el dret (agulla vermella) de manera independent.
+  /// 🌟 3) ACTUALITZACIÓ D'UNA AGULLA INDIVIDUAL DEL RANG (Mentre l'usuari arrossega els handles)
+  void updateIndividualRangeHandle({int? newStartIdx, int? newEndIdx}) {
+    if (state.selectedTrackId == null) return;
+
+    final activeTrack = state.tracks.firstWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+
+    // Determinem quin node real s'està movent en aquest instant de l'arrossegament
+    final int targetIdx = newStartIdx ?? newEndIdx ?? 0;
+    TrackPointModel? currentSnappedPoint;
+    if (targetIdx >= 0 && targetIdx < activeTrack.points.length) {
+      currentSnappedPoint = activeTrack.points[targetIdx];
+    }
+
+    state = state.copyWith(
+      selectionStartIndex: newStartIdx ?? state.selectionStartIndex,
+      chartRangeStartIndex: newStartIdx ?? state.chartRangeStartIndex,
+      selectionEndIndex: newEndIdx ?? state.selectionEndIndex,
+      chartRangeEndIndex: newEndIdx ?? state.chartRangeEndIndex,
+      isSelectingRange: true,
+
+      // 🔒 REPARACIÓ: Sincronitzem el punt fixat de geolocalització i el seu índex
+      // perquè el map_rendering_mixin rebi el canvi en el mateix frame de la GPU
+      snappedPoint: currentSnappedPoint,
+      snappedPointIndex: targetIdx,
+    );
   }
 
-  /// Es crida quan l'usuari aixeca el dit del gràfic, congelant el tram definitiu
+  /// 🌟 4) Congelar el rang (Guarda les fites verda i vermella i finalitza l'arrossegament)
   void finalizeChartRangeSelection(int start, int end) {
+    final int s = start < end ? start : end;
+    final int e = start < end ? end : start;
+
     state = state.copyWith(
-      selectionStartIndex: start < end ? start : end,
-      selectionEndIndex: start < end ? end : start,
+      selectionStartIndex: s,
+      selectionEndIndex: e,
+      chartRangeStartIndex: s,
+      chartRangeEndIndex: e,
       isSelectingRange: false,
     );
   }
 
+  /// 🌟 5) Esborrar completament el rang i els seus indicadors fixos
+  void clearChartSelection() {
+    state = state.copyWith(
+      selectionStartIndex: null,
+      selectionEndIndex: null,
+      chartRangeStartIndex: null,
+      chartRangeEndIndex: null,
+      isSelectingRange: false,
+      activeTool: 'none', // Restablim l'eina automàticament
+    );
+  }
+
+  /// 🌟 6) Esborrar l’agulla blava mòbil del dit
+  void clearChartNeedle() {
+    state = state.copyWith(chartNeedleIndex: null);
+  }
+
+  /// 📐 CREAR UN NOU TRACK COPIAT A PARTIR DEL RANG ACTUAL ACUTALITZAT
   void createTrackFromSelectedRange() {
     if (state.selectedTrackId == null ||
         state.selectionStartIndex == null ||
         state.selectionEndIndex == null ||
-        state.selectionEndIndex == -1)
+        state.selectionEndIndex == -1) {
       return;
+    }
 
     final int start = state.selectionStartIndex!;
     final int end = state.selectionEndIndex!;
@@ -538,22 +611,26 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     );
     if (start < 0 || end >= activeTrack.points.length) return;
 
-    // Extreiem el subsegment de punts GPX de forma segura
+    // Extreiem de forma neta i immutable el tros seleccionat per l'usuari
     final selectedPoints = activeTrack.points.sublist(start, end + 1);
+    final int newTrackId = DateTime.now().microsecondsSinceEpoch;
 
-    // Creem el nou model de Track independent
     final newTrack = TrackModel(
+      id: newTrackId,
       name: "${activeTrack.name}_segment",
-      hexColor: "#FF5722", // Taronja per diferenciar-lo
-      points: selectedPoints.map((p) => p.copyWith()).toList(),
+      hexColor: "#FF5722", // Taronja distintiu per a la nova capa
+      points: List<TrackPointModel>.from(selectedPoints),
       waypoints: const [],
     );
 
     state = state.copyWith(
       tracks: [...state.tracks, newTrack],
-      selectedTrackId: newTrack.id, // Fem focus automàtic al nou track creat
+      selectedTrackId:
+          newTrack.id, // Saltem el focus automàticament cap al segment nou
       selectionStartIndex: null,
       selectionEndIndex: -1,
+      chartRangeStartIndex: null,
+      chartRangeEndIndex: null,
       activeTool: 'none',
     );
   }

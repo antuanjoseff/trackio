@@ -19,6 +19,10 @@ mixin MapRenderingMixin {
 
     // ========================= DRAW =========================
     if (state.activeTool == 'draw') {
+      // 🔒 REPARACIÓ EXCLUSIVITAT: Netegem cercles de rang en mode dibuix
+      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
+
       if (state.drawingPoints.isEmpty && state.drawingLivePoint == null) {
         await controller!.setGeoJsonSource("source_range", emptyCollection);
         await controller!.setGeoJsonSource(
@@ -91,27 +95,38 @@ mixin MapRenderingMixin {
     final track = state.tracks[trackIndex];
     final int? snappedIndex = state.snappedPointIndex;
 
-    // ------------------ POINT BLUE ------------------
-    if (state.snappedPoint != null) {
-      final p = state.snappedPoint!;
-
-      await controller!.setGeoJsonSource("source_snapped_point", {
-        "type": "FeatureCollection",
-        "features": [
-          {
-            "type": "Feature",
-            "geometry": {
-              "type": "Point",
-              "coordinates": [p.longitude!, p.latitude!],
-            },
-          },
-        ],
-      });
-    } else {
+    // 🔒 REPARACIÓ EXCLUSIVITAT: Si l'eina activa és range_map, buidem el cercle blau de dit mòbil
+    if (state.activeTool == 'range_map') {
       await controller!.setGeoJsonSource(
         "source_snapped_point",
         emptyCollection,
       );
+    } else {
+      // Si estem en qualsevol altra eina, matem els cercles de rang (verd/vermell)
+      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
+
+      // ------------------ POINT BLUE ------------------
+      if (state.snappedPoint != null) {
+        final p = state.snappedPoint!;
+        await controller!.setGeoJsonSource("source_snapped_point", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [p.longitude!, p.latitude!],
+              },
+            },
+          ],
+        });
+      } else {
+        await controller!.setGeoJsonSource(
+          "source_snapped_point",
+          emptyCollection,
+        );
+      }
     }
 
     int lo = 0;
@@ -142,32 +157,91 @@ mixin MapRenderingMixin {
 
     // ------------------ RANGE_MAP ------------------
     if (state.activeTool == 'range_map') {
-      // 1️⃣ Fase Inicial: Si encara no s'ha triat cap punt d'origen, esborrem el tram efímer i marxem
+      // 1️⃣ Fase Inicial: Si encara no s'ha triat cap punt d'origen, buidem tot el mapa visual i marxem
       if (state.selectionStartIndex == null) {
         await controller!.setGeoJsonSource("source_range", emptyCollection);
+        await controller!.setGeoJsonSource(
+          "source_start_range",
+          emptyCollection,
+        );
+        await controller!.setGeoJsonSource("source_end_range", emptyCollection);
         return;
       }
 
-      // 2️⃣ Fase Final (Tram Tancat): Tenim origen i final consolidats i ja no estem arrossegant
-      if (state.selectionStartIndex != null &&
+      // 🔒 REPARACIÓ DEFINTIVA DE COL·LISIÓ D'ÍNDEXS (DRAG DEL GRÀFIC)
+      // Si l'usuari manipula les agulles des de la gràfica, llegim directament
+      // els canals paral·lels per evitar col·lisions de 'lo == hi' quan start == snappedIndex.
+      if (state.chartRangeStartIndex != null &&
+          state.chartRangeEndIndex != null) {
+        lo = state.chartRangeStartIndex!;
+        hi = state.chartRangeEndIndex!;
+      }
+      // 2️⃣ Fase Final (Tram Tancat des del Mapa): Tenim origen i final consolidats i ja no estem arrossegant
+      else if (state.selectionStartIndex != null &&
           state.selectionEndIndex != null &&
           state.selectionEndIndex != -1 &&
           !state.isSelectingRange) {
         lo = state.selectionStartIndex!;
         hi = state.selectionEndIndex!;
       }
-      // 3️⃣ Fase d'Espera Elàstica: L'usuari ha fixat l'origen i està movent el mapa buscant el final
+      // 3️⃣ Fase d'Espera Elàstica Clàssica des del Mapa
       else {
-        // Si el mapa s'està movent per una zona buida i el SNAP falla, usem l'últim conegut
-        // o simplement no pintem la línia elàstica fins que s'imanti a un altre node proper.
         if (snappedIndex == null) {
           return;
         }
-
         final int start = state.selectionStartIndex!;
-        // Ordenem els indexos de forma dinàmica per si l'usuari arrossega cap enrere del track original
         lo = start < snappedIndex ? start : snappedIndex;
         hi = start < snappedIndex ? snappedIndex : start;
+      }
+
+      // Assegurem la consistència per si l'usuari inverteix el sentit dels handles en el gràfic
+      if (lo > hi) {
+        final int temp = lo;
+        lo = hi;
+        hi = temp;
+      }
+
+      // 🟢 PINTEU EL CERCLE VERD AL MAPA (Inici del Rang)
+      final int startPointToPaint = state.chartRangeStartIndex ?? lo;
+      if (startPointToPaint >= 0 && startPointToPaint < track.points.length) {
+        final pStart = track.points[startPointToPaint];
+        await controller!.setGeoJsonSource("source_start_range", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [pStart.longitude!, pStart.latitude!],
+              },
+            },
+          ],
+        });
+      } else {
+        await controller!.setGeoJsonSource(
+          "source_start_range",
+          emptyCollection,
+        );
+      }
+
+      // 🔴 PINTEU EL CERCLE VERMELL AL MAPA (Final del Rang)
+      final int endPointToPaint = state.chartRangeEndIndex ?? hi;
+      if (endPointToPaint >= 0 && endPointToPaint < track.points.length) {
+        final pEnd = track.points[endPointToPaint];
+        await controller!.setGeoJsonSource("source_end_range", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [pEnd.longitude!, pEnd.latitude!],
+              },
+            },
+          ],
+        });
+      } else {
+        await controller!.setGeoJsonSource("source_end_range", emptyCollection);
       }
     }
     // ------------------ SPLIT ------------------
@@ -262,6 +336,46 @@ mixin MapRenderingMixin {
         ),
       );
     } catch (_) {}
+
+    // 🟢 1. INFRAESTRUCTURA DEL CERCLE VERD (Inici del Rang)
+    try {
+      await controller!.addSource(
+        "source_start_range",
+        const GeojsonSourceProperties(
+          data: {"type": "FeatureCollection", "features": []},
+        ),
+      );
+      await controller!.addCircleLayer(
+        "source_start_range",
+        "layer_start_circle",
+        const CircleLayerProperties(
+          circleColor: "#4CAF50", // Verd natiu de Senda
+          circleRadius: 9.0,
+          circleStrokeColor: "#FFFFFF",
+          circleStrokeWidth: 2.5,
+        ),
+      );
+    } catch (_) {}
+
+    // 🔴 2. INFRAESTRUCTURA DEL CERCLE VERMELL (Final del Rang)
+    try {
+      await controller!.addSource(
+        "source_end_range",
+        const GeojsonSourceProperties(
+          data: {"type": "FeatureCollection", "features": []},
+        ),
+      );
+      await controller!.addCircleLayer(
+        "source_end_range",
+        "layer_end_circle",
+        const CircleLayerProperties(
+          circleColor: "#F44336", // Vermell natiu de Senda
+          circleRadius: 9.0,
+          circleStrokeColor: "#FFFFFF",
+          circleStrokeWidth: 2.5,
+        ),
+      );
+    } catch (_) {}
   }
 
   Future<void> paintTracks(List<TrackModel> tracks, int? activeTrackId) async {
@@ -290,6 +404,10 @@ mixin MapRenderingMixin {
             layerId != "layer_range_white" &&
             layerId != "layer_range_orange" &&
             layerId != "layer_snapped_circle" &&
+            layerId !=
+                "layer_start_circle" && // 🔒 PROTECCIÓ CRÍTICA: Evita que s'esborri el cercle verd
+            layerId !=
+                "layer_end_circle" && // 🔒 PROTECCIÓ CRÍTICA: Evita que s'esborri el cercle vermell
             !wantedLayerIds.contains(layerId)) {
           try {
             await controller!.removeLayer(layerId);
