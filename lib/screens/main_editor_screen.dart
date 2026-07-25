@@ -39,16 +39,49 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   Timer? _throttleTimer;
   MapLibreMapController? _controller;
   bool _isReverseAnimating = false;
-  int _snapRevision = 0;
+  bool _isDraggingMap = false;
+  late final AppLifecycleListener _lifecycleListener;
+
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
   final GlobalKey _mapKey = GlobalKey(debugLabel: "main_editor_map");
 
   @override
   MapLibreMapController? get controller => _controller;
 
+  void initState() {
+    super.initState();
+
+    // 🌟 NOU: Inicialitzem el detector. Si l'aplicació es desenganxa (es tanca)
+    // o s'amaga completament, netegem fulminantment tota la memòria.
+    _lifecycleListener = AppLifecycleListener(
+      onDetach: _clearAllTracksOnExit,
+      onHide: _clearAllTracksOnExit,
+    );
+  }
+
+  void _clearAllTracksOnExit() {
+    final notifier = ref.read(gpxEditorProvider.notifier);
+
+    // 1. Cridem al mètode d'esborrat total al Notifier
+    notifier.clearAllTracksAbsolute();
+
+    // 2. Buidem immediatament totes les capes vectorials efímeres del mapa de MapLibre
+    if (_controller != null) {
+      const Map<String, dynamic> emptyCollection = {
+        "type": "FeatureCollection",
+        "features": [],
+      };
+      _controller!.setGeoJsonSource("source_range", emptyCollection);
+      _controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      _controller!.setGeoJsonSource("source_end_range", emptyCollection);
+      _controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
+    }
+  }
+
   @override
   void dispose() {
     _throttleTimer?.cancel();
+    _lifecycleListener.dispose(); // 🌟 NOU: Netegem el listener de memòria
     super.dispose();
   }
 
@@ -92,22 +125,40 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         ].contains(activeTool) &&
         !hasMouse;
 
+    // 🌟 REPARACIÓ 3A: Escolta exclusivament el canvi de Track seleccionat per centrar la càmera
+    ref.listen<int?>(gpxEditorProvider.select((s) => s.selectedTrackId), (
+      previous,
+      next,
+    ) {
+      if (next != null) {
+        final state = ref.read(gpxEditorProvider);
+        _focusTrack(next, state.tracks);
+        _paintTracksWrapper(state.tracks);
+      }
+    });
+
+    // 🌟 REPARACIÓ 3B: Escolta canvis a la llista global (només quan s'importa, esborra o fusiona)
+    ref.listen<List<TrackModel>>(gpxEditorProvider.select((s) => s.tracks), (
+      previous,
+      next,
+    ) {
+      final state = ref.read(gpxEditorProvider);
+      if (state.loadingTrackIds.isEmpty) {
+        _paintTracksWrapper(next);
+      }
+    });
+
+    // 🌟 REPARACIÓ 3C: Escolta la interacció fina (agulles, moviments de retícula, canvis d'eina)
     ref.listen<GpxEditorState>(gpxEditorProvider, (previous, next) {
-      if (previous?.selectedTrackId != next.selectedTrackId) {
-        if (next.selectedTrackId != null)
-          _focusTrack(next.selectedTrackId, next.tracks);
-        _paintTracksWrapper(next.tracks);
-      }
-      if (previous?.tracks != next.tracks && next.loadingTrackIds.isEmpty) {
-        _paintTracksWrapper(next.tracks);
-      }
-      if (previous?.snappedPointIndex != next.snappedPointIndex ||
-          previous?.snappedPoint != next.snappedPoint) {
-        paintLiveOverlays(next);
-      }
-      if (previous?.drawingPoints != next.drawingPoints ||
-          previous?.drawingLivePoint != next.drawingLivePoint ||
-          previous?.activeTool != next.activeTool) {
+      final bool toolChanged = previous?.activeTool != next.activeTool;
+      final bool snappedChanged =
+          previous?.snappedPointIndex != next.snappedPointIndex ||
+          previous?.snappedPoint != next.snappedPoint;
+      final bool drawingChanged =
+          previous?.drawingPoints != next.drawingPoints ||
+          previous?.drawingLivePoint != next.drawingLivePoint;
+
+      if (toolChanged || snappedChanged || drawingChanged) {
         paintLiveOverlays(next);
       }
     });
@@ -182,9 +233,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
             // 📐 MÒDUL SELECCIÓ (RANGE_MAP) REPARAT:
             if (activeTool == 'range_map') {
-              notifier.setMapIdle(true);
-              notifier.handleMapPointSelection();
-              paintLiveOverlays(ref.read(gpxEditorProvider));
               return;
             }
 
@@ -401,11 +449,90 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     paintLiveOverlays(ref.read(gpxEditorProvider));
   }
 
+  Future<void> _handleCameraMove(
+    CameraPosition pos,
+    GpxEditorState state,
+  ) async {
+    final currentState = ref.read(gpxEditorProvider);
+
+    // 1. Amaguem el botó flotant a l'acte només començar a moure el mapa (🔒 Protegit amb _isDraggingMap)
+    if (currentState.activeTool == 'range_map' && !_isDraggingMap) {
+      _isDraggingMap = true;
+      ref.read(gpxEditorProvider.notifier).setMapIdle(false);
+    }
+
+    // 🎨 EINA DIBUIX: Manté l'execució directa per a la línia elàstica interactiva
+    if (currentState.activeTool == 'draw') {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateDrawingLiveLocationWithoutZ(
+            pos.target.latitude,
+            pos.target.longitude,
+          );
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
+
+    // 📍 EINA WAYPOINT: Manté l'execució directa per seguir el punter de forma nativa
+    if (currentState.activeTool == 'add_waypoint') {
+      final coords = await _getVisibleReticleLatLng();
+      if (coords != null) {
+        ref
+            .read(gpxEditorProvider.notifier)
+            .updateWaypointPosition(coords.latitude, coords.longitude);
+      }
+      return;
+    }
+
+    // Filtrem quines eines utilitzaran el temporitzador de 50ms de seguretat
+    if (!['split', 'merge', 'range_map'].contains(currentState.activeTool)) {
+      return;
+    }
+
+    if (_throttleTimer?.isActive ?? false) return;
+    _throttleTimer = Timer(const Duration(milliseconds: 50), () async {
+      final target = pos.target;
+      final notifier = ref.read(gpxEditorProvider.notifier);
+
+      if (currentState.activeTool == 'range_map') {
+        // 📐 REPARACIÓ RANGE_MAP AMB THROTTLE RECUPERAT
+        notifier.updateRangeSelectionLiveFromReticle(
+          target.latitude,
+          target.longitude,
+          pos.zoom,
+        );
+      } else {
+        // Càlcul de snapping clàssic per a Split i Merge
+        notifier.calculateSnapping(target.latitude, target.longitude, pos.zoom);
+      }
+
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+    });
+  }
+
   Future<void> _handleCameraIdle() async {
     final pos = _controller?.cameraPosition;
     if (pos == null) return;
 
     final state = ref.read(gpxEditorProvider);
+
+    // 📐 REPARACIÓ CRÍTICA RANGE_MAP: El mapa s'atura, s'activa l'idle i es mostra el botó flotant
+    if (state.activeTool == 'range_map') {
+      // 🔒 Alliberem el control de moviment per permetre noves deteccions al següent drag
+      _isDraggingMap = false;
+
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateRangeSelectionLiveFromReticle(
+            pos.target.latitude,
+            pos.target.longitude,
+            pos.zoom,
+          );
+      // Notifiquem el repòs perquè el ReactiveRangeButton s'activi a la pantalla de forma estable
+      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
 
     if (state.activeTool == 'draw') {
       ref
@@ -416,7 +543,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     }
 
     if (state.activeTool == 'add_waypoint') {
-      // final coordsReticula = await _getVisibleReticleLatLng();
       final coordsReticula = _controller?.cameraPosition?.target;
       if (coordsReticula != null) {
         ref
@@ -430,65 +556,15 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
-    if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
+    if (!['split', 'merge'].contains(state.activeTool)) return;
 
     _throttleTimer?.cancel();
-
     final target = pos.target;
-
     ref
         .read(gpxEditorProvider.notifier)
         .calculateSnapping(target.latitude, target.longitude, pos.zoom);
-
     ref.read(gpxEditorProvider.notifier).setMapIdle(true);
-
     paintLiveOverlays(ref.read(gpxEditorProvider));
-  }
-
-  Future<void> _handleCameraMove(
-    CameraPosition pos,
-    GpxEditorState state,
-  ) async {
-    final currentState = ref.read(gpxEditorProvider);
-
-    if (currentState.activeTool == 'draw') {
-      ref
-          .read(gpxEditorProvider.notifier)
-          .updateDrawingLiveLocationWithoutZ(
-            pos.target.latitude,
-            pos.target.longitude,
-          );
-      paintLiveOverlays(ref.read(gpxEditorProvider));
-      return;
-    }
-
-    if (currentState.activeTool == 'add_waypoint') {
-      final coords = await _getVisibleReticleLatLng();
-
-      if (coords != null) {
-        ref
-            .read(gpxEditorProvider.notifier)
-            .updateWaypointPosition(coords.latitude, coords.longitude);
-      }
-
-      return;
-    }
-
-    if (!['split', 'range_map', 'merge'].contains(currentState.activeTool)) {
-      return;
-    }
-
-    if (_throttleTimer?.isActive ?? false) return;
-
-    _throttleTimer = Timer(const Duration(milliseconds: 50), () async {
-      final target = pos.target;
-
-      ref
-          .read(gpxEditorProvider.notifier)
-          .calculateSnapping(target.latitude, target.longitude, pos.zoom);
-
-      paintLiveOverlays(ref.read(gpxEditorProvider));
-    });
   }
 
   Future<void> _focusTrack(int? trackId, List<TrackModel> tracks) async {
@@ -623,24 +699,32 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     } catch (e) {
       debugPrint("Error en invertir el track: $e");
     }
-    // ❌ ELIMINAT: Esborrat el bloc finally amb el setState de tancament
   }
 
   Future _animateTrackRedraw(TrackModel track) async {
     if (_controller == null) return;
     final sourceId = "source_${track.id}";
+
     final validCoords = track.points
         .where((p) => p.latitude != null && p.longitude != null)
         .map((p) => [p.longitude!, p.latitude!])
         .toList();
+
     if (validCoords.isEmpty) return;
+
     const int framesCount = 60;
     final Duration perFrameDelay = reverseAnimationDuration ~/ framesCount;
-    final progressive = <List>[];
-    final int step = (validCoords.length / framesCount).ceil();
-    for (int i = 0; i < validCoords.length; i += step) {
+    final int totalPoints = validCoords.length;
+
+    for (int frame = 1; frame <= framesCount; frame++) {
       if (!mounted || _controller == null) return;
-      progressive.add(validCoords[i]);
+
+      // 🌟 REPARACIÓ: Calculem de forma homogènia quants punts pintar en aquest frame
+      final int pointsToTake = ((totalPoints * frame) / framesCount).round();
+
+      // Extreiem el tros de vector a velocitat nativa sense clonar elements interns
+      final progressiveSegment = validCoords.sublist(0, pointsToTake);
+
       await _controller!.setGeoJsonSource(sourceId, {
         "type": "FeatureCollection",
         "features": [
@@ -648,21 +732,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             "type": "Feature",
             "geometry": {
               "type": "LineString",
-              "coordinates": List<List>.from(progressive),
+              "coordinates": progressiveSegment,
             },
           },
         ],
       });
       await Future.delayed(perFrameDelay);
     }
-    await _controller!.setGeoJsonSource(sourceId, {
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "geometry": {"type": "LineString", "coordinates": validCoords},
-        },
-      ],
-    });
   }
 }

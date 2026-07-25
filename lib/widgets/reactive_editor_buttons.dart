@@ -82,8 +82,9 @@ class ReactiveRangeButton extends ConsumerWidget {
       gpxEditorProvider.select((s) => s.selectionStartIndex != null),
     );
 
-    if (activeTool != 'range_map' || !isMapIdle || !hasSnappedPoint)
+    if (activeTool != 'range_map' || !isMapIdle || !hasSnappedPoint) {
       return const SizedBox.shrink();
+    }
 
     String labelText = t.confirmRangeStartPoint;
     if (hasStart && isSelectingRange) labelText = t.confirmRangeEndPoint;
@@ -100,8 +101,23 @@ class ReactiveRangeButton extends ConsumerWidget {
           ),
           icon: const Icon(Icons.add_location_alt),
           label: Text(labelText),
-          onPressed: () =>
-              ref.read(gpxEditorProvider.notifier).handleMapPointSelection(),
+          onPressed: () {
+            final notifier = ref.read(gpxEditorProvider.notifier);
+
+            if (!hasStart && !isSelectingRange) {
+              // 🟢 1. FASE INICIAL: Premem per fixar el cercle verd
+              notifier.fixRangeStartIndex();
+            } else if (hasStart && isSelectingRange) {
+              // 🔴 2. FASE INTERMÈDIA: Premem per fixar el cercle vermell i tancar el segment taronja
+              notifier.fixRangeEndIndex();
+            } else {
+              // 🧹 3. FASE FINAL: El tram ja està tancat. Si tornen a pitjar, netegem
+              // i reiniciem per a que la retícula torni a agafar un punt inicial nou lliure.
+              notifier.clearChartSelection();
+              // Forcem que s'activi en mode 'range_map' de nou a l'acte per no perdre la retícula
+              notifier.setActiveTool('range_map');
+            }
+          },
         ),
       ),
     );

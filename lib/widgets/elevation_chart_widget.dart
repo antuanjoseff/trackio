@@ -45,7 +45,11 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   @override
   void didUpdateWidget(covariant ElevationChartWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.track != widget.track) {
+
+    // 🌟 REPARACIÓ: Només recalcula si realment ha canviat de track
+    // o si s'ha afegit/eliminat algun punt geogràfic.
+    if (oldWidget.track.id != widget.track.id ||
+        oldWidget.track.points.length != widget.track.points.length) {
       _precomputeChartData();
     }
   }

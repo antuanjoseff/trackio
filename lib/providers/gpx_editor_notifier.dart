@@ -797,4 +797,112 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     // 🌟 REPARACIÓ: Eliminem el 'tracks: List.from' per trencar el bucle infinit!
     state = state.copyWith(drawingLivePoint: provisionalPoint);
   }
+
+  /// 📐 MURE LA RETÍCULA DE RANG EN VIU (Mentre l'usuari arrossega el mapa a l'APK)
+  void updateRangeSelectionLiveFromReticle(
+    double centerLat,
+    double centerLng,
+    double currentZoom,
+  ) {
+    if (state.tracks.isEmpty ||
+        state.selectedTrackId == null ||
+        state.activeTool != 'range_map')
+      return;
+
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
+    if (track.points.isEmpty) return;
+
+    // 1. Càlcul de proximitat estàndard
+    double bestDistance = double.infinity;
+    int bestIndex = -1;
+
+    for (int i = 0; i < track.points.length; i++) {
+      final p = track.points[i];
+      if (p.latitude == null || p.longitude == null) continue;
+
+      final lat = (p.latitude! - centerLat) * 111320;
+      final lng =
+          (p.longitude! - centerLng) *
+          111320 *
+          math.cos(centerLat * math.pi / 180);
+      final distance = lat * lat + lng * lng;
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+
+    double maxDistance = currentZoom < 12
+        ? 120.0
+        : (currentZoom < 15 ? 60.0 : 25.0);
+
+    if (bestIndex >= 0 && bestDistance < maxDistance * maxDistance) {
+      // FASE 1: No s'ha escollit cap punt inicial (El cercle verd/agulla verda segueix la retícula)
+      if (state.selectionStartIndex == null) {
+        state = state.copyWith(
+          chartRangeStartIndex: bestIndex, // Movem l'agulla verda
+          chartRangeEndIndex: null, // L'agulla vermella no existeix encara
+          snappedPointIndex: bestIndex,
+        );
+      }
+      // FASE 2: Ja tenim el punt inicial fixat (El cercle vermell/agulla vermella segueix la retícula)
+      else if (state.selectionStartIndex != null && state.isSelectingRange) {
+        final int start = state.selectionStartIndex!;
+
+        // 🌟 REPARACIÓ EXCLUSIVITAT DE COLORS:
+        // Si el nou punt està per darrere de l'inicial, invertim els rols en viu a la pantalla
+        int visualStart = start < bestIndex ? start : bestIndex;
+        int visualEnd = start < bestIndex ? bestIndex : start;
+
+        state = state.copyWith(
+          // Forcem a que els pintors del mapa i gràfic rebin el tram efímer ordenat
+          selectionEndIndex: visualEnd,
+          chartRangeStartIndex: visualStart,
+          chartRangeEndIndex: visualEnd,
+          snappedPointIndex: bestIndex,
+        );
+      }
+    }
+  }
+
+  /// 🟢 FIXAR EL PUNT INICIAL (Es crida en prémer el botó flotant per primer cop)
+  void fixRangeStartIndex() {
+    if (state.snappedPointIndex == null) return;
+    final int currentIndex = state.snappedPointIndex!;
+
+    state = state.copyWith(
+      selectionStartIndex: currentIndex,
+      chartRangeStartIndex: currentIndex,
+      isSelectingRange: true, // Activem l'espera del segon punt
+      forceHideReticle: false,
+    );
+  }
+
+  /// 🔴 FIXAR EL PUNT FINAL (Es crida en prémer el botó flotant per segon cop)
+  void fixRangeEndIndex() {
+    if (state.selectionStartIndex == null || state.snappedPointIndex == null)
+      return;
+
+    final int start = state.selectionStartIndex!;
+    final int current = state.snappedPointIndex!;
+
+    // Assegurem que l'inici sempre sigui menor que el final per a la consistència del segment
+    final int realStart = start < current ? start : current;
+    final int realEnd = start < current ? current : start;
+
+    state = state.copyWith(
+      selectionStartIndex: realStart,
+      chartRangeStartIndex: realStart,
+      selectionEndIndex: realEnd,
+      chartRangeEndIndex: realEnd,
+      isSelectingRange: false, // Tanquem el tram de selecció
+      forceHideReticle: false,
+    );
+  }
+
+  /// 🧹 NETEJA ABSOLUTA AL SORTIR (Retorna l'estat a la factoria inicial en tancar l'APK)
+  void clearAllTracksAbsolute() {
+    state = GpxEditorState.initial();
+  }
 } // Tancament oficial de la classe GpxEditor

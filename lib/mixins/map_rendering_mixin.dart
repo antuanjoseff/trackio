@@ -19,7 +19,6 @@ mixin MapRenderingMixin {
 
     // ========================= DRAW =========================
     if (state.activeTool == 'draw') {
-      // 🔒 REPARACIÓ EXCLUSIVITAT: Netegem cercles de rang en mode dibuix
       await controller!.setGeoJsonSource("source_start_range", emptyCollection);
       await controller!.setGeoJsonSource("source_end_range", emptyCollection);
 
@@ -81,32 +80,25 @@ mixin MapRenderingMixin {
     }
 
     // ========================= OTHER TOOLS =========================
-
-    if (state.selectedTrackId == null) {
-      return;
-    }
+    if (state.selectedTrackId == null) return;
 
     final int? activeTrackId = int.tryParse(state.selectedTrackId.toString());
     final trackIndex = state.tracks.indexWhere((t) => t.id == activeTrackId);
-    if (trackIndex == -1) {
-      return;
-    }
+    if (trackIndex == -1) return;
 
     final track = state.tracks[trackIndex];
     final int? snappedIndex = state.snappedPointIndex;
 
-    // 🔒 REPARACIÓ EXCLUSIVITAT: Si l'eina activa és range_map, buidem el cercle blau de dit mòbil
+    int lo = 0;
+    int hi = snappedIndex ?? 0;
+
+    // ------------------ GESTIÓ EXCLUSIVA DEL PUNT BLAU MÒBIL ------------------
     if (state.activeTool == 'range_map') {
       await controller!.setGeoJsonSource(
         "source_snapped_point",
         emptyCollection,
       );
     } else {
-      // Si estem en qualsevol altra eina, matem els cercles de rang (verd/vermell)
-      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
-      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
-
-      // ------------------ POINT BLUE ------------------
       if (state.snappedPoint != null) {
         final p = state.snappedPoint!;
         await controller!.setGeoJsonSource("source_snapped_point", {
@@ -128,9 +120,6 @@ mixin MapRenderingMixin {
         );
       }
     }
-
-    int lo = 0;
-    int hi = snappedIndex ?? 0;
 
     // ------------------ MERGE ------------------
     if (state.activeTool == 'merge') {
@@ -155,55 +144,15 @@ mixin MapRenderingMixin {
       return;
     }
 
-    // ------------------ RANGE_MAP ------------------
+    // ------------------ RANGE_MAP UNIFICAT I DINÀMIC ------------------
     if (state.activeTool == 'range_map') {
-      // 1️⃣ Fase Inicial: Si encara no s'ha triat cap punt d'origen, buidem tot el mapa visual i marxem
-      if (state.selectionStartIndex == null) {
-        await controller!.setGeoJsonSource("source_range", emptyCollection);
-        await controller!.setGeoJsonSource(
-          "source_start_range",
-          emptyCollection,
-        );
-        await controller!.setGeoJsonSource("source_end_range", emptyCollection);
-        return;
-      }
+      final int? startPointToPaint = state.chartRangeStartIndex;
+      final int? endPointToPaint = state.chartRangeEndIndex;
 
-      // 🔒 REPARACIÓ DEFINTIVA DE COL·LISIÓ D'ÍNDEXS (DRAG DEL GRÀFIC)
-      // Si l'usuari manipula les agulles des de la gràfica, llegim directament
-      // els canals paral·lels per evitar col·lisions de 'lo == hi' quan start == snappedIndex.
-      if (state.chartRangeStartIndex != null &&
-          state.chartRangeEndIndex != null) {
-        lo = state.chartRangeStartIndex!;
-        hi = state.chartRangeEndIndex!;
-      }
-      // 2️⃣ Fase Final (Tram Tancat des del Mapa): Tenim origen i final consolidats i ja no estem arrossegant
-      else if (state.selectionStartIndex != null &&
-          state.selectionEndIndex != null &&
-          state.selectionEndIndex != -1 &&
-          !state.isSelectingRange) {
-        lo = state.selectionStartIndex!;
-        hi = state.selectionEndIndex!;
-      }
-      // 3️⃣ Fase d'Espera Elàstica Clàssica des del Mapa
-      else {
-        if (snappedIndex == null) {
-          return;
-        }
-        final int start = state.selectionStartIndex!;
-        lo = start < snappedIndex ? start : snappedIndex;
-        hi = start < snappedIndex ? snappedIndex : start;
-      }
-
-      // Assegurem la consistència per si l'usuari inverteix el sentit dels handles en el gràfic
-      if (lo > hi) {
-        final int temp = lo;
-        lo = hi;
-        hi = temp;
-      }
-
-      // 🟢 PINTEU EL CERCLE VERD AL MAPA (Inici del Rang)
-      final int startPointToPaint = state.chartRangeStartIndex ?? lo;
-      if (startPointToPaint >= 0 && startPointToPaint < track.points.length) {
+      // 🟢 1. Pintar cercle verd (Inici)
+      if (startPointToPaint != null &&
+          startPointToPaint >= 0 &&
+          startPointToPaint < track.points.length) {
         final pStart = track.points[startPointToPaint];
         await controller!.setGeoJsonSource("source_start_range", {
           "type": "FeatureCollection",
@@ -224,9 +173,10 @@ mixin MapRenderingMixin {
         );
       }
 
-      // 🔴 PINTEU EL CERCLE VERMELL AL MAPA (Final del Rang)
-      final int endPointToPaint = state.chartRangeEndIndex ?? hi;
-      if (endPointToPaint >= 0 && endPointToPaint < track.points.length) {
+      // 🔴 2. Pintar cercle vermell (Final)
+      if (endPointToPaint != null &&
+          endPointToPaint >= 0 &&
+          endPointToPaint < track.points.length) {
         final pEnd = track.points[endPointToPaint];
         await controller!.setGeoJsonSource("source_end_range", {
           "type": "FeatureCollection",
@@ -243,21 +193,46 @@ mixin MapRenderingMixin {
       } else {
         await controller!.setGeoJsonSource("source_end_range", emptyCollection);
       }
+
+      // 📏 3. Reconstrucció del camí efímer o tancat (Inici i final actius a les agulles)
+      if (startPointToPaint != null && endPointToPaint != null) {
+        lo = startPointToPaint;
+        hi = endPointToPaint;
+      } else {
+        // Si estem buscant el primer punt, netegem qualsevol línia taronja residual i marxem
+        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        return;
+      }
     }
     // ------------------ SPLIT ------------------
     else if (state.activeTool == 'split') {
+      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
+
       if (snappedIndex == null) {
         await controller!.setGeoJsonSource("source_range", emptyCollection);
         return;
       }
       lo = 0;
       hi = snappedIndex;
-    } else {
+    }
+    // ------------------ NETEJA ABSOLUTA SI L'EINA ÉS 'NONE' O ALTRA ------------------
+    else {
+      // 🔒 REPARACIÓ: Si l'eina es tanca o canvia, esborrem absolutament tot del mapa
       await controller!.setGeoJsonSource("source_range", emptyCollection);
-      return;
+      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
+      await controller!.setGeoJsonSource(
+        "source_snapped_point",
+        emptyCollection,
+      );
+      return; // Surt de forma segura havent netejat la GPU
     }
 
-    // ------------------ BUILD SEGMENT ------------------
+    // ========================= BUILD SEGMENT =========================
+    // ... el teu bucle for per a segment.add de split ...
+
+    // ========================= BUILD SEGMENT (COMÚ PER A SPLIT I TRAM DE RANG) =========================
     final segment = <List>[];
     for (int i = lo; i <= hi; i++) {
       if (i >= track.points.length) break;
@@ -270,7 +245,6 @@ mixin MapRenderingMixin {
     final bool shouldExtendToReticle =
         reticleLatLng != null &&
         (state.activeTool == 'split' || state.activeTool == 'range_map');
-
     if (shouldExtendToReticle) {
       segment.add([reticleLatLng.longitude, reticleLatLng.latitude]);
     }
