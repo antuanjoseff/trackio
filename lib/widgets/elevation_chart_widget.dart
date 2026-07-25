@@ -275,7 +275,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       gpxEditorProvider.select((s) => s.showSpeedInChart),
     );
 
-    final bool isRangeModeActive = activeTool == 'range_map';
+    // Activem els gestos de rang per a les dues eines
+    final bool isRangeModeActive =
+        activeTool == 'range_map' || activeTool == 'range_chart';
 
     // 🔒 REPARACIÓ CRÍTICA: Pipelining directe eliminant el bloqueig de nuls del if antic.
     // Així garantim que qualsevol moviment del drag viatgi a l'acte a l'eix X del pintor.
@@ -394,34 +396,24 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                   // 2. Capa de línies verticals
                   // 3. Capa de línies verticals (SelectionPainter)
+                  // 🎨 DINS D'ELEVATION_CHART_WIDGET (CAPA SELECTIONPAINTER REPARADA)
                   CustomPaint(
                     painter: SelectionPainter(
-                      // REPARACIÓ EXCLUSIVITAT: Si l'eina és range_map, el blau es força a null.
-                      // Si no és range_map, les coordenades del verd i vermell es forcen a null.
-                      needleX: activeTool == 'range_map' ? null : graphX,
-                      startX: activeTool == 'range_map'
-                          ? startXRealPixel
-                          : null,
-                      endX: activeTool == 'range_map' ? endXRealPixel : null,
+                      // 🌟 REPARACIÓ: El blau només es pinta si NO tenim un rang fixat a la pantalla
+                      needleX: (startPointsIndex != null) ? null : graphX,
+                      snappedIdx: (startPointsIndex != null)
+                          ? null
+                          : snappedIdx,
+
+                      // 🌟 REPARACIÓ CRÍTICA: Les agulles verda i vermella es pinten SEMPRE que hi hagi dades de rang,
+                      // sense importar si l'eina activa és 'range_map' o 'none'.
+                      startX: startXRealPixel,
+                      endX: endXRealPixel,
+                      startPointsIndex: startPointsIndex,
+                      endPointsIndex: endPointsIndex,
+
                       chartHeight: chartHeight,
                       maxDistance: maxDistance,
-                      snappedIdx: activeTool == 'range_map' ? null : snappedIdx,
-
-                      // Escoltem directament els nous índexs paral·lels que gestiona el Notifier
-                      startPointsIndex: activeTool == 'range_map'
-                          ? ref.watch(
-                              gpxEditorProvider.select(
-                                (s) => s.chartRangeStartIndex,
-                              ),
-                            )
-                          : null,
-                      endPointsIndex: activeTool == 'range_map'
-                          ? ref.watch(
-                              gpxEditorProvider.select(
-                                (s) => s.chartRangeEndIndex,
-                              ),
-                            )
-                          : null,
                       altitudes: _validPoints
                           .map((p) => p.elevation ?? 0.0)
                           .toList(),
@@ -486,11 +478,17 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                       if (_draggingHandle == 1) {
                         // 🧠 REPARACIÓ DRAG INDIVIDUAL: Moure l'agulla verda d'inici
+                        // 🔒 Seguretat: Evitem que l'agulla verda creuï la vermella si ja tenim el final
+                        if (endPointsIndex != null && idx >= endPointsIndex)
+                          return;
                         ref
                             .read(gpxEditorProvider.notifier)
                             .updateIndividualRangeHandle(newStartIdx: idx);
                       } else if (_draggingHandle == 2) {
                         // 🧠 REPARACIÓ DRAG INDIVIDUAL: Moure l'agulla vermella de final
+                        // 🔒 Seguretat: Evitem que l'agulla vermella creuï la verda
+                        if (startPointsIndex != null && idx <= startPointsIndex)
+                          return;
                         ref
                             .read(gpxEditorProvider.notifier)
                             .updateIndividualRangeHandle(newEndIdx: idx);
@@ -510,13 +508,18 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                         ref
                             .read(gpxEditorProvider.notifier)
                             .updateSnappedPoint(null, null);
-                      } else if ((_draggingHandle == 1 ||
-                              _draggingHandle == 2) &&
-                          start != null &&
-                          end != null) {
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .finalizeChartRangeSelection(start, end);
+                      } else if (_draggingHandle == 1 || _draggingHandle == 2) {
+                        // 🌟 REPARACIÓ LECTURA SEGURA: Llegim l'estat en calent per tancar el rang
+                        final currentState = ref.read(gpxEditorProvider);
+                        if (currentState.selectionStartIndex != null &&
+                            currentState.selectionEndIndex != null) {
+                          ref
+                              .read(gpxEditorProvider.notifier)
+                              .finalizeChartRangeSelection(
+                                currentState.selectionStartIndex!,
+                                currentState.selectionEndIndex!,
+                              );
+                        }
                       }
                       setState(() {
                         _draggingHandle = -1;

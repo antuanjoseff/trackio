@@ -36,8 +36,11 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       activeTool: tool,
       snappedPoint: null,
       snappedPointIndex: null,
+      // Si obrim qualsevol altra eina, netegem el rang estàtic de la memòria
       selectionStartIndex: null,
       selectionEndIndex: -1,
+      chartRangeStartIndex: null,
+      chartRangeEndIndex: null,
       isSelectingRange: false,
       forceHideReticle: false,
       isMapIdle: false,
@@ -497,17 +500,12 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   // 📈 SELECCIÓ DES DEL GRÀFIC (SINCRONITZACIÓ BIDIRECCIONAL)
   // =========================================================================
 
-  // 🌟 1) Actualitza l’agulla blava (hover / drag)
-  // =========================================================================
-  // 📈 SELECCIÓ DES DEL GRÀFIC (SINCRONITZACIÓ BIDIRECCIONAL COMPLETA)
-  // =========================================================================
-
   /// 🌟 1) Actualitza l’agulla blava (hover / drag de posició)
   void updateChartNeedle(int idx) {
     state = state.copyWith(chartNeedleIndex: idx);
   }
 
-  /// 🌟 2) INICIALITZACIÓ DEL RANG AMB LONGPRESS (Agulla verda al 25% i vermella al 75%)
+  // 🧠 REPARACIÓ FINAL AL PROVIDER (GPX_EDITOR_NOTIFIER)
   void startChartRangeSelectionWithPercent() {
     if (state.selectedTrackId == null) return;
 
@@ -517,23 +515,21 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final int totalPoints = activeTrack.points.length;
     if (totalPoints <= 0) return;
 
-    // Calculem les posicions inicials fixes relatives (25% i 75%) de la longitud del track
     final int startIdx = (totalPoints * 0.25).floor().clamp(0, totalPoints - 1);
     final int endIdx = (totalPoints * 0.75).floor().clamp(0, totalPoints - 1);
 
     state = state.copyWith(
-      activeTool: 'range_map',
+      activeTool:
+          'range_chart', // 🌟 CLAU: Creem l'eina virtual 'range_chart' exclusiva de la gràfica
       selectionStartIndex: startIdx,
       selectionEndIndex: endIdx,
       chartRangeStartIndex: startIdx,
       chartRangeEndIndex: endIdx,
-      isSelectingRange: true,
-      chartNeedleIndex: null, // Netegem l'agulla blava inicial per deixar espai
+      isSelectingRange: false, // El gràfic neix ja amb el rang congelat i llest
+      chartNeedleIndex: null,
     );
   }
 
-  /// 🌟 3) ACTUALITZACIÓ D'UNA AGULLA INDIVIDUAL DEL RANG (Mentre l'usuari arrossega els handles)
-  /// Permet actualitzar l'extrem esquerre (agulla verda) o el dret (agulla vermella) de manera independent.
   /// 🌟 3) ACTUALITZACIÓ D'UNA AGULLA INDIVIDUAL DEL RANG (Mentre l'usuari arrossega els handles)
   void updateIndividualRangeHandle({int? newStartIdx, int? newEndIdx}) {
     if (state.selectedTrackId == null) return;

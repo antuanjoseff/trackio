@@ -67,58 +67,40 @@ class ReactiveSplitButton extends ConsumerWidget {
 class ReactiveRangeButton extends ConsumerWidget {
   const ReactiveRangeButton({super.key});
 
+  // 🎨 DINS DEL TEU GINY DEL BOTÓ FLOTANT DE RANG
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
-    final hasSnappedPoint = ref.watch(
-      gpxEditorProvider.select((s) => s.snappedPoint != null),
-    );
     final isSelectingRange = ref.watch(
       gpxEditorProvider.select((s) => s.isSelectingRange),
     );
-    final hasStart = ref.watch(
-      gpxEditorProvider.select((s) => s.selectionStartIndex != null),
-    );
 
-    if (activeTool != 'range_map' || !isMapIdle || !hasSnappedPoint) {
-      return const SizedBox.shrink();
+    // 🌟 REPARACIÓ: El botó només s'ha d'aixecar si l'eina del mapa està activa i el mapa s'ha aturat
+    if (activeTool != 'range_map' || !isMapIdle) {
+      return const SizedBox.shrink(); // S'amaga transparentment si es mou o és una altra eina
     }
 
-    String labelText = t.confirmRangeStartPoint;
-    if (hasStart && isSelectingRange) labelText = t.confirmRangeEndPoint;
-    if (hasStart && !isSelectingRange) labelText = t.selectNewRange;
-
-    return Center(
-      child: Transform.translate(
-        offset: const Offset(0, 60),
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.orange.shade800,
-            elevation: 6,
-          ),
-          icon: const Icon(Icons.add_location_alt),
-          label: Text(labelText),
-          onPressed: () {
-            final notifier = ref.read(gpxEditorProvider.notifier);
-
-            if (!hasStart && !isSelectingRange) {
-              // 🟢 1. FASE INICIAL: Premem per fixar el cercle verd
-              notifier.fixRangeStartIndex();
-            } else if (hasStart && isSelectingRange) {
-              // 🔴 2. FASE INTERMÈDIA: Premem per fixar el cercle vermell i tancar el segment taronja
-              notifier.fixRangeEndIndex();
-            } else {
-              // 🧹 3. FASE FINAL: El tram ja està tancat. Si tornen a pitjar, netegem
-              // i reiniciem per a que la retícula torni a agafar un punt inicial nou lliure.
-              notifier.clearChartSelection();
-              // Forcem que s'activi en mode 'range_map' de nou a l'acte per no perdre la retícula
-              notifier.setActiveTool('range_map');
-            }
-          },
+    return Positioned(
+      bottom: 16,
+      left: 32,
+      right: 32,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isSelectingRange
+              ? Colors.red.shade600
+              : Colors.green.shade600,
+          foregroundColor: Colors.white,
         ),
+        onPressed: () {
+          final notifier = ref.read(gpxEditorProvider.notifier);
+          if (!isSelectingRange) {
+            notifier.fixRangeStartIndex();
+          } else {
+            notifier.fixRangeEndIndex();
+          }
+        },
+        child: Text(isSelectingRange ? "Fixar Final" : "Fixar Inici"),
       ),
     );
   }

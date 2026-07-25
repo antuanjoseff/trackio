@@ -144,12 +144,13 @@ mixin MapRenderingMixin {
       return;
     }
 
-    // ------------------ RANGE_MAP UNIFICAT I DINÀMIC ------------------
-    if (state.activeTool == 'range_map') {
+    // ------------------ RANGE_MAP UNIFICAT I DINÀMIC (REPARAT) ------------------
+    // 🌟 MODIFICAT: Ara el mapa pinta els elements si l'eina és 'range_map' O SI és 'range_chart'
+    if (state.activeTool == 'range_map' || state.activeTool == 'range_chart') {
       final int? startPointToPaint = state.chartRangeStartIndex;
       final int? endPointToPaint = state.chartRangeEndIndex;
 
-      // 🟢 1. Pintar cercle verd (Inici)
+      // 🟢 1. Pintar cercle verd (Inici del Rang)
       if (startPointToPaint != null &&
           startPointToPaint >= 0 &&
           startPointToPaint < track.points.length) {
@@ -173,7 +174,7 @@ mixin MapRenderingMixin {
         );
       }
 
-      // 🔴 2. Pintar cercle vermell (Final)
+      // 🔴 2. Pintar cercle vermell (Final del Rang)
       if (endPointToPaint != null &&
           endPointToPaint >= 0 &&
           endPointToPaint < track.points.length) {
@@ -199,7 +200,6 @@ mixin MapRenderingMixin {
         lo = startPointToPaint;
         hi = endPointToPaint;
       } else {
-        // Si estem buscant el primer punt, netegem qualsevol línia taronja residual i marxem
         await controller!.setGeoJsonSource("source_range", emptyCollection);
         return;
       }

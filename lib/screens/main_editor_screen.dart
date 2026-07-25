@@ -484,7 +484,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
-    // Filtrem quines eines utilitzaran el temporitzador de 50ms de seguretat
+    // 🌟 PROTECCIÓ I FILTRE: Si és 'range_chart' (LongPress des del gràfic) o qualsevol altra eina,
+    // l'usuari pot fer pan de fons de manera 100% lliure sense disparar el throttle ni recalculats de retícula.
     if (!['split', 'merge', 'range_map'].contains(currentState.activeTool)) {
       return;
     }
@@ -516,7 +517,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     final state = ref.read(gpxEditorProvider);
 
-    // 📐 REPARACIÓ CRÍTICA RANGE_MAP: El mapa s'atura, s'activa l'idle i es mostra el botó flotant
+    // 📐 REPARACIÓ CRÍTICA RANGE_MAP: El mapa s'atura, s'activa l'idle i es mostra el botó flotant natiu de Senda
     if (state.activeTool == 'range_map') {
       // 🔒 Alliberem el control de moviment per permetre noves deteccions al següent drag
       _isDraggingMap = false;
@@ -556,6 +557,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
+    // 🌟 PROTECCIÓ I FILTRE EN REPÒS: Si venim del mode gràfica ('range_chart'), sortim nets
+    // sense executar cap càlcul de snapping residual per evitar deformat de capes o blinking.
     if (!['split', 'merge'].contains(state.activeTool)) return;
 
     _throttleTimer?.cancel();
