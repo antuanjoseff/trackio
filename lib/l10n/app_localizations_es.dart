@@ -163,4 +163,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get shareGpxSubject => 'Exportar ruta GPX';
+
+  @override
+  String get pressBackAgainToExit => 'Pulsa atrás otra vez para salir';
 }

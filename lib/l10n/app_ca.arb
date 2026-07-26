@@ -52,5 +52,6 @@
   "downloadGpx": "Descarregar",
   
   "saveGpxDialogTitle": "Desa el fitxer GPX",
-  "shareGpxSubject": "Exportar ruta GPX"
+  "shareGpxSubject": "Exportar ruta GPX",
+  "pressBackAgainToExit": "Prem enrere un altre cop per sortir"
 }

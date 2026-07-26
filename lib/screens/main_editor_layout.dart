@@ -4,6 +4,8 @@ import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
+import 'package:trackio/screens/trackio_horizontal_layout.dart';
+import 'package:trackio/screens/trackio_vertical_layout.dart';
 import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/elevation_chart_panel.dart';
 import 'package:trackio/widgets/range_track_selection.dart';
@@ -57,6 +59,8 @@ class MainEditorLayout extends ConsumerWidget {
     final currentFullState = ref.watch(gpxEditorProvider);
 
     final bool isDisabled = selectedTrackId == null;
+    final bool isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Stack(
       children: [
@@ -120,442 +124,233 @@ class MainEditorLayout extends ConsumerWidget {
                   ),
                 )
               : null,
-          appBar: AppBar(
-            leading: Center(
-              child: Container(
-                margin: const EdgeInsets.only(left: 12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  tooltip: t.importTracks,
-                  icon: const Icon(Icons.upload, color: Colors.blue, size: 20),
-                  onPressed: onImportPressed,
-                ),
-              ),
-            ),
-            title: Text(t.appTitle),
-            actions: [
-              // 🌐 ACCIONS FILTRADES: Si som a la Web (!isMobile) pintem totes les eines horitzontals
-              if (!isMobile) ...[
-                // 🔄 1. INVERTIR TRACK
-                IconButton(
-                  tooltip: t.toolInverse,
-                  icon: TrackioIcons.reverseDirection(
-                    color: isDisabled ? Colors.grey.shade400 : Colors.blue,
-                  ),
-                  onPressed: isDisabled ? null : () => onReverseTrack(ref),
-                ),
-
-                // ✂️ 2. TALLAR TRACK (SPLIT)
-                IconButton(
-                  tooltip: t.toolSplit,
-                  isSelected: liveActiveTool == 'split',
-                  selectedIcon: TrackioIcons.cutGpx(
-                    color: Colors.purple.shade700,
-                    size: 20,
-                  ),
-                  icon: TrackioIcons.cutGpx(
-                    color: isDisabled ? Colors.grey.shade400 : Colors.purple,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: liveActiveTool == 'split'
-                        ? Colors.purple.shade50
-                        : null,
-                  ),
-                  onPressed: isDisabled
-                      ? null
-                      : () => ref
-                            .read(gpxEditorProvider.notifier)
-                            .setActiveTool(
-                              liveActiveTool == 'split' ? 'none' : 'split',
-                            ),
-                ),
-
-                // 🔗 3. UNIR TRACKS (MERGE)
-                IconButton(
-                  tooltip: t.toolMerge,
-                  isSelected: liveActiveTool == 'merge',
-                  selectedIcon: TrackioIcons.joinGpx(
-                    color: Colors.teal.shade700,
-                  ),
-                  icon: TrackioIcons.joinGpx(
-                    color: isDisabled ? Colors.grey.shade400 : Colors.teal,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: liveActiveTool == 'merge'
-                        ? Colors.teal.shade50
-                        : null,
-                  ),
-                  onPressed: isDisabled
-                      ? null
-                      : () => ref
-                            .read(gpxEditorProvider.notifier)
-                            .setActiveTool(
-                              liveActiveTool == 'merge' ? 'none' : 'merge',
-                            ),
-                ),
-
-                // 📐 4. SELECCIONAR TRAM
-                _buildFloatingButton(
-                  isActive: liveActiveTool == 'range_map',
-                  icon: TrackioLargeIcon(
-                    scale: 1.0,
-                    child: TrackRangeSelection(
-                      color: isDisabled
-                          ? Colors.grey.shade400
-                          : (liveActiveTool == 'range_map'
-                                ? Colors.orange.shade700
-                                : Colors.orange),
+          // 🚀 Si és mòbil i està de costat (Landscape), eliminem la barra nativa tornant null
+          appBar: (isMobile && isLandscape)
+              ? null
+              : AppBar(
+                  leading: Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        tooltip: t.importTracks,
+                        icon: const Icon(
+                          Icons.upload,
+                          color: Colors.blue,
+                          size: 20,
+                        ),
+                        onPressed: onImportPressed,
+                      ),
                     ),
                   ),
-                  tooltip: t.selectRange,
-                  onPressed: isDisabled
-                      ? null
-                      : () => ref
-                            .read(gpxEditorProvider.notifier)
-                            .setActiveTool(
-                              liveActiveTool == 'range_map'
-                                  ? 'none'
-                                  : 'range_map',
-                            ),
-                ),
-
-                // 📍 5. AFEGIR WAYPOINT
-                IconButton(
-                  tooltip: t.addWaypoint,
-                  isSelected: liveActiveTool == 'add_waypoint',
-                  selectedIcon: TrackioIcons.addWaypoint(
-                    color: Colors.indigo.shade700,
-                  ),
-                  icon: TrackioIcons.addWaypoint(
-                    color: isDisabled ? Colors.grey.shade400 : Colors.indigo,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: liveActiveTool == 'add_waypoint'
-                        ? Colors.indigo.shade50
-                        : null,
-                  ),
-                  onPressed: isDisabled
-                      ? null
-                      : () => ref
-                            .read(gpxEditorProvider.notifier)
-                            .setActiveTool(
-                              liveActiveTool == 'add_waypoint'
-                                  ? 'none'
-                                  : 'add_waypoint',
-                            ),
-                ),
-
-                // 🎨 5.2. EINA DIBUIXAR RUTA DE ZERO
-                IconButton(
-                  tooltip: t.toolDraw,
-                  isSelected: liveActiveTool == 'draw',
-                  selectedIcon: const Icon(
-                    Icons.gesture_rounded,
-                    color: Colors.pinkAccent,
-                    size: 20,
-                  ),
-                  icon: const Icon(Icons.gesture_rounded, color: Colors.pink),
-                  style: IconButton.styleFrom(
-                    backgroundColor: liveActiveTool == 'draw'
-                        ? Colors.pink.shade50
-                        : null,
-                  ),
-                  onPressed: () => ref
-                      .read(gpxEditorProvider.notifier)
-                      .setActiveTool(
-                        liveActiveTool == 'draw' ? 'none' : 'draw',
+                  title: Text(t.appTitle),
+                  actions: [
+                    // 🌐 ACCIONS FILTRADES: Si som a la Web (!isMobile) pintem totes les eines horitzontals
+                    if (!isMobile) ...[
+                      // 🔄 1. INVERTIR TRACK
+                      IconButton(
+                        tooltip: t.toolInverse,
+                        icon: TrackioIcons.reverseDirection(
+                          color: isDisabled
+                              ? Colors.grey.shade400
+                              : Colors.blue,
+                        ),
+                        onPressed: isDisabled
+                            ? null
+                            : () => onReverseTrack(ref),
                       ),
-                ),
 
-                const VerticalDivider(indent: 12, endIndent: 12, width: 16),
-              ],
+                      // ✂️ 2. TALLAR TRACK (SPLIT)
+                      IconButton(
+                        tooltip: t.toolSplit,
+                        isSelected: liveActiveTool == 'split',
+                        selectedIcon: TrackioIcons.cutGpx(
+                          color: Colors.purple.shade700,
+                          size: 20,
+                        ),
+                        icon: TrackioIcons.cutGpx(
+                          color: isDisabled
+                              ? Colors.grey.shade400
+                              : Colors.purple,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: liveActiveTool == 'split'
+                              ? Colors.purple.shade50
+                              : null,
+                        ),
+                        onPressed: isDisabled
+                            ? null
+                            : () => ref
+                                  .read(gpxEditorProvider.notifier)
+                                  .setActiveTool(
+                                    liveActiveTool == 'split'
+                                        ? 'none'
+                                        : 'split',
+                                  ),
+                      ),
 
-              // ↕️ 6. GRÀFIC D'ELEVACIONS
-              IconButton(
-                tooltip: t.elevationProfile,
-                icon: Icon(
-                  liveShowChart
-                      ? Icons.insert_chart
-                      : Icons.insert_chart_outlined,
-                  color: liveShowChart ? Colors.blue : Colors.grey.shade600,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: liveShowChart ? Colors.blue.shade50 : null,
-                ),
-                onPressed: () =>
-                    ref.read(gpxEditorProvider.notifier).toggleElevationChart(),
-              ),
+                      // 🔗 3. UNIR TRACKS (MERGE)
+                      IconButton(
+                        tooltip: t.toolMerge,
+                        isSelected: liveActiveTool == 'merge',
+                        selectedIcon: TrackioIcons.joinGpx(
+                          color: Colors.teal.shade700,
+                        ),
+                        icon: TrackioIcons.joinGpx(
+                          color: isDisabled
+                              ? Colors.grey.shade400
+                              : Colors.teal,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: liveActiveTool == 'merge'
+                              ? Colors.teal.shade50
+                              : null,
+                        ),
+                        onPressed: isDisabled
+                            ? null
+                            : () => ref
+                                  .read(gpxEditorProvider.notifier)
+                                  .setActiveTool(
+                                    liveActiveTool == 'merge'
+                                        ? 'none'
+                                        : 'merge',
+                                  ),
+                      ),
 
-              const SizedBox(width: 8),
-            ],
-          ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth > 800) {
-                // 🖥️ VISTA D'ESCRIPTORI (Web / Pantalla Gran)
-                final double sidebarWidth = constraints.maxWidth * 0.25;
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // El teu panell animat es queda 100% igual per a la Web
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOut,
-                      width: liveShowSidebar ? sidebarWidth : 0.0,
-                      child: ClipRRect(
-                        child: SizedBox(
-                          width: liveShowSidebar ? sidebarWidth : 0.0,
-                          child: EditorSidebarWidget(
-                            state: currentFullState,
-                            t: t,
-                            onPaintTracks: onPaintTracks,
-                            onReverseTrack: onReverseTrack,
-                            onImportPressed: onImportPressed,
+                      // 📐 4. SELECCIONAR TRAM
+                      _buildFloatingButton(
+                        isActive: liveActiveTool == 'range_map',
+                        icon: TrackioLargeIcon(
+                          scale: 1.0,
+                          child: TrackRangeSelection(
+                            color: isDisabled
+                                ? Colors.grey.shade400
+                                : (liveActiveTool == 'range_map'
+                                      ? Colors.orange.shade700
+                                      : Colors.orange),
                           ),
                         ),
+                        tooltip: t.selectRange,
+                        onPressed: isDisabled
+                            ? null
+                            : () => ref
+                                  .read(gpxEditorProvider.notifier)
+                                  .setActiveTool(
+                                    liveActiveTool == 'range_map'
+                                        ? 'none'
+                                        : 'range_map',
+                                  ),
                       ),
+
+                      // 📍 5. AFEGIR WAYPOINT
+                      IconButton(
+                        tooltip: t.addWaypoint,
+                        isSelected: liveActiveTool == 'add_waypoint',
+                        selectedIcon: TrackioIcons.addWaypoint(
+                          color: Colors.indigo.shade700,
+                        ),
+                        icon: TrackioIcons.addWaypoint(
+                          color: isDisabled
+                              ? Colors.grey.shade400
+                              : Colors.indigo,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: liveActiveTool == 'add_waypoint'
+                              ? Colors.indigo.shade50
+                              : null,
+                        ),
+                        onPressed: isDisabled
+                            ? null
+                            : () => ref
+                                  .read(gpxEditorProvider.notifier)
+                                  .setActiveTool(
+                                    liveActiveTool == 'add_waypoint'
+                                        ? 'none'
+                                        : 'add_waypoint',
+                                  ),
+                      ),
+
+                      // 🎨 5.2. EINA DIBUIXAR RUTA DE ZERO
+                      IconButton(
+                        tooltip: t.toolDraw,
+                        isSelected: liveActiveTool == 'draw',
+                        selectedIcon: const Icon(
+                          Icons.gesture_rounded,
+                          color: Colors.pinkAccent,
+                          size: 20,
+                        ),
+                        icon: const Icon(
+                          Icons.gesture_rounded,
+                          color: Colors.pink,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: liveActiveTool == 'draw'
+                              ? Colors.pink.shade50
+                              : null,
+                        ),
+                        onPressed: () => ref
+                            .read(gpxEditorProvider.notifier)
+                            .setActiveTool(
+                              liveActiveTool == 'draw' ? 'none' : 'draw',
+                            ),
+                      ),
+
+                      const VerticalDivider(
+                        indent: 12,
+                        endIndent: 12,
+                        width: 16,
+                      ),
+                    ],
+
+                    // ↕️ 6. GRÀFIC D'ELEVACIONS
+                    IconButton(
+                      tooltip: t.elevationProfile,
+                      icon: Icon(
+                        liveShowChart
+                            ? Icons.insert_chart
+                            : Icons.insert_chart_outlined,
+                        color: liveShowChart
+                            ? Colors.blue
+                            : Colors.grey.shade600,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: liveShowChart
+                            ? Colors.blue.shade50
+                            : null,
+                      ),
+                      onPressed: () => ref
+                          .read(gpxEditorProvider.notifier)
+                          .toggleElevationChart(),
                     ),
 
-                    // COMPONENT EXPANDIBLE CENTRAL PER A LA WEB
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Expanded(child: mapModule),
-                          const TrackStatsPanel(),
-                          if (showElevationChart)
-                            ElevationChartPanel(
-                              editorState: currentFullState,
-                              height: 180,
-                            ),
-                        ],
-                      ),
-                    ),
+                    const SizedBox(width: 8),
                   ],
+                ),
+          body: OrientationBuilder(
+            builder: (context, orientation) {
+              if (orientation == Orientation.portrait) {
+                return TrackioVerticalLayout(
+                  t: t,
+                  editorState: editorState,
+                  mapModule: mapModule,
+                  showElevationChart: showElevationChart,
+                  isReverseAnimating: isReverseAnimating,
+                  onPaintTracks: onPaintTracks,
+                  onReverseTrack: onReverseTrack,
+                  onImportPressed: onImportPressed,
                 );
               } else {
-                // VISTA MÒBIL REPARADA (L'APK mòbil s'executa aquí)
-                return Column(
-                  children: [
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          // 🗺️ El mapa base ocupant tot el fons
-                          mapModule,
-
-                          // 🌟 NOU BOTÓ FLOTANT AL COSTAT SUPERIOR ESQUERRE DEL MAPA
-                          Positioned(
-                            top: 16,
-                            left: 16,
-                            child: Builder(
-                              builder: (context) => Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.9),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.15),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: IconButton(
-                                  tooltip: "Sidebar",
-                                  icon: Icon(
-                                    isMobile
-                                        ? Icons.menu_rounded
-                                        : Icons.view_sidebar,
-                                    color: Colors.blue.shade700,
-                                  ),
-                                  onPressed: () {
-                                    if (isMobile) {
-                                      // 📱 MÒBIL: Obre el Drawer natiu utilitzant el context d'aquest Builder
-                                      Scaffold.of(context).openDrawer();
-                                    } else {
-                                      // 🖥️ WEB: Fa el toggle de l'amplada clàssic
-                                      ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .toggleSidebar();
-                                    }
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // 🛠️ BARRA FLOTANT VERTICAL (A la part dreta del mapa)
-                          Positioned(
-                            top: 16,
-                            right: 16,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // 🔄 1. INVERTIR TRACK
-                                _buildFloatingButton(
-                                  icon: TrackioLargeIcon(
-                                    child: TrackioIcons.reverseDirection(
-                                      color: isDisabled
-                                          ? Colors.grey.shade400
-                                          : Colors.blue,
-                                    ),
-                                  ),
-                                  tooltip: t.toolInverse,
-                                  onPressed: isDisabled
-                                      ? null
-                                      : () => onReverseTrack(ref),
-                                ),
-                                const SizedBox(height: 10),
-
-                                // ✂️ 2. TALLAR TRACK (SPLIT)
-                                _buildFloatingButton(
-                                  isActive: liveActiveTool == 'split',
-                                  icon: TrackioLargeIcon(
-                                    child: TrackioIcons.cutGpx(
-                                      color: isDisabled
-                                          ? Colors.grey.shade400
-                                          : (liveActiveTool == 'split'
-                                                ? Colors.purple.shade700
-                                                : Colors.purple),
-                                    ),
-                                  ),
-                                  tooltip: t.toolSplit,
-                                  onPressed: isDisabled
-                                      ? null
-                                      : () => ref
-                                            .read(gpxEditorProvider.notifier)
-                                            .setActiveTool(
-                                              liveActiveTool == 'split'
-                                                  ? 'none'
-                                                  : 'split',
-                                            ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                // 🔗 3. UNIR TRACKS (MERGE)
-                                _buildFloatingButton(
-                                  isActive: liveActiveTool == 'merge',
-                                  icon: TrackioLargeIcon(
-                                    child: TrackioIcons.joinGpx(
-                                      color: isDisabled
-                                          ? Colors.grey.shade400
-                                          : (liveActiveTool == 'merge'
-                                                ? Colors.teal.shade700
-                                                : Colors.teal),
-                                    ),
-                                  ),
-                                  tooltip: t.toolMerge,
-                                  onPressed: isDisabled
-                                      ? null
-                                      : () => ref
-                                            .read(gpxEditorProvider.notifier)
-                                            .setActiveTool(
-                                              liveActiveTool == 'merge'
-                                                  ? 'none'
-                                                  : 'merge',
-                                            ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                // 📐 4. SELECCIONAR TRAM
-                                _buildFloatingButton(
-                                  isActive: liveActiveTool == 'range_map',
-                                  icon: TrackioLargeIcon(
-                                    child: TrackRangeSelection(
-                                      color: isDisabled
-                                          ? Colors.grey.shade400
-                                          : (liveActiveTool == 'range_map'
-                                                ? Colors.orange.shade700
-                                                : Colors.orange),
-                                    ),
-                                  ),
-                                  tooltip: t.selectRange,
-                                  onPressed: isDisabled
-                                      ? null
-                                      : () => ref
-                                            .read(gpxEditorProvider.notifier)
-                                            .setActiveTool(
-                                              liveActiveTool == 'range_map'
-                                                  ? 'none'
-                                                  : 'range_map',
-                                            ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                // 📍 5. AFEGIR WAYPOINT
-                                _buildFloatingButton(
-                                  isActive: liveActiveTool == 'add_waypoint',
-                                  icon: TrackioLargeIcon(
-                                    child: TrackioIcons.addWaypoint(
-                                      color: isDisabled
-                                          ? Colors.grey.shade400
-                                          : (liveActiveTool == 'add_waypoint'
-                                                ? Colors.indigo.shade700
-                                                : Colors.indigo),
-                                    ),
-                                  ),
-                                  tooltip: t.addWaypoint,
-                                  onPressed: isDisabled
-                                      ? null
-                                      : () => ref
-                                            .read(gpxEditorProvider.notifier)
-                                            .setActiveTool(
-                                              liveActiveTool == 'add_waypoint'
-                                                  ? 'none'
-                                                  : 'add_waypoint',
-                                            ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                // 🎨 6. DIBUIXAR RUTA DE ZERO
-                                _buildFloatingButton(
-                                  isActive: liveActiveTool == 'draw',
-                                  icon: Icon(
-                                    Icons.gesture_rounded,
-                                    color: liveActiveTool == 'draw'
-                                        ? Colors.pinkAccent
-                                        : Colors.pink,
-                                    size:
-                                        28, // Manté l'escala nativa gran de Flutter
-                                  ),
-                                  tooltip: t.toolDraw,
-                                  onPressed: () => ref
-                                      .read(gpxEditorProvider.notifier)
-                                      .setActiveTool(
-                                        liveActiveTool == 'draw'
-                                            ? 'none'
-                                            : 'draw',
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    SafeArea(
-                      top: false,
-                      bottom: !showElevationChart,
-                      child: const TrackStatsPanel(),
-                    ),
-
-                    // 📈 PANNELL DEL GRÀFIC D'ELEVACIONS PROTEGIT AMB SAFEAREA AL MÒBIL
-                    if (showElevationChart)
-                      SafeArea(
-                        top: false,
-                        bottom:
-                            true, // Força a aixecar la gràfica de la línia de gestos d'Android
-                        child: ElevationChartPanel(
-                          editorState: currentFullState,
-                          height: 140,
-                          textFontSize: 12,
-                        ),
-                      ),
-                  ],
+                return TrackioHorizontalLayout(
+                  t: t,
+                  editorState: editorState,
+                  mapModule: mapModule,
+                  showElevationChart: showElevationChart,
+                  onPaintTracks: onPaintTracks,
+                  onReverseTrack: onReverseTrack,
+                  onImportPressed: onImportPressed,
                 );
               }
             },

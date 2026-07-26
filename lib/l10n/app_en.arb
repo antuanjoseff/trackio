@@ -52,6 +52,8 @@
   "downloadGpx": "Download",
   
   "saveGpxDialogTitle": "Save GPX file",
-  "shareGpxSubject": "Export GPX route"
+  "shareGpxSubject": "Export GPX route",
+  "pressBackAgainToExit": "Press back again to exit"
+
 }
 

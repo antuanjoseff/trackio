@@ -408,6 +408,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export GPX route'**
   String get shareGpxSubject;
+
+  /// No description provided for @pressBackAgainToExit.
+  ///
+  /// In en, this message translates to:
+  /// **'Press back again to exit'**
+  String get pressBackAgainToExit;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

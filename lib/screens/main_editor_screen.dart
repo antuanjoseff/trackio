@@ -36,6 +36,9 @@ class MainEditorScreen extends ConsumerStatefulWidget {
 
 class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     with MapRenderingMixin {
+  int _backPressCounter = 0;
+  DateTime? _lastBackPressTime;
+
   Timer? _throttleTimer;
   MapLibreMapController? _controller;
   bool _isReverseAnimating = false;
@@ -335,32 +338,53 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       ],
     );
 
-    return KeyboardListener(
-      // 🌟 Escotem de forma global els esdeveniments del teclat físic a la Web
-      focusNode: FocusNode()
-        ..requestFocus(), // Força el focus automàtic al teclat
-      onKeyEvent: (KeyEvent event) {
-        // Només capturem el moment de pitjar la tecla (evitem repeticions si es manté premuda)
-        if (event is KeyDownEvent) {
-          final currentState = ref.read(gpxEditorProvider);
+    return WillPopScope(
+      onWillPop: () async {
+        final now = DateTime.now();
 
-          // 🔒 Regla de seguretat: Només actuem si l'eina activa és 'draw' i premem Enter
-          if (currentState.activeTool == 'draw' &&
-              (event.logicalKey == LogicalKeyboardKey.enter ||
-                  event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-            unawaited(_addDrawPointAtVisibleReticle());
-          }
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          _backPressCounter = 1;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(t.pressBackAgainToExit),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          return false;
         }
+
+        if (_backPressCounter == 1) {
+          return true; // surt de la app
+        }
+
+        return false;
       },
-      child: MainEditorLayout(
-        t: t,
-        editorState: editorState,
-        mapModule: mapModule,
-        showElevationChart: showElevationChart,
-        isReverseAnimating: _isReverseAnimating,
-        onPaintTracks: _paintTracksWrapper,
-        onReverseTrack: _reverseSelectedTrackWithAnimation,
-        onImportPressed: () => _importGpxFiles(context, ref),
+      child: KeyboardListener(
+        focusNode: FocusNode()..requestFocus(),
+        onKeyEvent: (KeyEvent event) {
+          if (event is KeyDownEvent) {
+            final currentState = ref.read(gpxEditorProvider);
+            if (currentState.activeTool == 'draw' &&
+                (event.logicalKey == LogicalKeyboardKey.enter ||
+                    event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
+              unawaited(_addDrawPointAtVisibleReticle());
+            }
+          }
+        },
+        child: MainEditorLayout(
+          t: t,
+          editorState: editorState,
+          mapModule: mapModule,
+          showElevationChart: showElevationChart,
+          isReverseAnimating: _isReverseAnimating,
+          onPaintTracks: _paintTracksWrapper,
+          onReverseTrack: _reverseSelectedTrackWithAnimation,
+          onImportPressed: () => _importGpxFiles(context, ref),
+        ),
       ),
     );
   }
