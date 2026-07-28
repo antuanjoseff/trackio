@@ -7,7 +7,8 @@ mixin MapRenderingMixin {
   // Aquest mixin obligarà la pantalla a oferir accés al controlador del mapa
   MapLibreMapController? get controller;
 
-  void paintLiveOverlays(GpxEditorState state, {LatLng? reticleLatLng}) async {
+  // 🌟 REPARACIÓ: Eliminem el 'async' de la capçalera per fer el flux síncron i fluid
+  void paintLiveOverlays(GpxEditorState state, {LatLng? reticleLatLng}) {
     if (controller == null) {
       return;
     }
@@ -19,15 +20,13 @@ mixin MapRenderingMixin {
 
     // ========================= DRAW =========================
     if (state.activeTool == 'draw') {
-      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
-      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
+      // 🌟 REPARACIÓ: Traiem el 'await' de totes aquestes línies de moviment continu
+      controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      controller!.setGeoJsonSource("source_end_range", emptyCollection);
 
       if (state.drawingPoints.isEmpty && state.drawingLivePoint == null) {
-        await controller!.setGeoJsonSource("source_range", emptyCollection);
-        await controller!.setGeoJsonSource(
-          "source_snapped_point",
-          emptyCollection,
-        );
+        controller!.setGeoJsonSource("source_range", emptyCollection);
+        controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
         return;
       }
 
@@ -43,7 +42,7 @@ mixin MapRenderingMixin {
         if (live.latitude != null && live.longitude != null) {
           drawCoords.add([live.longitude!, live.latitude!]);
 
-          await controller!.setGeoJsonSource("source_snapped_point", {
+          controller!.setGeoJsonSource("source_snapped_point", {
             "type": "FeatureCollection",
             "features": [
               {
@@ -57,14 +56,11 @@ mixin MapRenderingMixin {
           });
         }
       } else {
-        await controller!.setGeoJsonSource(
-          "source_snapped_point",
-          emptyCollection,
-        );
+        controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
       }
 
       if (drawCoords.length >= 2) {
-        await controller!.setGeoJsonSource("source_range", {
+        controller!.setGeoJsonSource("source_range", {
           "type": "FeatureCollection",
           "features": [
             {
@@ -74,7 +70,7 @@ mixin MapRenderingMixin {
           ],
         });
       } else {
-        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        controller!.setGeoJsonSource("source_range", emptyCollection);
       }
       return;
     }
@@ -94,14 +90,12 @@ mixin MapRenderingMixin {
 
     // ------------------ GESTIÓ EXCLUSIVA DEL PUNT BLAU MÒBIL ------------------
     if (state.activeTool == 'range_map') {
-      await controller!.setGeoJsonSource(
-        "source_snapped_point",
-        emptyCollection,
-      );
+      controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
     } else {
       if (state.snappedPoint != null) {
         final p = state.snappedPoint!;
-        await controller!.setGeoJsonSource("source_snapped_point", {
+        // 🌟 SENSE AWAIT: El cercle blau rep les dades de cop i llisca sense parpellejar
+        controller!.setGeoJsonSource("source_snapped_point", {
           "type": "FeatureCollection",
           "features": [
             {
@@ -114,10 +108,7 @@ mixin MapRenderingMixin {
           ],
         });
       } else {
-        await controller!.setGeoJsonSource(
-          "source_snapped_point",
-          emptyCollection,
-        );
+        controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
       }
     }
 
@@ -129,7 +120,7 @@ mixin MapRenderingMixin {
             .map((p) => [p.longitude!, p.latitude!])
             .toList();
 
-        await controller!.setGeoJsonSource("source_range", {
+        controller!.setGeoJsonSource("source_range", {
           "type": "FeatureCollection",
           "features": [
             {
@@ -139,13 +130,12 @@ mixin MapRenderingMixin {
           ],
         });
       } else {
-        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        controller!.setGeoJsonSource("source_range", emptyCollection);
       }
       return;
     }
 
-    // ------------------ RANGE_MAP UNIFICAT I DINÀMIC (REPARAT) ------------------
-    // 🌟 MODIFICAT: Ara el mapa pinta els elements si l'eina és 'range_map' O SI és 'range_chart'
+    // ------------------ RANGE_MAP UNIFICAT I DINÀMIC ------------------
     if (state.activeTool == 'range_map' || state.activeTool == 'range_chart') {
       final int? startPointToPaint = state.chartRangeStartIndex;
       final int? endPointToPaint = state.chartRangeEndIndex;
@@ -155,7 +145,7 @@ mixin MapRenderingMixin {
           startPointToPaint >= 0 &&
           startPointToPaint < track.points.length) {
         final pStart = track.points[startPointToPaint];
-        await controller!.setGeoJsonSource("source_start_range", {
+        controller!.setGeoJsonSource("source_start_range", {
           "type": "FeatureCollection",
           "features": [
             {
@@ -168,10 +158,7 @@ mixin MapRenderingMixin {
           ],
         });
       } else {
-        await controller!.setGeoJsonSource(
-          "source_start_range",
-          emptyCollection,
-        );
+        controller!.setGeoJsonSource("source_start_range", emptyCollection);
       }
 
       // 🔴 2. Pintar cercle vermell (Final del Rang)
@@ -179,7 +166,7 @@ mixin MapRenderingMixin {
           endPointToPaint >= 0 &&
           endPointToPaint < track.points.length) {
         final pEnd = track.points[endPointToPaint];
-        await controller!.setGeoJsonSource("source_end_range", {
+        controller!.setGeoJsonSource("source_end_range", {
           "type": "FeatureCollection",
           "features": [
             {
@@ -192,25 +179,24 @@ mixin MapRenderingMixin {
           ],
         });
       } else {
-        await controller!.setGeoJsonSource("source_end_range", emptyCollection);
+        controller!.setGeoJsonSource("source_end_range", emptyCollection);
       }
 
-      // 📏 3. Reconstrucció del camí efímer o tancat (Inici i final actius a les agulles)
       if (startPointToPaint != null && endPointToPaint != null) {
         lo = startPointToPaint;
         hi = endPointToPaint;
       } else {
-        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        controller!.setGeoJsonSource("source_range", emptyCollection);
         return;
       }
     }
     // ------------------ SPLIT ------------------
     else if (state.activeTool == 'split') {
-      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
-      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
+      controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      controller!.setGeoJsonSource("source_end_range", emptyCollection);
 
       if (snappedIndex == null) {
-        await controller!.setGeoJsonSource("source_range", emptyCollection);
+        controller!.setGeoJsonSource("source_range", emptyCollection);
         return;
       }
       lo = 0;
@@ -218,21 +204,19 @@ mixin MapRenderingMixin {
     }
     // ------------------ NETEJA ABSOLUTA SI L'EINA ÉS 'NONE' O ALTRA ------------------
     else {
-      // 🔒 REPARACIÓ: Si l'eina es tanca o canvia, esborrem absolutament tot del mapa
-      await controller!.setGeoJsonSource("source_range", emptyCollection);
-      await controller!.setGeoJsonSource("source_start_range", emptyCollection);
-      await controller!.setGeoJsonSource("source_end_range", emptyCollection);
-      await controller!.setGeoJsonSource(
-        "source_snapped_point",
-        emptyCollection,
-      );
-      return; // Surt de forma segura havent netejat la GPU
+      controller!.setGeoJsonSource("source_range", emptyCollection);
+      controller!.setGeoJsonSource("source_start_range", emptyCollection);
+      controller!.setGeoJsonSource("source_end_range", emptyCollection);
+
+      // 🌟 REPARACIÓ: Si hi ha un punt blau actiu a la memòria en cicle lliure ('none'),
+      // bloquegem que aquesta clàusula el buidi en el mateix frame per evitar pampallugues.
+      if (state.snappedPoint == null) {
+        controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
+      }
+      return;
     }
 
     // ========================= BUILD SEGMENT =========================
-    // ... el teu bucle for per a segment.add de split ...
-
-    // ========================= BUILD SEGMENT (COMÚ PER A SPLIT I TRAM DE RANG) =========================
     final segment = <List>[];
     for (int i = lo; i <= hi; i++) {
       if (i >= track.points.length) break;
@@ -250,7 +234,7 @@ mixin MapRenderingMixin {
     }
 
     if (segment.length >= 2) {
-      await controller!.setGeoJsonSource("source_range", {
+      controller!.setGeoJsonSource("source_range", {
         "type": "FeatureCollection",
         "features": [
           {
@@ -263,7 +247,7 @@ mixin MapRenderingMixin {
         ],
       });
     } else {
-      await controller!.setGeoJsonSource("source_range", emptyCollection);
+      controller!.setGeoJsonSource("source_range", emptyCollection);
     }
   }
 

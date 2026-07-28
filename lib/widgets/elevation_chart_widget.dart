@@ -111,8 +111,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     }
 
     // 🌟 Marge estilitzat de seguretat reduït contra desbordaments
-    final double finalMinAlt = (minAlt - 10.0).clamp(0, double.infinity);
-    final double finalMaxAlt = maxAlt + 10.0;
+    final double finalMinAlt = (minAlt - 12.0).clamp(0, double.infinity);
+    final double finalMaxAlt = maxAlt;
 
     for (int i = 0; i < len; i++) {
       if (i % step != 0 && i != len - 1) continue;
@@ -171,6 +171,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     return low.clamp(0, _validPoints.length - 1);
   }
 
+  // 🌟 TOOLTIP UNIFICAT AMB CONTRAST REPARAT
   Widget _buildFlutterTooltip(
     String mainText,
     double? speedKmh,
@@ -203,10 +204,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             const SizedBox(height: 2),
             Text(
               "${speedKmh.toStringAsFixed(1)} km/h",
-              style: TextStyle(
-                color: Colors.teal.shade200,
+              style: const TextStyle(
+                color: Colors
+                    .white, // 🌟 REPARACIÓ: Cambiem a blanc pur per a un contrast perfecte
                 fontSize: 9.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight
+                    .w600, // Una mica més gruixut per millorar la lectura
                 fontFamily: 'monospace',
               ),
             ),
@@ -330,23 +333,40 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // 1. Capa de fons taronja de la zona seleccionada
-                CustomPaint(
-                  painter: RangeAreaPainter(
-                    startX: startXRealPixel,
-                    endX: endXRealPixel,
-                    chartHeight: currentChartHeight,
-                    maxDistance: maxDistance,
-                  ),
-                ),
+                // 📍 Dins de elevation_chart_widget.dart, al lloc del RangeAreaPainter:
+                if (showRangeArea &&
+                    startPointsIndex != null &&
+                    endPointsIndex != null)
+                  CustomPaint(
+                    painter: RangeAreaPainter(
+                      startX: startXRealPixel,
+                      endX: endXRealPixel,
+                      chartHeight: currentChartHeight,
+                      maxDistance: maxDistance,
 
-                // 2. Capa de la gràfica de fl_chart (🌟 Protegida amb el padding geomètric del canvi de mapX)
+                      // 🌟 INJECCIÓ DE LA MATRIU INTEGRAL SÍNCRONA:
+                      // Passem directament la llista de FlSpots amb la telemetria de metres i alçades
+                      spots: _spots,
+
+                      minY: _minAlt,
+                      maxY: _maxAlt,
+                      startIdx: _spots.indexWhere(
+                        (spot) => spot.x >= _distances[startPointsIndex],
+                      ),
+                      endIdx: _spots.indexWhere(
+                        (spot) => spot.x >= _distances[endPointsIndex],
+                      ),
+                    ),
+                  ),
+
+                // 2. Capa de la gráfica de fl_chart (🌟 Añadido padding inferior contra colisiones)
                 Positioned.fill(
                   child: Padding(
                     padding: const EdgeInsets.only(
                       left: paddingLeft,
                       right: paddingRight,
-                      top: 14,
+                      top: 0,
+                      bottom: 22,
                     ),
                     child: IgnorePointer(
                       ignoring: true,
@@ -359,11 +379,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                           maxX: maxDistance,
                           minY: _minAlt,
                           maxY: _maxAlt,
-
-                          // 🌟 Ajust estricte per centrar el relleu a l'eix vertical
                           clipData: const FlClipData.all(),
-
-                          // 🌟 Liquidem reserves fantasma de píxels transparents als eixos
                           titlesData: const FlTitlesData(
                             show: true,
                             topTitles: AxisTitles(
@@ -506,12 +522,14 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     }
                   },
                   onPanEnd: (_) {
+                    // 🌟 REPARACIÓ: Si l'usuari aixeca el dit de l'agulla blava (_draggingHandle == 3),
+                    // ELIMINEM el 'clearChartNeedle' i el 'updateSnappedPoint(null, null)'.
+                    // D'aquesta manera, l'última coordenada es queda perfectament congelada a l'estat.
                     if (_draggingHandle == 3) {
-                      ref.read(gpxEditorProvider.notifier).clearChartNeedle();
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .updateSnappedPoint(null, null);
-                    } else if (_draggingHandle == 1 || _draggingHandle == 2) {
+                      // No fem res! L'agulla, el tooltip i el cercle blau es queden visibles.
+                    }
+                    // Mantenim intacte el tancament segur per a les agulles verda i vermella (rang)
+                    else if (_draggingHandle == 1 || _draggingHandle == 2) {
                       final currentState = ref.read(gpxEditorProvider);
                       if (currentState.selectionStartIndex != null &&
                           currentState.selectionEndIndex != null) {
@@ -523,10 +541,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             );
                       }
                     }
+
                     setState(() {
                       _draggingHandle = -1;
                     });
                   },
+
                   onPanCancel: () {
                     setState(() {
                       _draggingHandle = -1;
@@ -567,12 +587,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   },
                 ),
 
-                // 5. TOOLTIPS FIXATS AMB ALÇADA CORREGIDA A -16px CONTRA RETALLS SUPERIORS
+                // 5. TOOLTIPS FIJADOS EN LA BASE (Mode Rang Actiu)
                 if (showRangeArea &&
                     startPointsIndex != null &&
                     endPointsIndex != null) ...[
                   Positioned(
-                    top: -16,
+                    bottom: 2, // 🌟 REPARACIÓN: Mueve el cartel verde abajo
                     left: 4,
                     child: _buildFlutterTooltip(
                       "${(_distances[startPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
@@ -582,7 +602,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     ),
                   ),
                   Positioned(
-                    top: -16,
+                    bottom: 2, // 🌟 REPARACIÓN: Mueve el cartel rojo abajo
                     right: 4,
                     child: _buildFlutterTooltip(
                       "${(_distances[endPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
@@ -593,10 +613,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   ),
                 ],
 
-                // 6. TOOLTIP BLAU MÒBIL DE CONTROL DIRECTE
+                // 6. TOOLTIP AZUL MÓVIL EN LA BASE
                 if (!showRangeArea && snappedIdx != null && graphX != null)
                   Positioned(
-                    top: -16,
+                    bottom: 2, // 🌟 REPARACIÓN: Mueve el cartel azul abajo
                     left: (graphX - 65).clamp(
                       4.0,
                       (chartWidth + paddingLeft + paddingRight) - 130.0,

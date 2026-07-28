@@ -1,4 +1,5 @@
 // 🌟 EL NOU PROVIDER TRADICIONAL (KeepAlive per defecte, no es reinicia mai sol)
+import 'dart:async'; // Necessari per al StreamSubscription del sensor
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/models/track_model.dart';
@@ -14,8 +15,18 @@ final gpxEditorProvider = StateNotifierProvider<GpxEditor, GpxEditorState>((
 
 // Cambiem la definició de la classe perquè hereti de StateNotifier en comptes de _$GpxEditor
 class GpxEditor extends StateNotifier<GpxEditorState> {
-  // El constructor clàssic inicialitza l'estat directament
+  // 🌟 REPARAT: Eliminem l'antiga instància d'EnvironmentSensors i canviem el tipat a int
+  StreamSubscription<int>? _lightSubscription;
+
+  // El constructor clàssic inicialitza l'estat i activa el sensor modern
   GpxEditor() : super(GpxEditorState.initial());
+
+  // 🌟 OBLIGATORI PER A LA BATERIA: Tanquem el canal de dades en destruir el Notifier
+  @override
+  void dispose() {
+    _lightSubscription?.cancel();
+    super.dispose();
+  }
 
   /// Selecciona el track en el estado global.
   void selectTrack(int? trackId) {
@@ -56,7 +67,18 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   }
 
   void toggleElevationChart() {
-    state = state.copyWith(showElevationChart: !state.showElevationChart);
+    final bool nextShowChart = !state.showElevationChart;
+
+    // netegem immediatament l'agulla blava i el cercle de l'estat en el mateix frame
+    if (!nextShowChart) {
+      state = state.copyWith(
+        showElevationChart: nextShowChart,
+        snappedPointIndex: null,
+        snappedPoint: null,
+      );
+    } else {
+      state = state.copyWith(showElevationChart: nextShowChart);
+    }
   }
 
   void toggleTrackVisibility(int trackId) {

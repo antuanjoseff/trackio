@@ -33,33 +33,39 @@ class SelectionPainter extends CustomPainter {
   });
 
   void _paintNeedleLineAndDot(Canvas canvas, double x, int index, Color color) {
-    // 🌟 REPARACIÓN DE SEGURIDAD: Si el índice no cuadra con el array filtrado, evitamos cálculos erróneos
     if (index < 0 || index >= altitudes.length) return;
 
-    final double usableChartHeight = chartHeight;
-    final double xAxisY = usableChartHeight; // La base física del widget
+    // 🌟 REPARACIÓN GEOMÉTRICA SIMÉTRICA:
+    // Sincronizamos exactamente los mismos desfases de píxeles que usa fl_chart
+    final double topOffset = 0.0;
+    final double bottomOffset = 22.0;
+
+    // L'alçada útil real disminueix restant els dos coixins (superior i inferior)
+    final double usableChartHeight =
+        chartHeight - bottomReserved - topOffset - bottomOffset;
+
+    // El terra real on mor la gràfica (abans de la franja buida dels tooltips)
+    final double xAxisY = chartHeight - bottomReserved - bottomOffset;
 
     final double yRange = (maxY - minY) == 0 ? 1.0 : (maxY - minY);
+    final double rel = (altitudes[index] - minY) / yRange;
 
-    // 🌟 CAPTURA REAL DE LA ALTITUD: Aseguramos que lea el valor exacto del nodo filtrado
-    final double currentAltitude = altitudes[index];
+    // El punt vertical (dy) ara suma el desplaçament superior de seguretat
+    final double dy =
+        topOffset + (usableChartHeight * (1.0 - rel.clamp(0.0, 1.0)));
 
-    final double rel = (currentAltitude - minY) / yRange;
-
-    // El dy es el reflejo exacto inverso de la proporción real calculada de la altitud
-    final double dy = usableChartHeight * (1.0 - rel.clamp(0.0, 1.0));
-
-    // 1. La línea vertical ahora sí nace en la base (xAxisY) y sube limpiamente hasta la curva naranja (dy)
+    // 1. La línia vertical neix al terra real de la muntanya (xAxisY) i puja fins a la corba (dy)
+    // Deixant la franja inferior buida per als nous rètols
     final linePaint = Paint()
       ..color = color.withValues(alpha: 0.6)
       ..strokeWidth = 2.5;
     canvas.drawLine(Offset(x, xAxisY), Offset(x, dy), linePaint);
 
-    // 2. Dibujamos el círculo interior de color justo en el punto dy (curva naranja)
+    // 2. Dibuixem el cercle interior de color exacte a sobre de la corba de nivell
     final dotPaint = Paint()..color = color;
     canvas.drawCircle(Offset(x, dy), 5.0, dotPaint);
 
-    // 3. Dibujamos el anillo exterior blanco de contraste
+    // 3. Dibuixem l'anell exterior blanc de contrast
     final dotBorder = Paint()
       ..color = Colors.white
       ..strokeWidth = 1.8

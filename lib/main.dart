@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_theme.dart'; // Importem la definició de colors de Senda
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/screens/main_editor_screen.dart';
 
 void main() {
-  // 🧠 Assegurem la inicialització correcta dels serveis del framework
+  // Assegurem la inicialització correcta dels serveis del framework
   // abans de muntar l'arbre de ginys de Flutter.
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -16,6 +17,7 @@ void main() {
   );
 }
 
+// 🌟 REVERTIT: Torna a ser un StatelessWidget net sense escoltes de sensors residuals
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -24,10 +26,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Trackio',
       debugShowCheckedModeBanner: false, // Traiem el banner de debug incòmode
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      // 🌟 CONFIGURACIÓ FIXA DE TEMES:
+      // Deixem preparat el lligam amb AppTheme forçant el mode light de forma permanent
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.light,
 
       // 🌐 CONFIGURACIÓ GLOBAL MULTIIDIOMA (ca, es, en)
       localizationsDelegates: const [
