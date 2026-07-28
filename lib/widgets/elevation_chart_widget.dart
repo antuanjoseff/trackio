@@ -396,6 +396,45 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             ),
                           ),
                           lineBarsData: [
+                            // 🌟 SOLUCIÓ INTEGRAL NATIVA: Afegim un sub-tram invisible que pinta el degradat taronja sota la carena
+                            if (isRangeModeActive &&
+                                startPointsIndex != null &&
+                                endPointsIndex != null &&
+                                startPointsIndex < _distances.length &&
+                                endPointsIndex < _distances.length)
+                              LineChartBarData(
+                                // Retallem els punts del gràfic comparant-los amb els metres reals de les agulles verda/vermella
+                                spots: _spots.where((spot) {
+                                  final double startMeters =
+                                      _distances[startPointsIndex];
+                                  final double endMeters =
+                                      _distances[endPointsIndex];
+                                  return spot.x >= startMeters &&
+                                      spot.x <= endMeters;
+                                }).toList(),
+                                isCurved: true,
+                                curveSmoothness: 0.4,
+                                preventCurveOverShooting: true,
+                                color: Colors
+                                    .transparent, // La línia és invisible per no superposar-se a la teva
+                                barWidth: 0,
+                                dotData: const FlDotData(show: false),
+
+                                // Pintem el color degradat taronja estrictament sota el relleu d'aquest tram
+                                belowBarData: BarAreaData(
+                                  show: true,
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.orange.withValues(alpha: 0.12),
+                                      Colors.orange.withValues(alpha: 0.32),
+                                    ],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                ),
+                              ),
+
+                            // ⛰️ LA TEVA LÍNIA DE MUNTANYA PRINCIPAL (Es queda exactament igual)
                             LineChartBarData(
                               spots: _spots,
                               isCurved: true,
@@ -405,6 +444,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               barWidth: 2.5,
                               dotData: const FlDotData(show: false),
                             ),
+
+                            // 🟢 La teva línia de velocitats inferior (Es queda exactament igual)
                             if (showSpeed && _speedSpots.isNotEmpty)
                               LineChartBarData(
                                 spots: _speedSpots,
