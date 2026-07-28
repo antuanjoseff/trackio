@@ -8,6 +8,7 @@ import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/elevation_chart_panel.dart';
 import 'package:trackio/widgets/range_track_selection.dart';
 import 'package:trackio/widgets/track_stats_panel.dart';
+import 'package:trackio/widgets/trackio_icons.dart';
 import 'package:trackio/widgets/trackio_large_icon.dart';
 
 class TrackioVerticalLayout extends ConsumerWidget {

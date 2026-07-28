@@ -32,34 +32,30 @@ class SelectionPainter extends CustomPainter {
     required this.maxY,
   });
 
+  // 🧠 LÒGICA DE SENDA REPARADA: Clava l'agulla i el cercle blanc exactament sobre el perfil real del track
   void _paintNeedleLineAndDot(Canvas canvas, double x, int index, Color color) {
-    // 🌟 REPARACIÓN DE SEGURIDAD: Si el índice no cuadra con el array filtrado, evitamos cálculos erróneos
     if (index < 0 || index >= altitudes.length) return;
 
-    final double usableChartHeight = chartHeight;
-    final double xAxisY = usableChartHeight; // La base física del widget
+    // Ajustem l'alçada útil del gràfic restant el desfasament transparent dels títols
+    final double usableChartHeight = chartHeight - bottomReserved;
+    final double xAxisY = usableChartHeight; // El terra real de la muntanya
 
     final double yRange = (maxY - minY) == 0 ? 1.0 : (maxY - minY);
-
-    // 🌟 CAPTURA REAL DE LA ALTITUD: Aseguramos que lea el valor exacto del nodo filtrado
-    final double currentAltitude = altitudes[index];
-
-    final double rel = (currentAltitude - minY) / yRange;
-
-    // El dy es el reflejo exacto inverso de la proporción real calculada de la altitud
+    final double rel = (altitudes[index] - minY) / yRange;
     final double dy = usableChartHeight * (1.0 - rel.clamp(0.0, 1.0));
 
-    // 1. La línea vertical ahora sí nace en la base (xAxisY) y sube limpiamente hasta la curva naranja (dy)
+    // 1. La línia vertical neix al terra real de la muntanya (xAxisY) i puja crystallinity fins a la corba (dy)
     final linePaint = Paint()
-      ..color = color.withValues(alpha: 0.6)
+      ..color = color
+          .withValues(alpha: 0.6) // Translúcid homogeni de seguretat
       ..strokeWidth = 2.5;
     canvas.drawLine(Offset(x, xAxisY), Offset(x, dy), linePaint);
 
-    // 2. Dibujamos el círculo interior de color justo en el punto dy (curva naranja)
+    // 2. Dibuixem el cercle interior de color sòlid exactament a sobre de la línia de muntanya
     final dotPaint = Paint()..color = color;
     canvas.drawCircle(Offset(x, dy), 5.0, dotPaint);
 
-    // 3. Dibujamos el anillo exterior blanco de contraste
+    // 3. Dibuixem l'anell exterior blanc de Senda per sobre per garantir el contrast estètic
     final dotBorder = Paint()
       ..color = Colors.white
       ..strokeWidth = 1.8

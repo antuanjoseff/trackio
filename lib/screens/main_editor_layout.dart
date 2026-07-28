@@ -11,6 +11,7 @@ import 'package:trackio/widgets/elevation_chart_panel.dart';
 import 'package:trackio/widgets/range_track_selection.dart';
 import 'package:trackio/widgets/track_stats_panel.dart';
 import 'package:trackio/widgets/reactive_editor_buttons.dart';
+import 'package:trackio/widgets/trackio_icons.dart';
 import 'package:trackio/widgets/trackio_large_icon.dart'; // Mantén els teus imports reals d'icones
 
 class MainEditorLayout extends ConsumerWidget {
