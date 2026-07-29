@@ -222,19 +222,27 @@ class MainEditorLayout extends ConsumerWidget {
                       ),
 
                       // 📐 4. SELECCIONAR TRAM
-                      _buildFloatingButton(
-                        isActive: liveActiveTool == 'range_map',
+                      // ⚡ NOU CODI UNIFICAT (Igual a la resta):
+                      IconButton(
+                        tooltip: t.selectRange,
+                        isSelected: liveActiveTool == 'range_map',
+                        selectedIcon: TrackioLargeIcon(
+                          child: TrackRangeSelection(
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
                         icon: TrackioLargeIcon(
-                          scale: 1.0,
                           child: TrackRangeSelection(
                             color: isDisabled
                                 ? Colors.grey.shade400
-                                : (liveActiveTool == 'range_map'
-                                      ? Colors.orange.shade700
-                                      : Colors.orange),
+                                : Colors.orange,
                           ),
                         ),
-                        tooltip: t.selectRange,
+                        style: IconButton.styleFrom(
+                          backgroundColor: liveActiveTool == 'range_map'
+                              ? Colors.orange.shade50
+                              : null,
+                        ),
                         onPressed: isDisabled
                             ? null
                             : () => ref

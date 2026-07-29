@@ -51,14 +51,16 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   @override
   MapLibreMapController? get controller => _controller;
 
+  @override
   void initState() {
     super.initState();
 
-    // 🌟 NOU: Inicialitzem el detector. Si l'aplicació es desenganxa (es tanca)
-    // o s'amaga completament, netegem fulminantment tota la memòria.
+    // ⚡ CONFIGURACIÓ PROTEGIDA: Ja no esborrem res quan l'app s'amaga (onHide eliminat)
+    // A més, afegim una protecció extra per a la Web (kIsWeb), on el cicle de vida és diferent.
     _lifecycleListener = AppLifecycleListener(
-      onDetach: _clearAllTracksOnExit,
-      onHide: _clearAllTracksOnExit,
+      onDetach: kIsWeb
+          ? null
+          : _clearAllTracksOnExit, // Només neteja en mòbil si es destrueix l'APK
     );
   }
 
@@ -234,8 +236,31 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               return;
             }
 
-            // 📐 MÒDUL SELECCIÓ (RANGE_MAP) REPARAT:
+            // 📐 MÒDUL SELECCIÓ (RANGE_MAP) REPARAT EXCLUSIVAMENT PER A RATOLÍ EN WEB:
             if (activeTool == 'range_map') {
+              // 🔒 FILTRE DE SEGURETAT: Si no té ratolí (mòbil), hereta el comportament actual intacte
+              if (!hasMouse) return;
+
+              // 🌐 LÒGICA EXCLUSIVA WEB (Si l'usuari interacciona amb ratolí):
+
+              // CLIC 1: Si no hi havia inici fixat, clavam el punt inicial (Cercle Verd)
+              if (state.selectionStartIndex == null) {
+                notifier.fixRangeStartIndex();
+                paintLiveOverlays(ref.read(gpxEditorProvider));
+                return;
+              }
+
+              // CLIC 2: Si ja teníem inici però el final encara està buit o a -1, clavam el final (Cercle Vermell)
+              // ⚡ FIX DE SEGURETAT: Eliminem '&& state.isSelectingRange' per evitar pèrdua de sincronia pel ratolí
+              if (state.selectionStartIndex != null &&
+                  (state.selectionEndIndex == null ||
+                      state.selectionEndIndex == -1)) {
+                notifier.fixRangeEndIndex();
+
+                // 🏆 FINAL DE TRAM: Els dos punts estan clavats, el tram ja està seleccionat!
+                paintLiveOverlays(ref.read(gpxEditorProvider));
+                return;
+              }
               return;
             }
 
@@ -423,19 +448,28 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     if (_throttleTimer?.isActive ?? false) return;
 
     _throttleTimer = Timer(const Duration(milliseconds: 40), () {
-      // Executa el snapping clàssic enviant de forma directa la coordenada del punter
-      ref
-          .read(gpxEditorProvider.notifier)
-          .calculateSnapping(
-            targetCoords.latitude,
-            targetCoords.longitude,
-            currentZoom,
-          );
+      final notifier = ref.read(gpxEditorProvider.notifier);
+      // ⚡ REPARACIÓ CRÍTICA: Llegim l'estat real d'aquest frame instantani
+      final liveState = ref.read(gpxEditorProvider);
 
-      // Sincronitza l'estat d'espera perquè el botó de tallar reaccioni si cal
-      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      if (liveState.activeTool == 'range_map') {
+        // 🌐 WEB/RATOLÍ: Enviem les coordenades reals del punter al teu motor de ràfega
+        notifier.updateRangeSelectionLiveFromReticle(
+          targetCoords.latitude,
+          targetCoords.longitude,
+          currentZoom,
+        );
+      } else {
+        // Executa el snapping clàssic per a Split i Merge
+        notifier.calculateSnapping(
+          targetCoords.latitude,
+          targetCoords.longitude,
+          currentZoom,
+        );
+      }
 
-      // Força a la GPU de MapLibre a repintar el cercle taronja imantat sota el ratolí
+      // Sincronitza l'estat d'espera i força el repintat a la GPU de MapLibre
+      notifier.setMapIdle(true);
       paintLiveOverlays(ref.read(gpxEditorProvider));
     });
   }
