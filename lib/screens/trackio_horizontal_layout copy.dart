@@ -4,7 +4,6 @@ import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
-import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/track_stats_panel.dart';
 import 'package:trackio/widgets/elevation_chart_panel.dart';
 import 'package:trackio/widgets/trackio_icons.dart';
@@ -33,6 +32,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Selectors optimitzats de Riverpod
     final liveActiveTool = ref.watch(
       gpxEditorProvider.select((s) => s.activeTool),
     );
@@ -44,236 +44,245 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     );
 
     final bool isDisabled = selectedTrackId == null;
+    final bool isMobile = MediaQuery.of(context).size.width <= 800;
 
     return Column(
       children: [
         Expanded(
           child: Stack(
             children: [
-              // El mapa ocupa tota la pantalla des del fons
+              // 🗺️ FONS: El mòdul de mapa ocupa tota la pantalla
               Positioned.fill(child: mapModule),
-
-              // BOTONS FLOTANTS EN FILES SUPERIORS
+              // 👈 COLUMNA ESQUERRA: Menú, Importar i Gràfic (Ben amunt)
               Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
+                top: 4,
+                left: 12,
                 child: SafeArea(
                   top: true,
                   bottom: false,
-                  left:
-                      true, // Protecció dinàmica contra botons del SO esquerra
-                  right: true, // Protecció dinàmica contra botons del SO dreta
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // 🧠 CAPSULA BLANCA ESQUERRA (Màxima visibilitat per a Menú i Import)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(32),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  Icons.menu_rounded,
-                                  color: Colors.blue.shade700,
-                                  size: 26,
-                                ),
-                                onPressed: () =>
-                                    Scaffold.of(context).openDrawer(),
-                              ),
-                              IconButton(
-                                tooltip: t.importTracks,
-                                icon: const Icon(
-                                  Icons.upload,
-                                  color: Colors.blue,
-                                  size: 22,
-                                ),
-                                onPressed: onImportPressed,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                "Trackio",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade900,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                            ],
-                          ),
+                  left: true,
+                  right: false,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 8,
+                          offset: const Offset(2, 2),
                         ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1. MENU / DRAWER MÒBIL
+                        _buildCompactBtn(
+                          icon: Icon(
+                            isMobile ? Icons.menu_rounded : Icons.view_sidebar,
+                            color: Colors.blue.shade700,
+                          ),
+                          tooltip: "Menú",
+                          onPressed: () => Scaffold.of(context).openDrawer(),
+                        ),
+                        const SizedBox(height: 6),
 
-                        // 🧠 CAPSULA BLANCA DRETA (Totes les eines aglutinades per editar)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
+                        // 2. IMPORTAR GPX
+                        _buildCompactBtn(
+                          icon: const Icon(Icons.upload, color: Colors.blue),
+                          tooltip: t.importTracks,
+                          onPressed: onImportPressed,
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 3. MOSTRAR GRÀFIC D'ELEVACIONS
+                        _buildCompactBtn(
+                          isActive: liveShowChart,
+                          icon: Icon(
+                            liveShowChart
+                                ? Icons.insert_chart
+                                : Icons.insert_chart_outlined,
+                            color: liveShowChart
+                                ? Colors.blue
+                                : Colors.grey.shade600,
                           ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(32),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
+                          tooltip: t.elevationProfile,
+                          onPressed: () => ref
+                              .read(gpxEditorProvider.notifier)
+                              .toggleElevationChart(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // 👉 COLUMNA DRETA: Totes les eines d'edició (Ben amunt)
+              Positioned(
+                top: 4,
+                right: 12,
+                child: SafeArea(
+                  top: true,
+                  bottom: false,
+                  left: false,
+                  right: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 8,
+                          offset: const Offset(-2, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1. INVERTIR DIRECCIÓ
+                        _buildCompactBtn(
+                          icon: TrackioLargeIcon(
+                            child: TrackioIcons.reverseDirection(
+                              color: isDisabled
+                                  ? Colors.grey.shade400
+                                  : Colors.blue,
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: t.toolInverse,
-                                icon: TrackioIcons.reverseDirection(
-                                  color: isDisabled
-                                      ? Colors.grey.shade400
-                                      : Colors.blue,
-                                ),
-                                onPressed: isDisabled
-                                    ? null
-                                    : () => onReverseTrack(ref),
-                              ),
-                              IconButton(
-                                tooltip: t.toolSplit,
-                                icon: TrackioIcons.cutGpx(
-                                  color: isDisabled
-                                      ? Colors.grey.shade400
-                                      : (liveActiveTool == 'split'
-                                            ? Colors.purple.shade700
-                                            : Colors.purple),
-                                ),
-                                onPressed: isDisabled
-                                    ? null
-                                    : () => ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .setActiveTool(
-                                            liveActiveTool == 'split'
-                                                ? 'none'
-                                                : 'split',
-                                          ),
-                              ),
-                              IconButton(
-                                tooltip: t.toolMerge,
-                                icon: TrackioIcons.joinGpx(
-                                  color: isDisabled
-                                      ? Colors.grey.shade400
-                                      : (liveActiveTool == 'merge'
-                                            ? Colors.teal.shade700
-                                            : Colors.teal),
-                                ),
-                                onPressed: isDisabled
-                                    ? null
-                                    : () => ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .setActiveTool(
-                                            liveActiveTool == 'merge'
-                                                ? 'none'
-                                                : 'merge',
-                                          ),
-                              ),
-                              IconButton(
-                                tooltip: t.selectRange,
-                                icon: TrackioLargeIcon(
-                                  scale: 1.0,
-                                  child: TrackRangeSelection(
-                                    color: isDisabled
-                                        ? Colors.grey.shade400
-                                        : (liveActiveTool == 'range_map'
-                                              ? Colors.orange.shade700
-                                              : Colors.orange),
-                                  ),
-                                ),
-                                onPressed: isDisabled
-                                    ? null
-                                    : () => ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .setActiveTool(
-                                            liveActiveTool == 'range_map'
-                                                ? 'none'
-                                                : 'range_map',
-                                          ),
-                              ),
-                              IconButton(
-                                tooltip: t.addWaypoint,
-                                icon: TrackioIcons.addWaypoint(
-                                  color: isDisabled
-                                      ? Colors.grey.shade400
-                                      : (liveActiveTool == 'add_waypoint'
-                                            ? Colors.indigo.shade700
-                                            : Colors.indigo),
-                                ),
-                                onPressed: isDisabled
-                                    ? null
-                                    : () => ref
-                                          .read(gpxEditorProvider.notifier)
-                                          .setActiveTool(
-                                            liveActiveTool == 'add_waypoint'
-                                                ? 'none'
-                                                : 'add_waypoint',
-                                          ),
-                              ),
-                              IconButton(
-                                tooltip: t.toolDraw,
-                                icon: Icon(
-                                  Icons.gesture_rounded,
-                                  color: liveActiveTool == 'draw'
-                                      ? Colors.pinkAccent
-                                      : Colors.pink,
-                                  size: 22,
-                                ),
-                                onPressed: () => ref
+                          tooltip: t.toolInverse,
+                          onPressed: isDisabled
+                              ? null
+                              : () => onReverseTrack(ref),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 2. TALLAR (SPLIT)
+                        _buildCompactBtn(
+                          isActive: liveActiveTool == 'split',
+                          icon: TrackioLargeIcon(
+                            child: TrackioIcons.cutGpx(
+                              color: isDisabled
+                                  ? Colors.grey.shade400
+                                  : (liveActiveTool == 'split'
+                                        ? Colors.purple.shade700
+                                        : Colors.purple),
+                            ),
+                          ),
+                          tooltip: t.toolSplit,
+                          onPressed: isDisabled
+                              ? null
+                              : () => ref
                                     .read(gpxEditorProvider.notifier)
                                     .setActiveTool(
-                                      liveActiveTool == 'draw'
+                                      liveActiveTool == 'split'
                                           ? 'none'
-                                          : 'draw',
+                                          : 'split',
                                     ),
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 4),
-                                child: SizedBox(
-                                  height: 24,
-                                  child: VerticalDivider(
-                                    width: 1,
-                                    thickness: 1,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: t.elevationProfile,
-                                icon: Icon(
-                                  liveShowChart
-                                      ? Icons.insert_chart
-                                      : Icons.insert_chart_outlined,
-                                  color: liveShowChart
-                                      ? Colors.blue
-                                      : Colors.grey.shade600,
-                                ),
-                                onPressed: () => ref
-                                    .read(gpxEditorProvider.notifier)
-                                    .toggleElevationChart(),
-                              ),
-                            ],
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 3. UNIR (MERGE)
+                        _buildCompactBtn(
+                          isActive: liveActiveTool == 'merge',
+                          icon: TrackioLargeIcon(
+                            child: TrackioIcons.joinGpx(
+                              color: isDisabled
+                                  ? Colors.grey.shade400
+                                  : (liveActiveTool == 'merge'
+                                        ? Colors.teal.shade700
+                                        : Colors.teal),
+                            ),
                           ),
+                          tooltip: t.toolMerge,
+                          onPressed: isDisabled
+                              ? null
+                              : () => ref
+                                    .read(gpxEditorProvider.notifier)
+                                    .setActiveTool(
+                                      liveActiveTool == 'merge'
+                                          ? 'none'
+                                          : 'merge',
+                                    ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 4. SELECCIONAR TRAM (RANGE)
+                        _buildCompactBtn(
+                          isActive: liveActiveTool == 'range_map',
+                          icon: TrackioLargeIcon(
+                            child: TrackRangeSelection(
+                              color: isDisabled
+                                  ? Colors.grey.shade400
+                                  : (liveActiveTool == 'range_map'
+                                        ? Colors.orange.shade700
+                                        : Colors.orange),
+                            ),
+                          ),
+                          tooltip: t.selectRange,
+                          onPressed: isDisabled
+                              ? null
+                              : () => ref
+                                    .read(gpxEditorProvider.notifier)
+                                    .setActiveTool(
+                                      liveActiveTool == 'range_map'
+                                          ? 'none'
+                                          : 'range_map',
+                                    ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 5. AFEGIR WAYPOINT
+                        _buildCompactBtn(
+                          isActive: liveActiveTool == 'add_waypoint',
+                          icon: TrackioLargeIcon(
+                            child: TrackioIcons.addWaypoint(
+                              color: isDisabled
+                                  ? Colors.grey.shade400
+                                  : (liveActiveTool == 'add_waypoint'
+                                        ? Colors.indigo.shade700
+                                        : Colors.indigo),
+                            ),
+                          ),
+                          tooltip: t.addWaypoint,
+                          onPressed: isDisabled
+                              ? null
+                              : () => ref
+                                    .read(gpxEditorProvider.notifier)
+                                    .setActiveTool(
+                                      liveActiveTool == 'add_waypoint'
+                                          ? 'none'
+                                          : 'add_waypoint',
+                                    ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // 6. DIBUIXAR DE ZERO
+                        _buildCompactBtn(
+                          isActive: liveActiveTool == 'draw',
+                          icon: TrackioLargeIcon(
+                            child: Icon(
+                              Icons.gesture_rounded,
+                              color: liveActiveTool == 'draw'
+                                  ? Colors.pinkAccent
+                                  : Colors.pink,
+                            ),
+                          ),
+                          tooltip: t.toolDraw,
+                          onPressed: () => ref
+                              .read(gpxEditorProvider.notifier)
+                              .setActiveTool(
+                                liveActiveTool == 'draw' ? 'none' : 'draw',
+                              ),
                         ),
                       ],
                     ),
@@ -283,10 +292,42 @@ class TrackioHorizontalLayout extends ConsumerWidget {
             ],
           ),
         ),
+
+        // Barra de dades inferior
         const TrackStatsPanel(),
+
+        // Gràfic d'elevacions comprimit en alçada per a telèfons de costat
         if (showElevationChart)
-          ElevationChartPanel(editorState: editorState, height: 140),
+          ElevationChartPanel(
+            editorState: editorState,
+            height: isMobile ? 110 : 140,
+          ),
       ],
+    );
+  }
+
+  // 📐 BOTONS D'ALTA DENSITAT: Capsa forçada de 38x38 píxels sense padding residual
+  Widget _buildCompactBtn({
+    required Widget icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    bool isActive = false,
+  }) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: isActive ? Colors.blue.shade50 : Colors.transparent,
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        tooltip: tooltip,
+        icon: icon,
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        iconSize: 20,
+        constraints: const BoxConstraints(),
+      ),
     );
   }
 }
