@@ -9,7 +9,7 @@ import 'package:trackio/widgets/elevation_chart_panel.dart';
 import 'package:trackio/widgets/trackio_icons.dart';
 import 'package:trackio/widgets/trackio_large_icon.dart';
 import 'package:trackio/widgets/range_track_selection.dart';
-import 'package:trackio/widgets/editor_sidebar_widget.dart'; // 🌟 NOU IMPORT
+import 'package:trackio/widgets/editor_sidebar_widget.dart';
 
 class TrackioHorizontalLayout extends ConsumerWidget {
   const TrackioHorizontalLayout({
@@ -43,7 +43,6 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     final liveShowChart = ref.watch(
       gpxEditorProvider.select((s) => s.showElevationChart),
     );
-    // 🌟 NOU SELECTOR: Escolta l'estat dinàmic del sidebar global
     final liveShowSidebar = ref.watch(
       gpxEditorProvider.select((s) => s.showSidebar),
     );
@@ -51,91 +50,60 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     final bool isDisabled = selectedTrackId == null;
     final bool isMobile = MediaQuery.of(context).size.width <= 800;
 
-    return Column(
-      children: [
-        Expanded(
-          // 🌐 EN WEB UNIM SIDEBAR I MAPA EN UNA FILA FLUIDA
-          child: Row(
-            children: [
-              // ⚡ SIDEBAR NET PER A WEB: Si és Web i l'estat és true, s'acobla de forma fixa a la pantalla
-              if (!isMobile && liveShowSidebar)
-                Container(
-                  width: 320, // Amplada de la barra lateral d'escriptori
-                  color: Colors.white,
-                  child: SafeArea(
-                    top: false,
-                    bottom: true,
-                    child: EditorSidebarWidget(
-                      state: editorState,
-                      t: t,
-                      onPaintTracks: onPaintTracks,
-                      onReverseTrack: onReverseTrack,
-                      onImportPressed: onImportPressed,
-                    ),
-                  ),
-                ),
+    // =========================================================================
+    // 📱 1. INTERFÍCIE NATIVA PER A MÒBILS (Es manté el Row rígit de sempre)
+    // =========================================================================
+    if (isMobile) {
+      return Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      // El mapa ocupa el fons de la columna mòbil
+                      Positioned.fill(child: mapModule),
 
-              // L'àrea del mapa i els seus botons flotants contextuals
-              Expanded(
-                child: Stack(
-                  children: [
-                    // 🗺️ FONS: El mòdul de mapa ocupa tota la pantalla disponible
-                    Positioned.fill(child: mapModule),
-                    // 👈 COLUMNA ESQUERRA: Dinàmica segons la plataforma
-                    Positioned(
-                      top: 4,
-                      left: 12,
-                      child: SafeArea(
-                        top: true,
-                        bottom: false,
-                        left: true,
-                        right: false,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.95),
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 8,
-                                offset: const Offset(2, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // 1. AQUEST SURT SEMPRE: Toggle sidebar en Web o Drawer en Mòbil
-                              _buildCompactBtn(
-                                isActive: !isMobile && liveShowSidebar,
-                                icon: Icon(
-                                  isMobile
-                                      ? Icons.menu_rounded
-                                      : (liveShowSidebar
-                                            ? Icons.view_sidebar
-                                            : Icons.view_sidebar_outlined),
-                                  color: Colors.blue.shade700,
+                      // Columna Esquerra Flotant (Mòbil)
+                      Positioned(
+                        top: 4,
+                        left: 12,
+                        child: SafeArea(
+                          top: true,
+                          bottom: false,
+                          left: true,
+                          right: false,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.95),
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.12),
+                                  blurRadius: 8,
+                                  offset: const Offset(2, 2),
                                 ),
-                                tooltip: "Menú",
-                                onPressed: () {
-                                  if (isMobile) {
-                                    Scaffold.of(context).openDrawer();
-                                  } else {
-                                    ref
-                                        .read(gpxEditorProvider.notifier)
-                                        .toggleSidebar();
-                                  }
-                                },
-                              ),
-
-                              // 🌟 ELS SEGUENTS BOTONS NOMÉS SURTEN EN MÒBIL (S'amaguen completament en Web)
-                              if (isMobile) ...[
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildCompactBtn(
+                                  isActive: false,
+                                  icon: const Icon(
+                                    Icons.menu_rounded,
+                                    color: Colors.blue,
+                                  ),
+                                  tooltip: "Menú",
+                                  onPressed: () =>
+                                      Scaffold.of(context).openDrawer(),
+                                ),
                                 const SizedBox(height: 6),
-                                // 2. IMPORTAR GPX (Només mòbil)
                                 _buildCompactBtn(
                                   icon: const Icon(
                                     Icons.upload,
@@ -145,7 +113,6 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   onPressed: onImportPressed,
                                 ),
                                 const SizedBox(height: 6),
-                                // 3. MOSTRAR GRÀFIC D'ELEVACIONS (Només mòbil)
                                 _buildCompactBtn(
                                   isActive: liveShowChart,
                                   icon: Icon(
@@ -162,14 +129,12 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                       .toggleElevationChart(),
                                 ),
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
 
-                    // 👉 COLUMNA DRETA: Eines d'edició flotants (❌ NOMÉS VISIBLE EN MÒBILS per evitar duplicats)
-                    if (isMobile)
+                      // Columna Dreta d'Eines (Exclusiva de Mòbils)
                       Positioned(
                         top: 4,
                         right: 12,
@@ -236,7 +201,6 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                             ),
                                 ),
                                 const SizedBox(height: 6),
-
                                 // 3. UNIR (MERGE)
                                 _buildCompactBtn(
                                   isActive: liveActiveTool == 'merge',
@@ -261,7 +225,6 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                             ),
                                 ),
                                 const SizedBox(height: 6),
-
                                 // 4. SELECCIONAR TRAM (RANGE)
                                 _buildCompactBtn(
                                   isActive: liveActiveTool == 'range_map',
@@ -337,27 +300,120 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                           ),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Elements inferiors de l'APK de mòbil
+          const TrackStatsPanel(),
+          if (showElevationChart)
+            ElevationChartPanel(editorState: editorState, height: 110),
+        ],
+      );
+    }
+
+    // =========================================================================
+    // 🌐 2. INTERFÍCIE PREMIUM PER A WEB (Disseny elàstic Stack amb fons de mapa complet)
+    // =========================================================================
+    return Column(
+      children: [
+        Expanded(
+          child: Stack(
+            children: [
+              // Capa base sota de tot: El mapa ocupa el 100% de la finestra web
+              Positioned.fill(child: mapModule),
+
+              // Targeta Flotant del Sidebar (Amb marges nens i cantonades suaus)
+              if (liveShowSidebar)
+                Positioned(
+                  top: 12,
+                  bottom: 12,
+                  left: 12,
+                  child: Container(
+                    width: 320,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 16,
+                          offset: const Offset(4, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: SafeArea(
+                        top: false,
+                        bottom: true,
+                        child: EditorSidebarWidget(
+                          state: editorState,
+                          t: t,
+                          onPaintTracks: onPaintTracks,
+                          onReverseTrack: onReverseTrack,
+                          onImportPressed: onImportPressed,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Botó flotant del Menú Web (S'alinea automàticament a la vora del menú)
+              Positioned(
+                top: 12,
+                left: liveShowSidebar ? 344 : 12,
+                child: SafeArea(
+                  top: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 8,
+                          offset: const Offset(2, 2),
+                        ),
+                      ],
+                    ),
+                    child: _buildCompactBtn(
+                      isActive: liveShowSidebar,
+                      icon: Icon(
+                        liveShowSidebar
+                            ? Icons.view_sidebar
+                            : Icons.view_sidebar_outlined,
+                        color: Colors.blue.shade700,
+                      ),
+                      tooltip: "Menú",
+                      onPressed: () =>
+                          ref.read(gpxEditorProvider.notifier).toggleSidebar(),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
         ),
 
-        // Barra de dades inferior (Es manté intacta a baix de tot)
+        // Barra inferior d'estadístiques neta per a la Web
         const TrackStatsPanel(),
 
-        // Gràfic d'elevacions comprimit en alçada per a telèfons de costat
+        // Perfil d'elevacions de la Web (Ample complet discret)
         if (showElevationChart)
-          ElevationChartPanel(
-            editorState: editorState,
-            height: isMobile ? 110 : 140,
-          ),
+          ElevationChartPanel(editorState: editorState, height: 140),
       ],
     );
   }
 
-  // 📐 BOTONS D'ALTA DENSITAT: Capsa forçada de 38x38 píxels sense padding residual
+  // 📐 BOTONS D'ALTA DENSITAT ESTRUCUTURALS
   Widget _buildCompactBtn({
     required Widget icon,
     required String tooltip,

@@ -207,6 +207,26 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             final activeTool = state.activeTool;
 
             if (activeTool == 'draw') {
+              // ⚡ TALLAFOCS REAL PER A LA WEB CONTRA LA FILTRACIÓ DEL CLIC
+              if (_controller != null) {
+                // Convertim el clic geogràfic en píxels reals del navegador (X, Y)
+                final math.Point<num> screenPoint = await _controller!
+                    .toScreenLocation(coordinates);
+
+                // Mirem l'alçada horitzontal en píxels del navegador per saber on és el límit
+                final double screenWidth = MediaQuery.of(context).size.width;
+
+                // 📐 ZONA DE SEGURETAT DE LA BARRA DE DIBUIX:
+                // Com que el botó a la Web està centrat a dalt (top: 16), el Card ocupa tota la
+                // franja superior. Si el ratolí prem per sobre dels 85 píxels verticals (screenPoint.y < 85),
+                // bloquegem el procés perquè sabem de ciència certa que l'usuari està interaccionant amb el menú.
+                if (screenPoint.y < 85) {
+                  // Cicle de tancament segur: marxem netament sense injectar cap punt fantasma
+                  return;
+                }
+              }
+
+              // Si el clic es fa a qualsevol altra zona del mapa, dibuixem de manera 100% normal
               notifier.addPointToNewTrack(
                 coordinates.latitude,
                 coordinates.longitude,
@@ -257,7 +277,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                       state.selectionEndIndex == -1)) {
                 notifier.fixRangeEndIndex();
 
-                // 🏆 FINAL DE TRAM: Els dos punts estan clavats, el tram ja està seleccionat!
+                // 🏆 FINAL DE TRAM: Els dos punts estan clavats, el tram ja arts seleccionat!
                 paintLiveOverlays(ref.read(gpxEditorProvider));
                 return;
               }

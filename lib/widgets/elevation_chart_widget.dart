@@ -25,8 +25,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   List<FlSpot> _spots = [];
   List<FlSpot> _speedSpots = [];
   List<double> _distances = [];
-  List<double> _filteredAltitudes =
-      []; // 🌟 Unificada per clavar agulles al pintor
+  List<double> _filteredAltitudes = [];
   double _minAlt = 0.0;
   double _maxAlt = 0.0;
   int _lastUpdateTimestamp = 0;
@@ -35,6 +34,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   static const double maxSpeedTarget = 40.0;
 
   int _draggingHandle = -1;
+  bool _hideBlueNeedle =
+      false; // 🌟 LA BANDERA CONTROLADORA EXCLUSIVA PER A WEB
 
   @override
   void initState() {
@@ -110,7 +111,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       }
     }
 
-    // 🌟 Marge estilitzat de seguretat reduït contra desbordaments
     final double finalMinAlt = (minAlt - 12.0).clamp(0, double.infinity);
     final double finalMaxAlt = maxAlt;
 
@@ -171,7 +171,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     return low.clamp(0, _validPoints.length - 1);
   }
 
-  // 🌟 TOOLTIP UNIFICAT AMB CONTRAST REPARAT
   Widget _buildFlutterTooltip(
     String mainText,
     double? speedKmh,
@@ -205,11 +204,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             Text(
               "${speedKmh.toStringAsFixed(1)} km/h",
               style: const TextStyle(
-                color: Colors
-                    .white, // 🌟 REPARACIÓ: Cambiem a blanc pur per a un contrast perfecte
+                color: Colors.white,
                 fontSize: 9.5,
-                fontWeight: FontWeight
-                    .w600, // Una mica més gruixut per millorar la lectura
+                fontWeight: FontWeight.w600,
                 fontFamily: 'monospace',
               ),
             ),
@@ -274,7 +271,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     final bool isRangeModeActive =
         activeTool == 'range_map' || activeTool == 'range_chart';
     final int? startPointsIndex = start;
-    final int? endPointsIndex = (end == null || end == -1) ? start : end;
+
+    final int? endPointsIndex = (end == null || end == -1)
+        ? ((snappedIdx != null && startPointsIndex != null)
+              ? snappedIdx
+              : start)
+        : end;
+
     final double maxDistance = _distances.isNotEmpty ? _distances.last : 0.0;
 
     return SafeArea(
@@ -333,7 +336,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // 📍 Dins de elevation_chart_widget.dart, al lloc del RangeAreaPainter:
                 if (showRangeArea &&
                     startPointsIndex != null &&
                     endPointsIndex != null)
@@ -343,11 +345,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       endX: endXRealPixel,
                       chartHeight: currentChartHeight,
                       maxDistance: maxDistance,
-
-                      // 🌟 INJECCIÓ DE LA MATRIU INTEGRAL SÍNCRONA:
-                      // Passem directament la llista de FlSpots amb la telemetria de metres i alçades
                       spots: _spots,
-
                       minY: _minAlt,
                       maxY: _maxAlt,
                       startIdx: _spots.indexWhere(
@@ -359,7 +357,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     ),
                   ),
 
-                // 2. Capa de la gráfica de fl_chart (🌟 Añadido padding inferior contra colisiones)
                 Positioned.fill(
                   child: Padding(
                     padding: const EdgeInsets.only(
@@ -380,61 +377,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                           minY: _minAlt,
                           maxY: _maxAlt,
                           clipData: const FlClipData.all(),
-                          titlesData: const FlTitlesData(
-                            show: true,
-                            topTitles: AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            rightTitles: AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                          ),
                           lineBarsData: [
-                            // 🌟 SOLUCIÓ INTEGRAL NATIVA: Afegim un sub-tram invisible que pinta el degradat taronja sota la carena
-                            if (isRangeModeActive &&
-                                startPointsIndex != null &&
-                                endPointsIndex != null &&
-                                startPointsIndex < _distances.length &&
-                                endPointsIndex < _distances.length)
-                              LineChartBarData(
-                                // Retallem els punts del gràfic comparant-los amb els metres reals de les agulles verda/vermella
-                                spots: _spots.where((spot) {
-                                  final double startMeters =
-                                      _distances[startPointsIndex];
-                                  final double endMeters =
-                                      _distances[endPointsIndex];
-                                  return spot.x >= startMeters &&
-                                      spot.x <= endMeters;
-                                }).toList(),
-                                isCurved: true,
-                                curveSmoothness: 0.4,
-                                preventCurveOverShooting: true,
-                                color: Colors
-                                    .transparent, // La línia és invisible per no superposar-se a la teva
-                                barWidth: 0,
-                                dotData: const FlDotData(show: false),
-
-                                // Pintem el color degradat taronja estrictament sota el relleu d'aquest tram
-                                belowBarData: BarAreaData(
-                                  show: true,
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.orange.withValues(alpha: 0.12),
-                                      Colors.orange.withValues(alpha: 0.32),
-                                    ],
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                  ),
-                                ),
-                              ),
-
-                            // ⛰️ LA TEVA LÍNIA DE MUNTANYA PRINCIPAL (Es queda exactament igual)
                             LineChartBarData(
                               spots: _spots,
                               isCurved: true,
@@ -444,8 +387,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               barWidth: 2.5,
                               dotData: const FlDotData(show: false),
                             ),
-
-                            // 🟢 La teva línia de velocitats inferior (Es queda exactament igual)
                             if (showSpeed && _speedSpots.isNotEmpty)
                               LineChartBarData(
                                 spots: _speedSpots,
@@ -464,51 +405,52 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     ),
                   ),
                 ),
-
-                // 3. Capa de línies verticals (SelectionPainter)
+                // 3. CAPA DE LÍNIES VERTICALS AMB REGLA D'EXCLUSIÓ PER CONTROL DE BANDERA
                 CustomPaint(
                   painter: SelectionPainter(
-                    needleX: (startPointsIndex != null) ? null : graphX,
-                    snappedIdx: (startPointsIndex != null) ? null : snappedIdx,
+                    // REGLA: Si la bandera '_hideBlueNeedle' és true, forcem que la blava s'amagui (null)
+                    needleX: _hideBlueNeedle ? null : graphX,
+                    snappedIdx: _hideBlueNeedle ? null : snappedIdx,
+
                     startX: startXRealPixel,
                     endX: endXRealPixel,
                     startPointsIndex: startPointsIndex,
                     endPointsIndex: endPointsIndex,
                     chartHeight: currentChartHeight,
                     maxDistance: maxDistance,
-                    altitudes:
-                        _filteredAltitudes, // 🌟 La nova llista d'altituds filtrada
+                    altitudes: _filteredAltitudes.isNotEmpty
+                        ? _filteredAltitudes
+                        : _spots.map((s) => s.y).toList(),
                     minY: _minAlt,
                     maxY: _maxAlt,
                   ),
                 ),
-                // 4. MÀQUINA DE GESTOS COMPLETA AMB CONTROLS DE TEMPS MODULARS ANTI-BLINKING
+
+                // 4. MÀQUINA DE GESTOS INTERACTIVA AMB DRAG REPARAT I CONTROL DE BANDERA EXCLUSIU WEB
                 GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onPanDown: (details) {
                     final double x = details.localPosition.dx;
+
                     final bool touchedStart =
                         startXRealPixel != null &&
-                        (x - startXRealPixel).abs() < 30;
+                        (x - startXRealPixel).abs() < 24;
                     final bool touchedEnd =
-                        endXRealPixel != null && (x - endXRealPixel).abs() < 30;
+                        endXRealPixel != null && (x - endXRealPixel).abs() < 24;
+                    final bool touchedBlueNeedle =
+                        graphX != null && (x - graphX).abs() < 24;
 
-                    if (isRangeModeActive && (touchedStart || touchedEnd)) {
-                      ref.read(gpxEditorProvider.notifier).clearChartNeedle();
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .updateSnappedPoint(null, null);
-
-                      setState(() {
-                        _draggingHandle = touchedStart ? 1 : 2;
-                      });
+                    if (isRangeModeActive && touchedStart) {
+                      setState(() => _draggingHandle = 1);
+                    } else if (isRangeModeActive && touchedEnd) {
+                      setState(() => _draggingHandle = 2);
                     } else {
+                      // 🌟 DRAG NET EN ZONE BUDA: Si l'usuari fa drag i NO toca la verda ni la vermella,
+                      // tornem a alliberar l'agulla blava a la Web i s'activa el seu arrossegament
                       setState(() {
                         _draggingHandle = 3;
+                        _hideBlueNeedle = false;
                       });
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .clearChartSelection();
 
                       final meters = dxToMeters(x);
                       final idx = _metersToIndex(meters);
@@ -527,31 +469,26 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     final int idx = _metersToIndex(dxToMeters(x));
                     final int now = DateTime.now().millisecondsSinceEpoch;
 
-                    // 🟢 CAS 1: AGULLA VERDA (Taxa alta a 20ms)
                     if (_draggingHandle == 1) {
                       if (now - _lastUpdateTimestamp < 20) return;
                       _lastUpdateTimestamp = now;
-
                       if (endPointsIndex != null && idx >= endPointsIndex)
                         return;
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateIndividualRangeHandle(newStartIdx: idx);
-                    }
-                    // 🔴 CAS 2: AGULLA VERMELLA (Taxa alta a 20ms)
-                    else if (_draggingHandle == 2) {
+                    } else if (_draggingHandle == 2) {
                       if (now - _lastUpdateTimestamp < 20) return;
                       _lastUpdateTimestamp = now;
-
                       if (startPointsIndex != null && idx <= startPointsIndex)
                         return;
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateIndividualRangeHandle(newEndIdx: idx);
                     }
-                    // 🔵 CAS 3: DIT AMB AGULLA BLAVA (Filtre protegit a 35ms per alliberar la GPU de MapLibre)
+                    // 🔵 ARROSSEGAMENT CONTÍNU DE L'AGULLA BLAVA ACTIU EN WEB (Handle 3)
                     else if (_draggingHandle == 3) {
-                      if (now - _lastUpdateTimestamp < 35) return;
+                      if (now - _lastUpdateTimestamp < 25) return;
                       _lastUpdateTimestamp = now;
 
                       ref
@@ -562,15 +499,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                           .updateSnappedPoint(_validPoints[idx], idx);
                     }
                   },
-                  onPanEnd: (_) {
-                    // 🌟 REPARACIÓ: Si l'usuari aixeca el dit de l'agulla blava (_draggingHandle == 3),
-                    // ELIMINEM el 'clearChartNeedle' i el 'updateSnappedPoint(null, null)'.
-                    // D'aquesta manera, l'última coordenada es queda perfectament congelada a l'estat.
-                    if (_draggingHandle == 3) {
-                      // No fem res! L'agulla, el tooltip i el cercle blau es queden visibles.
-                    }
-                    // Mantenim intacte el tancament segur per a les agulles verda i vermella (rang)
-                    else if (_draggingHandle == 1 || _draggingHandle == 2) {
+                  onPanEnd: (DragEndDetails details) {
+                    if (_draggingHandle == 1 || _draggingHandle == 2) {
                       final currentState = ref.read(gpxEditorProvider);
                       if (currentState.selectionStartIndex != null &&
                           currentState.selectionEndIndex != null) {
@@ -582,22 +512,28 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             );
                       }
                     }
-
                     setState(() {
                       _draggingHandle = -1;
                     });
                   },
-
                   onPanCancel: () {
                     setState(() {
                       _draggingHandle = -1;
                     });
                   },
-                  onLongPressStart: (_) {
-                    ref.read(gpxEditorProvider.notifier).clearChartNeedle();
+                  onLongPressStart: (LongPressStartDetails details) {
+                    final double x = details.localPosition.dx;
+                    final int idx = _metersToIndex(dxToMeters(x));
+
+                    // 🌟 LONGPRESS: Amaguem l'agulla blava immediatament en obrir rang
+                    setState(() {
+                      _hideBlueNeedle = true;
+                    });
+
+                    ref.read(gpxEditorProvider.notifier).updateChartNeedle(idx);
                     ref
                         .read(gpxEditorProvider.notifier)
-                        .updateSnappedPoint(null, null);
+                        .updateSnappedPoint(_validPoints[idx], idx);
                     ref
                         .read(gpxEditorProvider.notifier)
                         .startChartRangeSelectionWithPercent();
@@ -605,8 +541,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   onLongPressMoveUpdate: (details) {
                     final double x = details.localPosition.dx;
                     final int idx = _metersToIndex(dxToMeters(x));
-
                     final int now = DateTime.now().millisecondsSinceEpoch;
+
                     if (now - _lastUpdateTimestamp < 25) return;
                     _lastUpdateTimestamp = now;
 
@@ -614,26 +550,14 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                         .read(gpxEditorProvider.notifier)
                         .updateIndividualRangeHandle(newEndIdx: idx);
                   },
-                  onLongPressEnd: (_) {
-                    final s = ref.read(gpxEditorProvider);
-                    if (s.selectionStartIndex != null &&
-                        s.selectionEndIndex != null) {
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .finalizeChartRangeSelection(
-                            s.selectionStartIndex!,
-                            s.selectionEndIndex!,
-                          );
-                    }
-                  },
                 ),
 
-                // 5. TOOLTIPS FIJADOS EN LA BASE (Mode Rang Actiu)
+                // 5. Tooltips de distàncies (Verd, Vermell i Blau) clavats a sota
                 if (showRangeArea &&
                     startPointsIndex != null &&
                     endPointsIndex != null) ...[
                   Positioned(
-                    bottom: 2, // 🌟 REPARACIÓN: Mueve el cartel verde abajo
+                    bottom: 2,
                     left: 4,
                     child: _buildFlutterTooltip(
                       "${(_distances[startPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
@@ -643,7 +567,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     ),
                   ),
                   Positioned(
-                    bottom: 2, // 🌟 REPARACIÓN: Mueve el cartel rojo abajo
+                    bottom: 2,
                     right: 4,
                     child: _buildFlutterTooltip(
                       "${(_distances[endPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
@@ -654,10 +578,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   ),
                 ],
 
-                // 6. TOOLTIP AZUL MÓVIL EN LA BASE
-                if (!showRangeArea && snappedIdx != null && graphX != null)
+                if (!_hideBlueNeedle && snappedIdx != null && graphX != null)
                   Positioned(
-                    bottom: 2, // 🌟 REPARACIÓN: Mueve el cartel azul abajo
+                    bottom: 2,
                     left: (graphX - 65).clamp(
                       4.0,
                       (chartWidth + paddingLeft + paddingRight) - 130.0,
