@@ -44,9 +44,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isReverseAnimating = false;
   bool _isDraggingMap = false;
   late final AppLifecycleListener _lifecycleListener;
-
+  final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
-  final GlobalKey _mapKey = GlobalKey(debugLabel: "main_editor_map");
+
+  // 🌟 EL CANVI EXCLUSIU: Aquí hem ESBORRAT del tot la línia 'late final GlobalKey...' [INDEX]
 
   @override
   MapLibreMapController? get controller => _controller;
@@ -55,12 +56,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   void initState() {
     super.initState();
 
-    // ⚡ CONFIGURACIÓ PROTEGIDA: Ja no esborrem res quan l'app s'amaga (onHide eliminat)
-    // A més, afegim una protecció extra per a la Web (kIsWeb), on el cicle de vida és diferent.
+    // ⚡ CONFIGURACIÓ PROTEGIDA: Completament neta [INDEX]
     _lifecycleListener = AppLifecycleListener(
-      onDetach: kIsWeb
-          ? null
-          : _clearAllTracksOnExit, // Només neteja en mòbil si es destrueix l'APK
+      onDetach: kIsWeb ? null : _clearAllTracksOnExit,
     );
   }
 
@@ -171,7 +169,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final Widget mapModule = Stack(
       children: [
         StaticEditorMapWidget(
-          key: _mapKey,
+          key: _staticMapKey,
           cursor: mapCursor,
           onMapCreated: (c) {
             _controller = c;
@@ -499,7 +497,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return null;
     }
 
-    final renderBox = _mapKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        _staticMapKey.currentContext?.findRenderObject() as RenderBox?;
 
     if (renderBox == null || !renderBox.hasSize) {
       final fallback = _controller!.cameraPosition?.target;

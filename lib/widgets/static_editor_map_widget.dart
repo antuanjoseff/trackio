@@ -95,7 +95,6 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
           behavior: HitTestBehavior.translucent,
           onPointerDown: _handleMousePrimaryDown,
           child: MapLibreMap(
-            key: widget.key,
             compassEnabled: false,
             rotateGesturesEnabled: false,
             tiltGesturesEnabled: false,
@@ -127,7 +126,6 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     // 📱 CONFIGURACIÓ EXCLUSIVA PER A MÒBIL (APK i iOS)
     // S'eliminen per complet els "MouseRegion" i "Listener" que donen problemes amb els dits
     return MapLibreMap(
-      key: widget.key,
       compassEnabled: false, // Aquí al mòbil sí que funcionarà perfectament
       rotateGesturesEnabled: false,
       tiltGesturesEnabled: false,

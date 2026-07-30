@@ -261,9 +261,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       gpxEditorProvider.select((s) => s.selectionStartIndex),
     );
     final end = ref.watch(gpxEditorProvider.select((s) => s.selectionEndIndex));
+    // 🌟 SUBSTITEIX LA TEVA LÍNIA ACTUAL PER AQUESTA:
     final snappedIdx = ref.watch(
-      gpxEditorProvider.select((s) => s.snappedPointIndex),
+      gpxEditorProvider.select(
+        (s) => s.chartNeedleIndex ?? s.snappedPointIndex,
+      ),
     );
+
     final showSpeed = ref.watch(
       gpxEditorProvider.select((s) => s.showSpeedInChart),
     );
@@ -449,33 +453,63 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                     final bool touchedStart =
                         startXRealPixel != null &&
-                        (x - startXRealPixel).abs() < 24;
+                        (x - startXRealPixel!).abs() < 24;
+
                     final bool touchedEnd =
-                        endXRealPixel != null && (x - endXRealPixel).abs() < 24;
+                        endXRealPixel != null &&
+                        (x - endXRealPixel!).abs() < 24;
+
                     final bool touchedBlueNeedle =
-                        graphX != null && (x - graphX).abs() < 24;
+                        graphX != null && (x - graphX!).abs() < 24;
 
+                    // 🟢 AGULLA D'INICI DEL RANG
                     if (isRangeModeActive && touchedStart) {
-                      setState(() => _draggingHandle = 1);
-                    } else if (isRangeModeActive && touchedEnd) {
-                      setState(() => _draggingHandle = 2);
-                    } else {
-                      // 🌟 DRAG NET EN ZONE BUDA: Si l'usuari fa drag i NO toca la verda ni la vermella,
-                      // tornem a alliberar l'agulla blava a la Web i s'activa el seu arrossegament
                       setState(() {
-                        _draggingHandle = 3;
-                        _hideBlueNeedle = false;
+                        _draggingHandle = 1;
                       });
-
-                      final meters = dxToMeters(x);
-                      final idx = _metersToIndex(meters);
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .updateChartNeedle(idx);
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .updateSnappedPoint(_validPoints[idx], idx);
+                      return;
                     }
+
+                    // 🔴 AGULLA FINAL DEL RANG
+                    if (isRangeModeActive && touchedEnd) {
+                      setState(() {
+                        _draggingHandle = 2;
+                      });
+                      return;
+                    }
+
+                    // 🔵 AGULLA BLAVA EXISTENT
+                    if (touchedBlueNeedle) {
+                      setState(() {
+                        _hideBlueNeedle = false;
+                        _draggingHandle = 3;
+                      });
+                      return;
+                    }
+
+                    // 🔵 NO S'HA TOCAT CAP AGULLA:
+                    // Creem una nova posició blava i eliminem qualsevol rang existent
+                    debugPrint(
+                      "DEBUG: nou punt blau x=$x start=$startXRealPixel end=$endXRealPixel graph=$graphX",
+                    );
+
+                    final meters = dxToMeters(x);
+                    final idx = _metersToIndex(meters);
+
+                    setState(() {
+                      _hideBlueNeedle = false;
+                      _draggingHandle = 3;
+                    });
+
+                    // 🔒 El rang verd/vermell desapareix
+                    ref.read(gpxEditorProvider.notifier).clearChartSelection();
+
+                    // 🔵 Creem/movem l'agulla blava
+                    ref.read(gpxEditorProvider.notifier).updateChartNeedle(idx);
+
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .updateSnappedPoint(_validPoints[idx], idx);
                   },
                   onPanUpdate: (details) {
                     if (_draggingHandle == -1) return;
