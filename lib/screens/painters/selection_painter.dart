@@ -14,6 +14,9 @@ class SelectionPainter extends CustomPainter {
   final double minY;
   final double maxY;
 
+  // 🌟 APLICACIÓ DE LA TEVA SOLUCIÓ: Variable per emmagatzemar el total de punts reals del track
+  final int totalTrackPoints;
+
   static const double bottomReserved = 0.0;
 
   SelectionPainter({
@@ -28,10 +31,11 @@ class SelectionPainter extends CustomPainter {
     required this.altitudes,
     required this.minY,
     required this.maxY,
+    required this.totalTrackPoints, // 🌟 Afegit com a paràmetre obligatori
   });
 
   void _paintNeedleLineAndDot(Canvas canvas, double x, int index, Color color) {
-    if (altitudes.isEmpty) return;
+    if (altitudes.isEmpty || totalTrackPoints <= 0) return;
 
     final double topOffset = 0.0;
     final double bottomOffset =
@@ -39,50 +43,40 @@ class SelectionPainter extends CustomPainter {
 
     final double usableChartHeight =
         chartHeight - bottomReserved - topOffset - bottomOffset;
-    final double xAxisY = chartHeight - bottomReserved - bottomOffset;
+    final double xAxisY =
+        chartHeight - bottomReserved - bottomOffset; // El terra real
 
-    // 🏆 LA FÓRMULA DE SINCRO GEOMÈTRICA COMPLETA PER A LA WEB:
-    // El fl_chart utilitza de forma interna un padding-left de 12.0 i un padding-right de 24.0.
-    // L'amplada real útil de la muntanya lila neix al píxel 12 i mor exactament a (width - 24).
-    const double paddingLeft = 12.0;
-    const double paddingRight = 24.0;
-    final double chartWidth = _currentWidth - paddingLeft - paddingRight;
+    // 🏆 LA TEVA FÓRMULA DE LA RÀTIO:
+    // Calculem la ràtio exacte de compressió entre els punts reals i els del gràfic
+    final double ratio = totalTrackPoints / altitudes.length;
 
-    // Calculem la posició horitzontal (X) del píxel actual de l'agulla dins de la zona útil de dibuix
-    final double adjustedX = (x - paddingLeft).clamp(
-      0.0,
-      chartWidth > 0 ? chartWidth : 1.0,
-    );
-
-    // Trobem el percentatge real geomètric (de 0.0 a 1.0) on està caient la línia vertical a la Web
-    final double percent = chartWidth > 0 ? (adjustedX / chartWidth) : 0.0;
-
-    // Mapegem aquest percentatge de píxels directament sobre la llista d'altituds que utilitza el gràfic.
-    // Això garanteix sincronització visual mil·limètrica: el cercle llegirà el mateix node Y del fl_chart.
-    final int safeChartIndex = (percent * (altitudes.length - 1)).round().clamp(
+    // Convertim l'índex complet del mapa/track (index) a l'índex comprimit del gràfic dividint per la ràtio
+    final int safeChartIndex = (index / ratio).round().clamp(
       0,
       altitudes.length - 1,
     );
+
+    // Llegim l'altitud real directament des del node correcte de la carena
     final double realAltitude = altitudes[safeChartIndex];
 
     final double yRange = (maxY - minY) == 0 ? 1.0 : (maxY - minY);
     final double rel = (realAltitude - minY) / yRange;
 
-    // Calculem el punt dy vertical invertit de Flutter (0 a dalt, usableChartHeight a baix)
+    // Calculem la coordenada vertical dy invertida de Flutter clada al perfil
     final double dy =
         topOffset + (usableChartHeight * (1.0 - rel.clamp(0.0, 1.0)));
 
-    // 1. La línia vertical neix al terra real de la quadrícula (xAxisY) i puja fins a tocar el relleu (dy)
+    // 1. La línia vertical neix al terra real de la quadrícula (xAxisY) i puja síncronament fins al cercle (dy)
     final linePaint = Paint()
       ..color = color.withValues(alpha: 0.6)
       ..strokeWidth = 2.5;
     canvas.drawLine(Offset(x, xAxisY), Offset(x, dy), linePaint);
 
-    // 2. Cercle interior del color de l'agulla (verd, vermell o blau) clavat exactament a la carena lila
+    // 2. Cercle interior del color de l'agulla (verd, vermell o blau) intersectant amb el relleu
     final dotPaint = Paint()..color = color;
     canvas.drawCircle(Offset(x, dy), 5.0, dotPaint);
 
-    // 3. Anell exterior blanc pur per donar un contrast excel·lent sobre la carena
+    // 3. Anell exterior blanc de contrast perfecte sobre la corba del perfil
     final dotBorder = Paint()
       ..color = Colors.white
       ..strokeWidth = 1.8
@@ -125,6 +119,8 @@ class SelectionPainter extends CustomPainter {
         maxDistance != oldDelegate.maxDistance ||
         chartHeight != oldDelegate.chartHeight ||
         minY != oldDelegate.minY ||
-        maxY != oldDelegate.maxY;
+        maxY != oldDelegate.maxY ||
+        totalTrackPoints !=
+            oldDelegate.totalTrackPoints; // 🌟 Afegit al control de repintat
   }
 }

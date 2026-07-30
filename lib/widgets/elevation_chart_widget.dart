@@ -422,10 +422,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 // 3. CAPA DE LÍNIES VERTICALS AMB REGLA D'EXCLUSIÓ PER CONTROL DE BANDERA
                 CustomPaint(
                   painter: SelectionPainter(
-                    // REGLA: Si la bandera '_hideBlueNeedle' és true, forcem que la blava s'amagui (null)
                     needleX: _hideBlueNeedle ? null : graphX,
                     snappedIdx: _hideBlueNeedle ? null : snappedIdx,
-
                     startX: startXRealPixel,
                     endX: endXRealPixel,
                     startPointsIndex: startPointsIndex,
@@ -437,6 +435,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                         : _spots.map((s) => s.y).toList(),
                     minY: _minAlt,
                     maxY: _maxAlt,
+
+                    // 🌟 EL CANVI EXCLUSIU EN AQUEST ARXIU: Envia la mida de la llista original per activar la ràtio
+                    totalTrackPoints: _validPoints.length,
                   ),
                 ),
 
