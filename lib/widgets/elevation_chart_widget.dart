@@ -377,6 +377,20 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                           minY: _minAlt,
                           maxY: _maxAlt,
                           clipData: const FlClipData.all(),
+                          titlesData: FlTitlesData(
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            topTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                          ),
                           lineBarsData: [
                             LineChartBarData(
                               spots: _spots,
