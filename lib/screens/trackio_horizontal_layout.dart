@@ -21,6 +21,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     required this.onPaintTracks,
     required this.onReverseTrack,
     required this.onImportPressed,
+    required this.onSidebarReorderDragStateChanged,
   });
 
   final AppLocalizations t;
@@ -30,6 +31,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
   final Future<void> Function(List<TrackModel>) onPaintTracks;
   final Future<void> Function(WidgetRef) onReverseTrack;
   final VoidCallback onImportPressed;
+  final ValueChanged<bool> onSidebarReorderDragStateChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -356,6 +358,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                           onPaintTracks: onPaintTracks,
                           onReverseTrack: onReverseTrack,
                           onImportPressed: onImportPressed,
+                          onReorderDragStateChanged:
+                              onSidebarReorderDragStateChanged,
                         ),
                       ),
                     ),

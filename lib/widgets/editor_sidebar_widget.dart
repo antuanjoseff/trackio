@@ -10,7 +10,6 @@ import 'package:trackio/widgets/color_palette_dialog.dart';
 // 🌟 EL PONT CONDICIONAL QUE SOLUCIONA L'ERROR DE L'APK D'ANDROID:
 import 'package:trackio/services/gpx_exporter_io.dart'
     if (dart.library.js_interop) 'package:trackio/services/gpx_exporter_web.dart';
-import 'package:trackio/widgets/trackio_icons.dart';
 
 class EditorSidebarWidget extends ConsumerWidget {
   final GpxEditorState state;
@@ -18,6 +17,7 @@ class EditorSidebarWidget extends ConsumerWidget {
   final Future<void> Function(List<TrackModel>) onPaintTracks;
   final Future<void> Function(WidgetRef) onReverseTrack;
   final VoidCallback onImportPressed;
+  final ValueChanged<bool> onReorderDragStateChanged;
 
   const EditorSidebarWidget({
     super.key,
@@ -26,6 +26,7 @@ class EditorSidebarWidget extends ConsumerWidget {
     required this.onPaintTracks,
     required this.onReverseTrack,
     required this.onImportPressed,
+    required this.onReorderDragStateChanged,
   });
 
   @override
@@ -127,8 +128,11 @@ class EditorSidebarWidget extends ConsumerWidget {
           !isMobile, // 🌟 A la Web es tanca a la mida exacta de les files
       physics: isMobile ? const ScrollPhysics() : const ClampingScrollPhysics(),
       itemCount: tracks.length,
-      onReorder: (old, next) {
+      onReorderStart: (_) => onReorderDragStateChanged(true),
+      onReorderEnd: (_) => onReorderDragStateChanged(false),
+      onReorder: (old, next) async {
         ref.read(gpxEditorProvider.notifier).reorderTracks(old, next);
+        await onPaintTracks(ref.read(gpxEditorProvider).tracks);
       },
       itemBuilder: (context, index) {
         final track = tracks[index];
@@ -218,9 +222,14 @@ class EditorSidebarWidget extends ConsumerWidget {
                           children: [
                             // 👁️ CHECKBOX VISIBILITAT (Ampliat)
                             InkWell(
-                              onTap: () => ref
-                                  .read(gpxEditorProvider.notifier)
-                                  .toggleTrackVisibility(track.id),
+                              onTap: () async {
+                                ref
+                                    .read(gpxEditorProvider.notifier)
+                                    .toggleTrackVisibility(track.id);
+                                await onPaintTracks(
+                                  ref.read(gpxEditorProvider).tracks,
+                                );
+                              },
                               borderRadius: BorderRadius.circular(6),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -257,10 +266,13 @@ class EditorSidebarWidget extends ConsumerWidget {
                                 useRootNavigator: false,
                                 barrierColor: Colors.black.withOpacity(0.01),
                                 builder: (_) => ColorPaletteDialog(
-                                  onColorSelected: (hex) {
+                                  onColorSelected: (hex) async {
                                     ref
                                         .read(gpxEditorProvider.notifier)
                                         .updateTrackColor(track.id, hex);
+                                    await onPaintTracks(
+                                      ref.read(gpxEditorProvider).tracks,
+                                    );
                                   },
                                 ),
                               ),
@@ -292,7 +304,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      t.color ?? "Color",
+                                      t.color,
                                       style: TextStyle(
                                         fontSize: 11,
                                         color: Colors.grey.shade700,
@@ -381,10 +393,13 @@ class EditorSidebarWidget extends ConsumerWidget {
                                 minWidth: 44,
                                 minHeight: 44,
                               ),
-                              onPressed: () {
+                              onPressed: () async {
                                 ref
                                     .read(gpxEditorProvider.notifier)
                                     .deleteTrack(track.id);
+                                await onPaintTracks(
+                                  ref.read(gpxEditorProvider).tracks,
+                                );
                               },
                             ),
                           ],

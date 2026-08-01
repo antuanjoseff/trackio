@@ -22,6 +22,7 @@ class MainEditorLayout extends ConsumerWidget {
     required this.onPaintTracks,
     required this.onReverseTrack,
     required this.onImportPressed,
+    required this.onSidebarReorderDragStateChanged,
   });
 
   final AppLocalizations t;
@@ -32,12 +33,10 @@ class MainEditorLayout extends ConsumerWidget {
   final Future<void> Function(List<TrackModel>) onPaintTracks;
   final Future<void> Function(WidgetRef) onReverseTrack;
   final VoidCallback onImportPressed;
+  final ValueChanged<bool> onSidebarReorderDragStateChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    debugPrint(
-      "Trackio media.query viewinsets bottom: ${MediaQuery.of(context).viewInsets.bottom}",
-    );
     // Determinació de plataforma segons l'amplada física de la pantalla
     final bool isMobile = MediaQuery.of(context).size.width <= 800;
 
@@ -50,9 +49,6 @@ class MainEditorLayout extends ConsumerWidget {
     );
     final liveShowChart = ref.watch(
       gpxEditorProvider.select((s) => s.showElevationChart),
-    );
-    final liveShowSidebar = ref.watch(
-      gpxEditorProvider.select((s) => s.showSidebar),
     );
     final currentFullState = ref.watch(gpxEditorProvider);
 
@@ -115,6 +111,8 @@ class MainEditorLayout extends ConsumerWidget {
                             onPaintTracks: onPaintTracks,
                             onReverseTrack: onReverseTrack,
                             onImportPressed: onImportPressed,
+                            onReorderDragStateChanged:
+                                onSidebarReorderDragStateChanged,
                           ),
                         ),
                       ],
@@ -357,6 +355,8 @@ class MainEditorLayout extends ConsumerWidget {
                   onPaintTracks: onPaintTracks,
                   onReverseTrack: onReverseTrack,
                   onImportPressed: onImportPressed,
+                  onSidebarReorderDragStateChanged:
+                      onSidebarReorderDragStateChanged,
                 );
               }
             },
@@ -388,36 +388,6 @@ class MainEditorLayout extends ConsumerWidget {
             ),
           ),
       ],
-    );
-  }
-
-  Widget _buildFloatingButton({
-    required Widget icon,
-    required String tooltip,
-    required VoidCallback? onPressed,
-    bool isActive = false,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isActive ? Colors.blue.shade50 : Colors.white.withOpacity(0.9),
-        shape: BoxShape.circle,
-        border: isActive
-            ? Border.all(color: Colors.blue.shade300, width: 1.5)
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: IconButton(
-        tooltip: tooltip,
-        icon: icon,
-        onPressed: onPressed,
-        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-      ),
     );
   }
 }

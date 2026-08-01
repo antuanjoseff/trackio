@@ -12,6 +12,7 @@ class StaticEditorMapWidget extends StatefulWidget {
   final VoidCallback onCameraIdle;
   final Function(LatLng coordinates)? onMouseHoverMap;
   final MouseCursor cursor;
+  final bool panEnabled;
 
   final Function(LatLng coordinates)? onMapClick;
 
@@ -22,6 +23,7 @@ class StaticEditorMapWidget extends StatefulWidget {
     required this.onCameraMove,
     required this.onCameraIdle,
     this.cursor = MouseCursor.defer,
+    this.panEnabled = true,
     this.onMouseHoverMap,
     this.onMapClick,
   });
@@ -84,8 +86,6 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint("trackio Map build. IsWeb: $kIsWeb");
-
     // 🌐 CONFIGURACIÓ EXCLUSIVA PER A WEB
     if (kIsWeb) {
       return MouseRegion(
@@ -96,6 +96,7 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
           onPointerDown: _handleMousePrimaryDown,
           child: MapLibreMap(
             compassEnabled: false,
+            scrollGesturesEnabled: widget.panEnabled,
             rotateGesturesEnabled: false,
             tiltGesturesEnabled: false,
             styleString: "assets/map/style.json",
@@ -127,6 +128,7 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     // S'eliminen per complet els "MouseRegion" i "Listener" que donen problemes amb els dits
     return MapLibreMap(
       compassEnabled: false, // Aquí al mòbil sí que funcionarà perfectament
+      scrollGesturesEnabled: widget.panEnabled,
       rotateGesturesEnabled: false,
       tiltGesturesEnabled: false,
       styleString: "assets/map/style.json",

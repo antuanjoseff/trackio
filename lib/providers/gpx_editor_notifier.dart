@@ -331,9 +331,9 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       waypoints: [],
     );
 
-    updatedTracks.removeAt(trackIndex);
-    updatedTracks.add(trackPart1);
-    updatedTracks.add(trackPart2);
+    // Conservem el track original al sidebar i afegim les dues parts a continuació.
+    updatedTracks.insert(trackIndex + 1, trackPart1);
+    updatedTracks.insert(trackIndex + 2, trackPart2);
 
     state = state.copyWith(
       tracks: updatedTracks,

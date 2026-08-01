@@ -7,6 +7,24 @@ mixin MapRenderingMixin {
   // Aquest mixin obligarà la pantalla a oferir accés al controlador del mapa
   MapLibreMapController? get controller;
   bool _paintingTracks = false;
+
+  static const List<String> _globalOverlayLayerOrder = [
+    "layer_range_white",
+    "layer_range_orange",
+    "layer_snapped_circle",
+    "layer_start_circle",
+    "layer_end_circle",
+  ];
+
+  String? _overlayAnchorLayerId(Set<String> existingLayers) {
+    for (final layerId in _globalOverlayLayerOrder) {
+      if (existingLayers.contains(layerId)) {
+        return layerId;
+      }
+    }
+    return null;
+  }
+
   // 🌟 REPARACIÓ: Eliminem el 'async' de la capçalera per fer el flux síncron i fluid
   void paintLiveOverlays(GpxEditorState state, {LatLng? reticleLatLng}) {
     if (controller == null) {
@@ -410,17 +428,15 @@ mixin MapRenderingMixin {
           .cast<String>()
           .toSet();
 
+      final List<TrackModel> tracksToPaint = [];
+
       for (final track in tracks) {
         if (track.points.isEmpty) {
           continue;
         }
 
         final sourceId = "source_${track.id}";
-        final layerId = "layer_${track.id}";
-        final glowWhiteLayerId = "layer_glow_white_${track.id}";
-        final glowYellowLayerId = "layer_glow_yellow_${track.id}";
         final waypointSourceId = "source_wp_${track.id}";
-        final waypointLayerId = "layer_wp_${track.id}";
 
         final coords = track.points
             .where((p) => p.latitude != null && p.longitude != null)
@@ -430,6 +446,8 @@ mixin MapRenderingMixin {
         if (coords.isEmpty) {
           continue;
         }
+
+        tracksToPaint.add(track);
 
         final waypointCoords = track.waypoints
             .where((p) => p.latitude != null && p.longitude != null)
@@ -492,75 +510,105 @@ mixin MapRenderingMixin {
             );
           }
         }
+      }
+
+      // Reordenem sempre les capes de tracks perquè segueixin exactament l'ordre del sidebar.
+      for (final track in tracksToPaint) {
+        final layerId = "layer_${track.id}";
+        final glowWhiteLayerId = "layer_glow_white_${track.id}";
+        final glowYellowLayerId = "layer_glow_yellow_${track.id}";
+        final waypointLayerId = "layer_wp_${track.id}";
+
+        final List<String> layersToRemove = [
+          waypointLayerId,
+          layerId,
+          glowYellowLayerId,
+          glowWhiteLayerId,
+        ];
+
+        for (final id in layersToRemove) {
+          if (currentLayerSet.contains(id)) {
+            try {
+              await controller!.removeLayer(id);
+            } catch (_) {}
+            currentLayerSet.remove(id);
+          }
+        }
+      }
+
+      String? insertionAnchorLayerId = _overlayAnchorLayerId(currentLayerSet);
+
+      for (final track in tracksToPaint) {
+        final sourceId = "source_${track.id}";
+        final layerId = "layer_${track.id}";
+        final glowWhiteLayerId = "layer_glow_white_${track.id}";
+        final glowYellowLayerId = "layer_glow_yellow_${track.id}";
+        final waypointSourceId = "source_wp_${track.id}";
+        final waypointLayerId = "layer_wp_${track.id}";
 
         final bool isActiveTrack = track.id == activeTrackId;
+        final bool shouldShowGlow = isActiveTrack && track.isVisible;
 
-        // ============================================================
-        // LAYERS
-        // NOMÉS ES CREAN SI NO EXISTEIXEN
-        // ============================================================
+        // De dalt a baix per track: waypoints, línia base, glow groc, glow blanc.
+        await controller!.addCircleLayer(
+          waypointSourceId,
+          waypointLayerId,
+          CircleLayerProperties(
+            circleColor: isActiveTrack ? "#FFEB3B" : "#FFFFFF",
+            circleRadius: 6.0,
+            circleStrokeColor: track.hexColor,
+            circleStrokeWidth: 2.0,
+            circleOpacity: track.isVisible ? 1.0 : 0.0,
+            circleStrokeOpacity: track.isVisible ? 1.0 : 0.0,
+          ),
+          belowLayerId: insertionAnchorLayerId,
+        );
+        insertionAnchorLayerId = waypointLayerId;
+        currentLayerSet.add(waypointLayerId);
 
-        if (isActiveTrack && track.isVisible) {
-          if (!currentLayerSet.contains(glowWhiteLayerId)) {
-            await controller!.addLineLayer(
-              sourceId,
-              glowWhiteLayerId,
-              const LineLayerProperties(
-                lineColor: "#FFFFFF",
-                lineWidth: 8.5,
-                lineJoin: "round",
-                lineCap: "round",
-              ),
-            );
+        await controller!.addLineLayer(
+          sourceId,
+          layerId,
+          LineLayerProperties(
+            lineColor: track.hexColor,
+            lineWidth: 3.5,
+            lineOpacity: track.isVisible ? 1.0 : 0.0,
+          ),
+          belowLayerId: insertionAnchorLayerId,
+        );
+        insertionAnchorLayerId = layerId;
+        currentLayerSet.add(layerId);
 
-            currentLayerSet.add(glowWhiteLayerId);
-          }
-
-          if (!currentLayerSet.contains(glowYellowLayerId)) {
-            await controller!.addLineLayer(
-              sourceId,
-              glowYellowLayerId,
-              const LineLayerProperties(
-                lineColor: "#FFEB3B",
-                lineWidth: 6.0,
-                lineJoin: "round",
-                lineCap: "round",
-              ),
-            );
-
-            currentLayerSet.add(glowYellowLayerId);
-          }
-        }
-
-        if (!currentLayerSet.contains(layerId)) {
+        if (shouldShowGlow) {
           await controller!.addLineLayer(
             sourceId,
-            layerId,
-            LineLayerProperties(
-              lineColor: track.hexColor,
-              lineWidth: 3.5,
-              lineOpacity: track.isVisible ? 1.0 : 0.0,
+            glowYellowLayerId,
+            const LineLayerProperties(
+              lineColor: "#FFEB3B",
+              lineWidth: 6.0,
+              lineJoin: "round",
+              lineCap: "round",
+              lineOpacity: 1.0,
             ),
+            belowLayerId: insertionAnchorLayerId,
           );
+          insertionAnchorLayerId = glowYellowLayerId;
+          currentLayerSet.add(glowYellowLayerId);
 
-          currentLayerSet.add(layerId);
-        }
-
-        if (!currentLayerSet.contains(waypointLayerId)) {
-          await controller!.addCircleLayer(
-            waypointSourceId,
-            waypointLayerId,
-            CircleLayerProperties(
-              circleColor: isActiveTrack ? "#FFEB3B" : "#FFFFFF",
-              circleRadius: 6.0,
-              circleStrokeColor: track.hexColor,
-              circleStrokeWidth: 2.0,
-              circleOpacity: track.isVisible ? 1.0 : 0.0,
-              circleStrokeOpacity: track.isVisible ? 1.0 : 0.0,
+          await controller!.addLineLayer(
+            sourceId,
+            glowWhiteLayerId,
+            const LineLayerProperties(
+              lineColor: "#FFFFFF",
+              lineWidth: 8.5,
+              lineJoin: "round",
+              lineCap: "round",
+              lineOpacity: 1.0,
             ),
+            belowLayerId: insertionAnchorLayerId,
           );
-
-          currentLayerSet.add(waypointLayerId);
+          insertionAnchorLayerId = glowWhiteLayerId;
+          currentLayerSet.add(glowWhiteLayerId);
         }
       }
     } catch (e) {

@@ -43,6 +43,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   MapLibreMapController? _controller;
   bool _isReverseAnimating = false;
   bool _isDraggingMap = false;
+  bool _isSidebarReordering = false;
   late final AppLifecycleListener _lifecycleListener;
   final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
@@ -99,6 +100,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   Future<void> _paintTracksWrapper(List<TrackModel> tracks) async {
     final activeId = ref.read(gpxEditorProvider).selectedTrackId;
     await paintTracks(tracks, activeId);
+  }
+
+  void _handleSidebarReorderDragStateChanged(bool isDragging) {
+    if (_isSidebarReordering == isDragging) return;
+    setState(() => _isSidebarReordering = isDragging);
   }
 
   @override
@@ -171,6 +177,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         StaticEditorMapWidget(
           key: _staticMapKey,
           cursor: mapCursor,
+          panEnabled: !_isSidebarReordering,
           onMapCreated: (c) {
             _controller = c;
           },
@@ -210,9 +217,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                 // Convertim el clic geogràfic en píxels reals del navegador (X, Y)
                 final math.Point<num> screenPoint = await _controller!
                     .toScreenLocation(coordinates);
-
-                // Mirem l'alçada horitzontal en píxels del navegador per saber on és el límit
-                final double screenWidth = MediaQuery.of(context).size.width;
 
                 // 📐 ZONA DE SEGURETAT DE LA BARRA DE DIBUIX:
                 // Com que el botó a la Web està centrat a dalt (top: 16), el Card ocupa tota la
@@ -427,6 +431,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           onPaintTracks: _paintTracksWrapper,
           onReverseTrack: _reverseSelectedTrackWithAnimation,
           onImportPressed: () => _importGpxFiles(context, ref),
+          onSidebarReorderDragStateChanged:
+              _handleSidebarReorderDragStateChanged,
         ),
       ),
     );
