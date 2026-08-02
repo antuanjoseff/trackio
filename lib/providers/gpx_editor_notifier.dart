@@ -241,6 +241,104 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     );
   }
 
+  void calculateDeleteNodeSnap(
+    double centerLat,
+    double centerLng,
+    double currentZoom,
+  ) {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'delete') {
+      return;
+    }
+    if (state.selectedTrackId == null || state.tracks.isEmpty) {
+      return;
+    }
+
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
+    if (track.points.length <= 2) {
+      state = state.copyWith(
+        snappedPoint: null,
+        snappedPointIndex: null,
+        geometryInsertIndex: null,
+      );
+      return;
+    }
+
+    double bestDistance = double.infinity;
+    int bestIndex = -1;
+
+    for (int i = 0; i < track.points.length; i++) {
+      final p = track.points[i];
+      if (p.latitude == null || p.longitude == null) continue;
+
+      final lat = (p.latitude! - centerLat) * 111320;
+      final lng =
+          (p.longitude! - centerLng) *
+          111320 *
+          math.cos(centerLat * math.pi / 180);
+
+      final distance = lat * lat + lng * lng;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+
+    final double maxDistance = currentZoom < 12
+        ? 120.0
+        : (currentZoom < 15 ? 60.0 : 25.0);
+
+    if (bestIndex >= 0 && bestDistance < maxDistance * maxDistance) {
+      state = state.copyWith(
+        snappedPoint: track.points[bestIndex],
+        snappedPointIndex: bestIndex,
+        geometryInsertIndex: null,
+      );
+    } else {
+      state = state.copyWith(
+        snappedPoint: null,
+        snappedPointIndex: null,
+        geometryInsertIndex: null,
+      );
+    }
+  }
+
+  void deleteNodeAtCurrentSnap() {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'delete') {
+      return;
+    }
+    if (state.selectedTrackId == null || state.snappedPointIndex == null) {
+      return;
+    }
+
+    final trackIndex = state.tracks.indexWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    if (trackIndex == -1) return;
+
+    final targetTrack = state.tracks[trackIndex];
+    if (targetTrack.points.length <= 2) return;
+
+    final int deleteIndex = state.snappedPointIndex!;
+    if (deleteIndex < 0 || deleteIndex >= targetTrack.points.length) return;
+
+    final List<TrackPointModel> updatedPoints = List<TrackPointModel>.from(
+      targetTrack.points,
+    )..removeAt(deleteIndex);
+
+    final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
+    updatedTracks[trackIndex] = targetTrack.copyWith(points: updatedPoints);
+
+    state = state.copyWith(
+      tracks: updatedTracks,
+      snappedPoint: null,
+      snappedPointIndex: null,
+      geometryInsertIndex: null,
+      isMapIdle: false,
+    );
+  }
+
   void toggleElevationChart() {
     final bool nextShowChart = !state.showElevationChart;
 

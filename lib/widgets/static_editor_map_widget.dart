@@ -35,6 +35,10 @@ class StaticEditorMapWidget extends StatefulWidget {
 class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
   MapLibreMapController? _mapController;
   DateTime? _suppressNativeMapClickUntil;
+  Offset? _mousePrimaryDownOffset;
+  bool _mousePrimaryMoved = false;
+
+  static const double _mouseClickSlopPx = 8.0;
 
   bool get _hasMouse => RendererBinding.instance.mouseTracker.mouseIsConnected;
 
@@ -58,6 +62,49 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     }
     if (event.kind != PointerDeviceKind.mouse ||
         event.buttons != kPrimaryMouseButton) {
+      return;
+    }
+
+    _mousePrimaryDownOffset = event.localPosition;
+    _mousePrimaryMoved = false;
+
+    // Suprimim temporalment el click nadiu; el manual decidirà si és click o pan.
+    _suppressNativeMapClickUntil = DateTime.now().add(
+      const Duration(milliseconds: 300),
+    );
+  }
+
+  void _handleMousePrimaryMove(PointerMoveEvent event) {
+    if (event.kind != PointerDeviceKind.mouse) return;
+    final Offset? down = _mousePrimaryDownOffset;
+    if (down == null) return;
+
+    final double dx = event.localPosition.dx - down.dx;
+    final double dy = event.localPosition.dy - down.dy;
+    if ((dx * dx + dy * dy) >= (_mouseClickSlopPx * _mouseClickSlopPx)) {
+      _mousePrimaryMoved = true;
+    }
+  }
+
+  Future<void> _handleMousePrimaryUp(PointerUpEvent event) async {
+    if (!_hasMouse || widget.onMapClick == null || _mapController == null) {
+      _mousePrimaryDownOffset = null;
+      _mousePrimaryMoved = false;
+      return;
+    }
+    if (event.kind != PointerDeviceKind.mouse) {
+      _mousePrimaryDownOffset = null;
+      _mousePrimaryMoved = false;
+      return;
+    }
+
+    final bool shouldTriggerClick =
+        _mousePrimaryDownOffset != null && !_mousePrimaryMoved;
+
+    _mousePrimaryDownOffset = null;
+    _mousePrimaryMoved = false;
+
+    if (!shouldTriggerClick) {
       return;
     }
 
@@ -94,6 +141,8 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
         child: Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: _handleMousePrimaryDown,
+          onPointerMove: _handleMousePrimaryMove,
+          onPointerUp: _handleMousePrimaryUp,
           child: MapLibreMap(
             compassEnabled: false,
             scrollGesturesEnabled: widget.panEnabled,

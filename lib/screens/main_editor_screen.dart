@@ -189,8 +189,14 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final bool isGeometryAddMode =
         editorState.activeTool == 'edit_geometry' &&
         editorState.geometryEditMode == 'add';
+    final bool isGeometryDeleteMode =
+        editorState.activeTool == 'edit_geometry' &&
+        editorState.geometryEditMode == 'delete';
     final MouseCursor mapCursor =
-        hasMouse && (activeTool == 'add_waypoint' || isGeometryAddMode)
+        hasMouse &&
+            (activeTool == 'add_waypoint' ||
+                isGeometryAddMode ||
+                isGeometryDeleteMode)
         ? SystemMouseCursors.precise
         : MouseCursor.defer;
 
@@ -203,7 +209,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               'add_waypoint',
               'draw',
             ].contains(activeTool) ||
-            isGeometryAddMode);
+            isGeometryAddMode ||
+            isGeometryDeleteMode);
 
     // 🌟 REPARACIÓ 3A: Escolta exclusivament el canvi de Track seleccionat per centrar la càmera
     ref.listen<int?>(gpxEditorProvider.select((s) => s.selectedTrackId), (
@@ -421,6 +428,20 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               return;
             }
 
+            if (activeTool == 'edit_geometry' &&
+                state.geometryEditMode == 'delete' &&
+                hasMouse) {
+              notifier.calculateDeleteNodeSnap(
+                coordinates.latitude,
+                coordinates.longitude,
+                zoom,
+              );
+              notifier.deleteNodeAtCurrentSnap();
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              unawaited(_updateGeometryNodesOverlay());
+              return;
+            }
+
             _handleMouseMove(coordinates, zoom, state);
           },
         ),
@@ -469,6 +490,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           const ReactiveMergeButton(),
           const ReactiveWaypointButton(),
           const ReactiveAddNodeButton(),
+          const ReactiveDeleteNodeButton(),
         ],
         const ReactiveGeometryEditToolbar(),
         const ReactiveDrawButton(),
@@ -572,6 +594,21 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
+    if (state.activeTool == 'edit_geometry' &&
+        state.geometryEditMode == 'delete' &&
+        _hasMouseConnected) {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .calculateDeleteNodeSnap(
+            targetCoords.latitude,
+            targetCoords.longitude,
+            currentZoom,
+          );
+      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
+
     // ✂️ 3. EINES CONTEXTUALS (SPLIT, RANGE_MAP, MERGE) PER A RATOLÍ:
     if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
     if (_throttleTimer?.isActive ?? false) return;
@@ -645,8 +682,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final liveTool = liveState.activeTool;
     final bool isGeometryAddMode =
         liveTool == 'edit_geometry' && liveState.geometryEditMode == 'add';
+    final bool isGeometryDeleteMode =
+        liveTool == 'edit_geometry' && liveState.geometryEditMode == 'delete';
+    final bool isGeometrySnapMode = isGeometryAddMode || isGeometryDeleteMode;
 
-    if (liveTool == 'edit_geometry' && !isGeometryAddMode) {
+    if (liveTool == 'edit_geometry' && !isGeometrySnapMode) {
       if (_throttleTimer?.isActive ?? false) return;
       _throttleTimer = Timer(const Duration(milliseconds: 80), () {
         unawaited(_updateGeometryNodesOverlay());
@@ -654,7 +694,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
-    if (isGeometryAddMode && _isMobileApp) {
+    if (isGeometrySnapMode && _isMobileApp) {
       if (!_isDraggingMap) {
         _isDraggingMap = true;
         ref.read(gpxEditorProvider.notifier).setMapIdle(false);
@@ -662,13 +702,23 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
       if (_throttleTimer?.isActive ?? false) return;
       _throttleTimer = Timer(const Duration(milliseconds: 50), () {
-        ref
-            .read(gpxEditorProvider.notifier)
-            .calculateAddNodeSnap(
-              pos.target.latitude,
-              pos.target.longitude,
-              pos.zoom,
-            );
+        if (isGeometryAddMode) {
+          ref
+              .read(gpxEditorProvider.notifier)
+              .calculateAddNodeSnap(
+                pos.target.latitude,
+                pos.target.longitude,
+                pos.zoom,
+              );
+        } else {
+          ref
+              .read(gpxEditorProvider.notifier)
+              .calculateDeleteNodeSnap(
+                pos.target.latitude,
+                pos.target.longitude,
+                pos.zoom,
+              );
+        }
         unawaited(_updateGeometryNodesOverlay());
         paintLiveOverlays(ref.read(gpxEditorProvider));
       });
@@ -745,18 +795,29 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     if (state.activeTool == 'edit_geometry') {
       await _updateGeometryNodesOverlay();
-      if (state.geometryEditMode != 'add') {
+      if (state.geometryEditMode != 'add' &&
+          state.geometryEditMode != 'delete') {
         return;
       }
 
       _isDraggingMap = false;
-      ref
-          .read(gpxEditorProvider.notifier)
-          .calculateAddNodeSnap(
-            pos.target.latitude,
-            pos.target.longitude,
-            pos.zoom,
-          );
+      if (state.geometryEditMode == 'add') {
+        ref
+            .read(gpxEditorProvider.notifier)
+            .calculateAddNodeSnap(
+              pos.target.latitude,
+              pos.target.longitude,
+              pos.zoom,
+            );
+      } else {
+        ref
+            .read(gpxEditorProvider.notifier)
+            .calculateDeleteNodeSnap(
+              pos.target.latitude,
+              pos.target.longitude,
+              pos.zoom,
+            );
+      }
       ref.read(gpxEditorProvider.notifier).setMapIdle(true);
       paintLiveOverlays(ref.read(gpxEditorProvider));
       return;

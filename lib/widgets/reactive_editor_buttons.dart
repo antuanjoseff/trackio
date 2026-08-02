@@ -295,6 +295,60 @@ class ReactiveAddNodeButton extends ConsumerWidget {
   }
 }
 
+class ReactiveDeleteNodeButton extends ConsumerWidget {
+  const ReactiveDeleteNodeButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final geometryMode = ref.watch(
+      gpxEditorProvider.select((s) => s.geometryEditMode),
+    );
+    final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
+    final hasSnap = ref.watch(
+      gpxEditorProvider.select((s) => s.snappedPoint != null),
+    );
+    final showElevationChart = ref.watch(
+      gpxEditorProvider.select((s) => s.showElevationChart),
+    );
+
+    if (activeTool != 'edit_geometry' ||
+        geometryMode != 'delete' ||
+        !isMapIdle ||
+        !hasSnap) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      bottom: showElevationChart ? 200 : 24,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: FloatingActionButton.extended(
+          backgroundColor: Colors.red.shade700,
+          icon: const Icon(Icons.remove_circle_outline, color: Colors.white),
+          label: Text(
+            t.deleteNode,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          onPressed: () {
+            ref.read(gpxEditorProvider.notifier).deleteNodeAtCurrentSnap();
+            final screenState = context
+                .findAncestorStateOfType<MainEditorScreenState>();
+            if (screenState != null) {
+              screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class ReactiveGeometryEditToolbar extends ConsumerWidget {
   const ReactiveGeometryEditToolbar({super.key});
 
