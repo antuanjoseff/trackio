@@ -13,7 +13,7 @@ class GpxEditorState {
   final bool isMapIdle;
   final bool showSidebar;
 
-  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint', 'draw'
+  // Herramientas posibles: 'none', 'split', 'merge', 'inverse', 'range_chart', 'range_map', 'add_waypoint', 'draw', 'edit_geometry'
   final String activeTool;
 
   final bool showElevationChart;
@@ -97,9 +97,7 @@ class GpxEditorState {
   }) {
     final int? nextSelectionEndIndex = identical(selectionEndIndex, _noChange)
         ? this.selectionEndIndex
-        : ((selectionEndIndex as int?) == -1
-              ? null
-              : selectionEndIndex as int?);
+        : ((selectionEndIndex as int?) == -1 ? null : selectionEndIndex);
 
     final int? nextSelectedTrackId = identical(selectedTrackId, _noChange)
         ? this.selectedTrackId

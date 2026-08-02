@@ -79,6 +79,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       _controller!.setGeoJsonSource("source_start_range", emptyCollection);
       _controller!.setGeoJsonSource("source_end_range", emptyCollection);
       _controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
+      _controller!.setGeoJsonSource("source_geometry_nodes", emptyCollection);
     }
   }
 
@@ -100,6 +101,71 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   Future<void> _paintTracksWrapper(List<TrackModel> tracks) async {
     final activeId = ref.read(gpxEditorProvider).selectedTrackId;
     await paintTracks(tracks, activeId);
+  }
+
+  Future<void> _updateGeometryNodesOverlay() async {
+    if (_controller == null || !mounted) return;
+
+    final state = ref.read(gpxEditorProvider);
+    if (state.activeTool != 'edit_geometry' || state.selectedTrackId == null) {
+      clearGeometryNodesOverlay();
+      return;
+    }
+
+    final int trackIndex = state.tracks.indexWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+
+    if (trackIndex == -1) {
+      clearGeometryNodesOverlay();
+      return;
+    }
+
+    final TrackModel activeTrack = state.tracks[trackIndex];
+
+    if (activeTrack.points.isEmpty) {
+      clearGeometryNodesOverlay();
+      return;
+    }
+
+    final RenderBox? renderBox =
+        _staticMapKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (renderBox == null || !renderBox.hasSize) {
+      clearGeometryNodesOverlay();
+      return;
+    }
+
+    final double width = renderBox.size.width;
+    final double height = renderBox.size.height;
+
+    final List<TrackPointModel> visibleNodes = [];
+    math.Point<num>? lastAcceptedPoint;
+
+    for (final point in activeTrack.points) {
+      if (point.latitude == null || point.longitude == null) continue;
+
+      final screenPoint = await _controller!.toScreenLocation(
+        LatLng(point.latitude!, point.longitude!),
+      );
+
+      final double x = screenPoint.x.toDouble();
+      final double y = screenPoint.y.toDouble();
+
+      if (x < 0 || x > width || y < 0 || y > height) continue;
+
+      if (lastAcceptedPoint != null) {
+        final double dx = x - lastAcceptedPoint.x.toDouble();
+        final double dy = y - lastAcceptedPoint.y.toDouble();
+        final double distancePx = math.sqrt((dx * dx) + (dy * dy));
+        if (distancePx < 15.0) continue;
+      }
+
+      visibleNodes.add(point);
+      lastAcceptedPoint = screenPoint;
+    }
+
+    setGeometryNodesOverlay(visibleNodes);
   }
 
   void _handleSidebarReorderDragStateChanged(bool isDragging) {
@@ -144,6 +210,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         _focusTrack(next, state.tracks);
         _paintTracksWrapper(state.tracks);
       }
+      unawaited(_updateGeometryNodesOverlay());
     });
 
     // 🌟 REPARACIÓ 3B: Escolta canvis a la llista global (només quan s'importa, esborra o fusiona)
@@ -155,6 +222,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       if (state.loadingTrackIds.isEmpty) {
         _paintTracksWrapper(next);
       }
+      unawaited(_updateGeometryNodesOverlay());
     });
 
     // 🌟 REPARACIÓ 3C: Escolta la interacció fina (agulles, moviments de retícula, canvis d'eina)
@@ -169,6 +237,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
       if (toolChanged || snappedChanged || drawingChanged) {
         paintLiveOverlays(next);
+      }
+      if (toolChanged) {
+        unawaited(_updateGeometryNodesOverlay());
       }
     });
 
@@ -192,8 +263,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           },
 
           onCameraMove: (pos) {
-            if (!_isMobileApp) return;
-
             _handleCameraMove(pos, ref.read(gpxEditorProvider));
           },
           onCameraIdle: _handleCameraIdle,
@@ -381,6 +450,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           const ReactiveMergeButton(),
           const ReactiveWaypointButton(),
         ],
+        const ReactiveGeometryEditToolbar(),
         const ReactiveDrawButton(),
       ],
     );
@@ -536,6 +606,17 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     CameraPosition pos,
     GpxEditorState state,
   ) async {
+    final liveTool = ref.read(gpxEditorProvider).activeTool;
+    if (liveTool == 'edit_geometry') {
+      if (_throttleTimer?.isActive ?? false) return;
+      _throttleTimer = Timer(const Duration(milliseconds: 80), () {
+        unawaited(_updateGeometryNodesOverlay());
+      });
+      return;
+    }
+
+    if (!_isMobileApp) return;
+
     final currentState = ref.read(gpxEditorProvider);
 
     // 1. Amaguem el botó flotant a l'acte només començar a moure el mapa (🔒 Protegit amb _isDraggingMap)
@@ -599,6 +680,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     if (pos == null) return;
 
     final state = ref.read(gpxEditorProvider);
+
+    if (state.activeTool == 'edit_geometry') {
+      await _updateGeometryNodesOverlay();
+      return;
+    }
 
     // 📐 REPARACIÓ CRÍTICA RANGE_MAP: El mapa s'atura, s'activa l'idle i es mostra el botó flotant natiu de Senda
     if (state.activeTool == 'range_map') {

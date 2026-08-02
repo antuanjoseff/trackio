@@ -40,9 +40,6 @@ class TrackioVerticalLayout extends ConsumerWidget {
     final selectedTrackId = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId),
     );
-    final liveShowChart = ref.watch(
-      gpxEditorProvider.select((s) => s.showElevationChart),
-    );
     final currentFullState = ref.watch(gpxEditorProvider);
 
     final bool isDisabled = selectedTrackId == null;
@@ -215,6 +212,30 @@ class TrackioVerticalLayout extends ConsumerWidget {
                           .setActiveTool(
                             liveActiveTool == 'draw' ? 'none' : 'draw',
                           ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    _btn(
+                      isActive: liveActiveTool == 'edit_geometry',
+                      icon: Icon(
+                        Icons.hub_rounded,
+                        color: isDisabled
+                            ? Colors.grey.shade400
+                            : (liveActiveTool == 'edit_geometry'
+                                  ? Colors.cyan.shade700
+                                  : Colors.cyan),
+                        size: 28,
+                      ),
+                      tooltip: 'Editar geometria',
+                      onPressed: isDisabled
+                          ? null
+                          : () => ref
+                                .read(gpxEditorProvider.notifier)
+                                .setActiveTool(
+                                  liveActiveTool == 'edit_geometry'
+                                      ? 'none'
+                                      : 'edit_geometry',
+                                ),
                     ),
                   ],
                 ),

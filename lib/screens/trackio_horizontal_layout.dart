@@ -297,6 +297,30 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                             : 'draw',
                                       ),
                                 ),
+                                const SizedBox(height: 6),
+
+                                // 7. EDITAR GEOMETRIA
+                                _buildCompactBtn(
+                                  isActive: liveActiveTool == 'edit_geometry',
+                                  icon: Icon(
+                                    Icons.hub_rounded,
+                                    color: isDisabled
+                                        ? Colors.grey.shade400
+                                        : (liveActiveTool == 'edit_geometry'
+                                              ? Colors.cyan.shade700
+                                              : Colors.cyan),
+                                  ),
+                                  tooltip: 'Editar geometria',
+                                  onPressed: isDisabled
+                                      ? null
+                                      : () => ref
+                                            .read(gpxEditorProvider.notifier)
+                                            .setActiveTool(
+                                              liveActiveTool == 'edit_geometry'
+                                                  ? 'none'
+                                                  : 'edit_geometry',
+                                            ),
+                                ),
                               ],
                             ),
                           ),

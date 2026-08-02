@@ -9,6 +9,7 @@ mixin MapRenderingMixin {
   bool _paintingTracks = false;
 
   static const List<String> _globalOverlayLayerOrder = [
+    "layer_geometry_nodes",
     "layer_range_white",
     "layer_range_orange",
     "layer_snapped_circle",
@@ -25,6 +26,37 @@ mixin MapRenderingMixin {
     return null;
   }
 
+  void clearGeometryNodesOverlay() {
+    if (controller == null) return;
+    const Map<String, dynamic> emptyCollection = {
+      "type": "FeatureCollection",
+      "features": [],
+    };
+    controller!.setGeoJsonSource("source_geometry_nodes", emptyCollection);
+  }
+
+  void setGeometryNodesOverlay(List<TrackPointModel> points) {
+    if (controller == null) return;
+
+    final features = points
+        .where((p) => p.latitude != null && p.longitude != null)
+        .map(
+          (p) => {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [p.longitude!, p.latitude!],
+            },
+          },
+        )
+        .toList();
+
+    controller!.setGeoJsonSource("source_geometry_nodes", {
+      "type": "FeatureCollection",
+      "features": features,
+    });
+  }
+
   // 🌟 REPARACIÓ: Eliminem el 'async' de la capçalera per fer el flux síncron i fluid
   void paintLiveOverlays(GpxEditorState state, {LatLng? reticleLatLng}) {
     if (controller == null) {
@@ -35,6 +67,10 @@ mixin MapRenderingMixin {
       "type": "FeatureCollection",
       "features": [],
     };
+
+    if (state.activeTool != 'edit_geometry') {
+      clearGeometryNodesOverlay();
+    }
 
     // ========================= DRAW =========================
     if (state.activeTool == 'draw') {
@@ -226,6 +262,11 @@ mixin MapRenderingMixin {
       controller!.setGeoJsonSource("source_start_range", emptyCollection);
       controller!.setGeoJsonSource("source_end_range", emptyCollection);
 
+      if (state.activeTool == 'edit_geometry') {
+        controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
+        return;
+      }
+
       // 🌟 REPARACIÓ: Si hi ha un punt blau actiu a la memòria en cicle lliure ('none'),
       // bloquegem que aquesta clàusula el buidi en el mateix frame per evitar pampallugues.
       if (state.snappedPoint == null) {
@@ -400,6 +441,31 @@ mixin MapRenderingMixin {
           ),
         );
         existingLayers.add("layer_end_circle");
+      }
+
+      if (!existingSources.contains("source_geometry_nodes")) {
+        await controller!.addSource(
+          "source_geometry_nodes",
+          const GeojsonSourceProperties(
+            data: {"type": "FeatureCollection", "features": []},
+          ),
+        );
+        existingSources.add("source_geometry_nodes");
+      }
+
+      if (!existingLayers.contains("layer_geometry_nodes")) {
+        await controller!.addCircleLayer(
+          "source_geometry_nodes",
+          "layer_geometry_nodes",
+          const CircleLayerProperties(
+            circleColor: "#FFFFFF",
+            circleRadius: 4.0,
+            circleStrokeColor: "#1A73E8",
+            circleStrokeWidth: 1.5,
+            circleOpacity: 0.95,
+          ),
+        );
+        existingLayers.add("layer_geometry_nodes");
       }
     } catch (e) {
       debugPrint("🟥 createGlobalLayers ERROR CONTROLAT: $e");

@@ -236,3 +236,64 @@ class ReactiveWaypointButton extends ConsumerWidget {
     );
   }
 }
+
+class ReactiveGeometryEditToolbar extends ConsumerWidget {
+  const ReactiveGeometryEditToolbar({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final hasSelectedTrack = ref.watch(
+      gpxEditorProvider.select((s) => s.selectedTrackId != null),
+    );
+
+    if (activeTool != 'edit_geometry' || !hasSelectedTrack) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      top: 16,
+      left: 16,
+      right: 16,
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.96),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.14),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Afegir node',
+                  onPressed: () {},
+                  icon: Icon(Icons.add_circle, color: Colors.green.shade700),
+                ),
+                IconButton(
+                  tooltip: 'Borrar node',
+                  onPressed: () {},
+                  icon: Icon(Icons.remove_circle, color: Colors.red.shade700),
+                ),
+                IconButton(
+                  tooltip: 'Moure node',
+                  onPressed: () {},
+                  icon: Icon(Icons.open_with, color: Colors.blue.shade700),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

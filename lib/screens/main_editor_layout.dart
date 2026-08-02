@@ -302,6 +302,36 @@ class MainEditorLayout extends ConsumerWidget {
                             ),
                       ),
 
+                      // 🧩 5.3. EDITAR GEOMETRIA
+                      IconButton(
+                        tooltip: 'Editar geometria',
+                        isSelected: liveActiveTool == 'edit_geometry',
+                        selectedIcon: Icon(
+                          Icons.hub_rounded,
+                          color: Colors.cyan.shade700,
+                        ),
+                        icon: Icon(
+                          Icons.hub_rounded,
+                          color: isDisabled
+                              ? Colors.grey.shade400
+                              : Colors.cyan,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: liveActiveTool == 'edit_geometry'
+                              ? Colors.cyan.shade50
+                              : null,
+                        ),
+                        onPressed: isDisabled
+                            ? null
+                            : () => ref
+                                  .read(gpxEditorProvider.notifier)
+                                  .setActiveTool(
+                                    liveActiveTool == 'edit_geometry'
+                                        ? 'none'
+                                        : 'edit_geometry',
+                                  ),
+                      ),
+
                       const VerticalDivider(
                         indent: 12,
                         endIndent: 12,
