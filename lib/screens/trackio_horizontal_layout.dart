@@ -310,7 +310,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                               ? Colors.cyan.shade700
                                               : Colors.cyan),
                                   ),
-                                  tooltip: 'Editar geometria',
+                                  tooltip: t.toolEditGeometry,
                                   onPressed: isDisabled
                                       ? null
                                       : () => ref

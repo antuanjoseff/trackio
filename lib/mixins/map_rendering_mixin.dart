@@ -9,12 +9,12 @@ mixin MapRenderingMixin {
   bool _paintingTracks = false;
 
   static const List<String> _globalOverlayLayerOrder = [
-    "layer_geometry_nodes",
     "layer_range_white",
     "layer_range_orange",
     "layer_snapped_circle",
     "layer_start_circle",
     "layer_end_circle",
+    "layer_geometry_nodes",
   ];
 
   String? _overlayAnchorLayerId(Set<String> existingLayers) {
@@ -263,7 +263,6 @@ mixin MapRenderingMixin {
       controller!.setGeoJsonSource("source_end_range", emptyCollection);
 
       if (state.activeTool == 'edit_geometry') {
-        controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
         return;
       }
 

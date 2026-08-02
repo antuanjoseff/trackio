@@ -43,10 +43,14 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   }
 
   void setActiveTool(String tool) {
+    final bool isGeometryTool = tool == 'edit_geometry';
+
     state = state.copyWith(
       activeTool: tool,
       snappedPoint: null,
       snappedPointIndex: null,
+      geometryInsertIndex: null,
+      geometryEditMode: isGeometryTool ? 'add' : null,
       // Si obrim qualsevol altra eina, netegem el rang estàtic de la memòria
       selectionStartIndex: null,
       selectionEndIndex: -1,
@@ -64,6 +68,177 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   void updateSnappedPoint(TrackPointModel? point, int? index) {
     state = state.copyWith(snappedPoint: point, snappedPointIndex: index);
+  }
+
+  void setGeometryEditMode(String mode) {
+    if (state.activeTool != 'edit_geometry') return;
+    if (!['add', 'delete', 'move'].contains(mode)) return;
+
+    final String? nextMode = state.geometryEditMode == mode ? null : mode;
+
+    state = state.copyWith(
+      geometryEditMode: nextMode,
+      snappedPoint: null,
+      snappedPointIndex: null,
+      geometryInsertIndex: null,
+      isMapIdle: false,
+    );
+  }
+
+  void calculateAddNodeSnap(
+    double centerLat,
+    double centerLng,
+    double currentZoom,
+  ) {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'add') {
+      return;
+    }
+    if (state.selectedTrackId == null || state.tracks.isEmpty) {
+      return;
+    }
+
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
+    if (track.points.length < 2) {
+      state = state.copyWith(
+        snappedPoint: null,
+        snappedPointIndex: null,
+        geometryInsertIndex: null,
+      );
+      return;
+    }
+
+    final double cosLatRaw = math.cos(centerLat * math.pi / 180);
+    final double cosLat = cosLatRaw.abs() < 0.000001 ? 0.000001 : cosLatRaw;
+
+    double bestDistance = double.infinity;
+    int bestSegmentStart = -1;
+    double bestT = 0.0;
+    double bestProjX = 0.0;
+    double bestProjY = 0.0;
+    TrackPointModel? leftPoint;
+    TrackPointModel? rightPoint;
+
+    for (int i = 0; i < track.points.length - 1; i++) {
+      final p1 = track.points[i];
+      final p2 = track.points[i + 1];
+
+      if (p1.latitude == null ||
+          p1.longitude == null ||
+          p2.latitude == null ||
+          p2.longitude == null) {
+        continue;
+      }
+
+      final double ax = (p1.longitude! - centerLng) * 111320 * cosLat;
+      final double ay = (p1.latitude! - centerLat) * 111320;
+      final double bx = (p2.longitude! - centerLng) * 111320 * cosLat;
+      final double by = (p2.latitude! - centerLat) * 111320;
+
+      final double abx = bx - ax;
+      final double aby = by - ay;
+      final double len2 = abx * abx + aby * aby;
+      if (len2 <= 0.0) continue;
+
+      final double t = ((-ax * abx) + (-ay * aby)) / len2;
+      final double clampedT = t.clamp(0.0, 1.0);
+
+      final double projX = ax + (abx * clampedT);
+      final double projY = ay + (aby * clampedT);
+
+      final double d2 = (projX * projX) + (projY * projY);
+      if (d2 < bestDistance) {
+        bestDistance = d2;
+        bestSegmentStart = i;
+        bestT = clampedT;
+        bestProjX = projX;
+        bestProjY = projY;
+        leftPoint = p1;
+        rightPoint = p2;
+      }
+    }
+
+    final double maxDistance = currentZoom < 12
+        ? 120.0
+        : (currentZoom < 15 ? 60.0 : 25.0);
+
+    if (bestSegmentStart < 0 || bestDistance > maxDistance * maxDistance) {
+      state = state.copyWith(
+        snappedPoint: null,
+        snappedPointIndex: null,
+        geometryInsertIndex: null,
+      );
+      return;
+    }
+
+    final double snappedLat = centerLat + (bestProjY / 111320);
+    final double snappedLng = centerLng + (bestProjX / (111320 * cosLat));
+
+    double? snappedElevation;
+    final double? e1 = leftPoint?.elevation;
+    final double? e2 = rightPoint?.elevation;
+    if (e1 != null && e2 != null) {
+      snappedElevation = e1 + ((e2 - e1) * bestT);
+    } else {
+      snappedElevation = e1 ?? e2;
+    }
+
+    state = state.copyWith(
+      snappedPoint: TrackPointModel(
+        latitude: snappedLat,
+        longitude: snappedLng,
+        elevation: snappedElevation,
+        timestamp: DateTime.now(),
+      ),
+      snappedPointIndex: bestSegmentStart,
+      geometryInsertIndex: bestSegmentStart + 1,
+    );
+  }
+
+  void addNodeAtCurrentSnap() {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'add') {
+      return;
+    }
+    if (state.selectedTrackId == null ||
+        state.snappedPoint == null ||
+        state.geometryInsertIndex == null) {
+      return;
+    }
+
+    final trackIndex = state.tracks.indexWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    if (trackIndex == -1) return;
+
+    final targetTrack = state.tracks[trackIndex];
+    final int insertIndex = state.geometryInsertIndex!;
+    if (insertIndex <= 0 || insertIndex >= targetTrack.points.length) return;
+
+    final List<TrackPointModel> updatedPoints = List<TrackPointModel>.from(
+      targetTrack.points,
+    );
+
+    updatedPoints.insert(
+      insertIndex,
+      TrackPointModel(
+        latitude: state.snappedPoint!.latitude,
+        longitude: state.snappedPoint!.longitude,
+        elevation: state.snappedPoint!.elevation,
+        timestamp: DateTime.now(),
+      ),
+    );
+
+    final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
+    updatedTracks[trackIndex] = targetTrack.copyWith(points: updatedPoints);
+
+    state = state.copyWith(
+      tracks: updatedTracks,
+      snappedPoint: null,
+      snappedPointIndex: null,
+      geometryInsertIndex: null,
+      isMapIdle: false,
+    );
   }
 
   void toggleElevationChart() {

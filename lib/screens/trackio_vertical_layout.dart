@@ -226,7 +226,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                                   : Colors.cyan),
                         size: 28,
                       ),
-                      tooltip: 'Editar geometria',
+                      tooltip: t.toolEditGeometry,
                       onPressed: isDisabled
                           ? null
                           : () => ref

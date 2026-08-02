@@ -28,6 +28,10 @@ class GpxEditorState {
 
   final LatLng? waypointCameraPosition;
 
+  // 🌟 Edició de geometria
+  final String? geometryEditMode; // 'add' | 'delete' | 'move'
+  final int? geometryInsertIndex;
+
   // 🌟 Dibuix interactiu
   final List<TrackPointModel> drawingPoints;
   final TrackPointModel? drawingLivePoint;
@@ -54,6 +58,8 @@ class GpxEditorState {
     this.previewPoints,
     this.loadingTrackIds = const [],
     this.waypointCameraPosition,
+    this.geometryEditMode,
+    this.geometryInsertIndex,
     this.showSidebar = true,
     this.drawingPoints = const [],
     this.drawingLivePoint,
@@ -86,6 +92,8 @@ class GpxEditorState {
     Object? previewPoints = _noChange,
     List<int>? loadingTrackIds,
     Object? waypointCameraPosition = _noChange,
+    Object? geometryEditMode = _noChange,
+    Object? geometryInsertIndex = _noChange,
     bool? showSidebar,
     List<TrackPointModel>? drawingPoints,
     Object? drawingLivePoint = _noChange,
@@ -134,6 +142,12 @@ class GpxEditorState {
       waypointCameraPosition: identical(waypointCameraPosition, _noChange)
           ? this.waypointCameraPosition
           : waypointCameraPosition as LatLng?,
+      geometryEditMode: identical(geometryEditMode, _noChange)
+          ? this.geometryEditMode
+          : geometryEditMode as String?,
+      geometryInsertIndex: identical(geometryInsertIndex, _noChange)
+          ? this.geometryInsertIndex
+          : geometryInsertIndex as int?,
       showSidebar: showSidebar ?? this.showSidebar,
       drawingPoints: drawingPoints ?? this.drawingPoints,
       drawingLivePoint: identical(drawingLivePoint, _noChange)

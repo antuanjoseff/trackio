@@ -237,14 +237,76 @@ class ReactiveWaypointButton extends ConsumerWidget {
   }
 }
 
+class ReactiveAddNodeButton extends ConsumerWidget {
+  const ReactiveAddNodeButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final geometryMode = ref.watch(
+      gpxEditorProvider.select((s) => s.geometryEditMode),
+    );
+    final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
+    final hasSnap = ref.watch(
+      gpxEditorProvider.select((s) => s.snappedPoint != null),
+    );
+    final hasInsertIndex = ref.watch(
+      gpxEditorProvider.select((s) => s.geometryInsertIndex != null),
+    );
+    final showElevationChart = ref.watch(
+      gpxEditorProvider.select((s) => s.showElevationChart),
+    );
+
+    if (activeTool != 'edit_geometry' ||
+        geometryMode != 'add' ||
+        !isMapIdle ||
+        !hasSnap ||
+        !hasInsertIndex) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      bottom: showElevationChart ? 200 : 24,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: FloatingActionButton.extended(
+          backgroundColor: Colors.green.shade700,
+          icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+          label: Text(
+            t.confirmAddNode,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          onPressed: () {
+            ref.read(gpxEditorProvider.notifier).addNodeAtCurrentSnap();
+            final screenState = context
+                .findAncestorStateOfType<MainEditorScreenState>();
+            if (screenState != null) {
+              screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class ReactiveGeometryEditToolbar extends ConsumerWidget {
   const ReactiveGeometryEditToolbar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final hasSelectedTrack = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId != null),
+    );
+    final geometryMode = ref.watch(
+      gpxEditorProvider.select((s) => s.geometryEditMode),
     );
 
     if (activeTool != 'edit_geometry' || !hasSelectedTrack) {
@@ -275,19 +337,55 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Afegir node',
-                  onPressed: () {},
-                  icon: Icon(Icons.add_circle, color: Colors.green.shade700),
+                  tooltip: t.addNode,
+                  style: IconButton.styleFrom(
+                    backgroundColor: geometryMode == 'add'
+                        ? Colors.green.shade50
+                        : null,
+                  ),
+                  onPressed: () => ref
+                      .read(gpxEditorProvider.notifier)
+                      .setGeometryEditMode('add'),
+                  icon: Icon(
+                    Icons.add_circle,
+                    color: geometryMode == 'add'
+                        ? Colors.green.shade700
+                        : Colors.green,
+                  ),
                 ),
                 IconButton(
-                  tooltip: 'Borrar node',
-                  onPressed: () {},
-                  icon: Icon(Icons.remove_circle, color: Colors.red.shade700),
+                  tooltip: t.deleteNode,
+                  style: IconButton.styleFrom(
+                    backgroundColor: geometryMode == 'delete'
+                        ? Colors.red.shade50
+                        : null,
+                  ),
+                  onPressed: () => ref
+                      .read(gpxEditorProvider.notifier)
+                      .setGeometryEditMode('delete'),
+                  icon: Icon(
+                    Icons.remove_circle,
+                    color: geometryMode == 'delete'
+                        ? Colors.red.shade700
+                        : Colors.red,
+                  ),
                 ),
                 IconButton(
-                  tooltip: 'Moure node',
-                  onPressed: () {},
-                  icon: Icon(Icons.open_with, color: Colors.blue.shade700),
+                  tooltip: t.moveNode,
+                  style: IconButton.styleFrom(
+                    backgroundColor: geometryMode == 'move'
+                        ? Colors.blue.shade50
+                        : null,
+                  ),
+                  onPressed: () => ref
+                      .read(gpxEditorProvider.notifier)
+                      .setGeometryEditMode('move'),
+                  icon: Icon(
+                    Icons.open_with,
+                    color: geometryMode == 'move'
+                        ? Colors.blue.shade700
+                        : Colors.blue,
+                  ),
                 ),
               ],
             ),

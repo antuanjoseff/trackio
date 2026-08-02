@@ -78,7 +78,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addWaypoint => 'Add waypoint';
 
   @override
-  String get selectTrackToUseTools => 'Select a track from the list to use the tools.';
+  String get selectTrackToUseTools =>
+      'Select a track from the list to use the tools.';
 
   @override
   String get importTracks => 'Import tracks';
@@ -90,7 +91,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chooseColor => 'Choose a color';
 
   @override
-  String get selectTrackToViewElevationProfile => 'Select a track to view the elevation profile';
+  String get selectTrackToViewElevationProfile =>
+      'Select a track to view the elevation profile';
 
   @override
   String get trackWithoutElevationData => 'This track has no elevation data';
@@ -102,7 +104,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showSpeed => 'Show speed';
 
   @override
-  String get newTrackAddedFromSelectedSegment => 'New track added from selected segment';
+  String get newTrackAddedFromSelectedSegment =>
+      'New track added from selected segment';
 
   @override
   String get addTrack => 'ADD TRACK';
@@ -124,6 +127,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get toolDraw => 'Draw route';
+
+  @override
+  String get toolEditGeometry => 'Edit geometry';
+
+  @override
+  String get addNode => 'Add node';
+
+  @override
+  String get deleteNode => 'Delete node';
+
+  @override
+  String get moveNode => 'Move node';
+
+  @override
+  String get confirmAddNode => 'Add node here';
 
   @override
   String get selectDrawPoint => 'Fix point on map';

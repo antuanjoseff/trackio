@@ -78,7 +78,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get addWaypoint => 'Añadir waypoint';
 
   @override
-  String get selectTrackToUseTools => 'Selecciona un track de la lista para usar las herramientas.';
+  String get selectTrackToUseTools =>
+      'Selecciona un track de la lista para usar las herramientas.';
 
   @override
   String get importTracks => 'Importar tracks';
@@ -90,10 +91,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chooseColor => 'Elige un color';
 
   @override
-  String get selectTrackToViewElevationProfile => 'Selecciona un track para ver el perfil de altitud';
+  String get selectTrackToViewElevationProfile =>
+      'Selecciona un track para ver el perfil de altitud';
 
   @override
-  String get trackWithoutElevationData => 'Este track no contiene datos de altitud';
+  String get trackWithoutElevationData =>
+      'Este track no contiene datos de altitud';
 
   @override
   String get hideSpeed => 'Ocultar velocidad';
@@ -102,7 +105,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get showSpeed => 'Mostrar velocidad';
 
   @override
-  String get newTrackAddedFromSelectedSegment => 'Nuevo track añadido correctamente del tramo seleccionado';
+  String get newTrackAddedFromSelectedSegment =>
+      'Nuevo track añadido correctamente del tramo seleccionado';
 
   @override
   String get addTrack => 'AÑADIR TRACK';
@@ -114,7 +118,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get route => 'RUTA';
 
   @override
-  String get waypointAddedToActiveTrack => 'Waypoint añadido correctamente al track activo';
+  String get waypointAddedToActiveTrack =>
+      'Waypoint añadido correctamente al track activo';
 
   @override
   String get waypointNamePrefix => 'WP';
@@ -124,6 +129,21 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get toolDraw => 'Dibujar ruta';
+
+  @override
+  String get toolEditGeometry => 'Editar geometría';
+
+  @override
+  String get addNode => 'Añadir nodo';
+
+  @override
+  String get deleteNode => 'Borrar nodo';
+
+  @override
+  String get moveNode => 'Mover nodo';
+
+  @override
+  String get confirmAddNode => 'Añadir nodo aquí';
 
   @override
   String get selectDrawPoint => 'Fijar punto en el mapa';

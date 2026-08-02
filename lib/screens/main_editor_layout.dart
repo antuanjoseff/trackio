@@ -304,7 +304,7 @@ class MainEditorLayout extends ConsumerWidget {
 
                       // 🧩 5.3. EDITAR GEOMETRIA
                       IconButton(
-                        tooltip: 'Editar geometria',
+                        tooltip: t.toolEditGeometry,
                         isSelected: liveActiveTool == 'edit_geometry',
                         selectedIcon: Icon(
                           Icons.hub_rounded,
