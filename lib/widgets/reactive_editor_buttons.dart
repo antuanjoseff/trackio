@@ -349,6 +349,78 @@ class ReactiveDeleteNodeButton extends ConsumerWidget {
   }
 }
 
+class ReactiveMoveNodeButton extends ConsumerWidget {
+  const ReactiveMoveNodeButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = AppLocalizations.of(context)!;
+    final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
+    final geometryMode = ref.watch(
+      gpxEditorProvider.select((s) => s.geometryEditMode),
+    );
+    final isMapIdle = ref.watch(gpxEditorProvider.select((s) => s.isMapIdle));
+    final hasSnap = ref.watch(
+      gpxEditorProvider.select((s) => s.snappedPoint != null),
+    );
+    final selectedMoveNodeIndex = ref.watch(
+      gpxEditorProvider.select((s) => s.geometryMoveNodeIndex),
+    );
+    final showElevationChart = ref.watch(
+      gpxEditorProvider.select((s) => s.showElevationChart),
+    );
+
+    if (activeTool != 'edit_geometry' ||
+        geometryMode != 'move' ||
+        !isMapIdle ||
+        !hasSnap) {
+      return const SizedBox.shrink();
+    }
+
+    final bool isNodeAlreadySelected = selectedMoveNodeIndex != null;
+
+    return Positioned(
+      bottom: showElevationChart ? 200 : 24,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: FloatingActionButton.extended(
+          backgroundColor: isNodeAlreadySelected
+              ? Colors.blue.shade700
+              : Colors.blueGrey.shade700,
+          icon: Icon(
+            isNodeAlreadySelected
+                ? Icons.check_circle_outline
+                : Icons.open_with,
+            color: Colors.white,
+          ),
+          label: Text(
+            isNodeAlreadySelected ? t.confirmMoveNode : t.selectMoveNode,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          onPressed: () {
+            final notifier = ref.read(gpxEditorProvider.notifier);
+            if (isNodeAlreadySelected) {
+              notifier.confirmMoveNodePosition();
+            } else {
+              notifier.selectMoveNodeFromCurrentSnap();
+            }
+
+            final screenState = context
+                .findAncestorStateOfType<MainEditorScreenState>();
+            if (screenState != null) {
+              screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class ReactiveGeometryEditToolbar extends ConsumerWidget {
   const ReactiveGeometryEditToolbar({super.key});
 
@@ -361,6 +433,9 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
     );
     final geometryMode = ref.watch(
       gpxEditorProvider.select((s) => s.geometryEditMode),
+    );
+    final canUndoGeometry = ref.watch(
+      gpxEditorProvider.select((s) => s.geometryCanUndo),
     );
 
     if (activeTool != 'edit_geometry' || !hasSelectedTrack) {
@@ -439,6 +514,29 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                     color: geometryMode == 'move'
                         ? Colors.blue.shade700
                         : Colors.blue,
+                  ),
+                ),
+                IconButton(
+                  tooltip: t.undoGeometryEdit,
+                  onPressed: canUndoGeometry
+                      ? () {
+                          ref
+                              .read(gpxEditorProvider.notifier)
+                              .undoLastGeometryEdit();
+                          final screenState = context
+                              .findAncestorStateOfType<MainEditorScreenState>();
+                          if (screenState != null) {
+                            screenState.paintLiveOverlays(
+                              ref.read(gpxEditorProvider),
+                            );
+                          }
+                        }
+                      : null,
+                  icon: Icon(
+                    Icons.undo,
+                    color: canUndoGeometry
+                        ? Colors.orange.shade700
+                        : Colors.grey.shade400,
                   ),
                 ),
               ],

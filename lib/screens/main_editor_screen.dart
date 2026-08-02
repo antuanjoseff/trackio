@@ -44,6 +44,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isReverseAnimating = false;
   bool _isDraggingMap = false;
   bool _isSidebarReordering = false;
+  bool _isWebGeometryNodeDragging = false;
   late final AppLifecycleListener _lifecycleListener;
   final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
@@ -192,11 +193,15 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final bool isGeometryDeleteMode =
         editorState.activeTool == 'edit_geometry' &&
         editorState.geometryEditMode == 'delete';
+    final bool isGeometryMoveMode =
+        editorState.activeTool == 'edit_geometry' &&
+        editorState.geometryEditMode == 'move';
     final MouseCursor mapCursor =
         hasMouse &&
             (activeTool == 'add_waypoint' ||
                 isGeometryAddMode ||
-                isGeometryDeleteMode)
+                isGeometryDeleteMode ||
+                isGeometryMoveMode)
         ? SystemMouseCursors.precise
         : MouseCursor.defer;
 
@@ -210,7 +215,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               'draw',
             ].contains(activeTool) ||
             isGeometryAddMode ||
-            isGeometryDeleteMode);
+            isGeometryDeleteMode ||
+            isGeometryMoveMode);
 
     // 🌟 REPARACIÓ 3A: Escolta exclusivament el canvi de Track seleccionat per centrar la càmera
     ref.listen<int?>(gpxEditorProvider.select((s) => s.selectedTrackId), (
@@ -260,7 +266,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         StaticEditorMapWidget(
           key: _staticMapKey,
           cursor: mapCursor,
-          panEnabled: !_isSidebarReordering,
+          panEnabled: !_isSidebarReordering && !_isWebGeometryNodeDragging,
           onMapCreated: (c) {
             _controller = c;
           },
@@ -282,6 +288,81 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             if (!hasMouse) return;
             final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
             _handleMouseMove(coordinates, zoom, ref.read(gpxEditorProvider));
+          },
+          onMousePrimaryDownMap: (coordinates) {
+            final state = ref.read(gpxEditorProvider);
+            if (!hasMouse ||
+                state.activeTool != 'edit_geometry' ||
+                state.geometryEditMode != 'move') {
+              return;
+            }
+
+            final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
+            final notifier = ref.read(gpxEditorProvider.notifier);
+
+            notifier.calculateMoveNodeSnap(
+              coordinates.latitude,
+              coordinates.longitude,
+              zoom,
+            );
+            notifier.selectMoveNodeFromCurrentSnap();
+
+            final int? selectedIndex = ref
+                .read(gpxEditorProvider)
+                .geometryMoveNodeIndex;
+            if (selectedIndex == null) return;
+
+            if (mounted) {
+              setState(() {
+                _isWebGeometryNodeDragging = true;
+              });
+            }
+
+            notifier.setMapIdle(false);
+            paintLiveOverlays(ref.read(gpxEditorProvider));
+          },
+          onMousePrimaryDragMap: (coordinates) {
+            final state = ref.read(gpxEditorProvider);
+            if (!hasMouse ||
+                !_isWebGeometryNodeDragging ||
+                state.activeTool != 'edit_geometry' ||
+                state.geometryEditMode != 'move' ||
+                state.geometryMoveNodeIndex == null) {
+              return;
+            }
+
+            if (_throttleTimer?.isActive ?? false) return;
+            _throttleTimer = Timer(const Duration(milliseconds: 50), () {
+              final notifier = ref.read(gpxEditorProvider.notifier);
+              notifier.moveSelectedNodeTo(
+                coordinates.latitude,
+                coordinates.longitude,
+              );
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              unawaited(_updateGeometryNodesOverlay());
+            });
+          },
+          onMousePrimaryUpMap: () {
+            final state = ref.read(gpxEditorProvider);
+            if (!hasMouse ||
+                !_isWebGeometryNodeDragging ||
+                state.activeTool != 'edit_geometry' ||
+                state.geometryEditMode != 'move') {
+              return;
+            }
+
+            _throttleTimer?.cancel();
+            if (mounted) {
+              setState(() {
+                _isWebGeometryNodeDragging = false;
+              });
+            }
+
+            final notifier = ref.read(gpxEditorProvider.notifier);
+            notifier.confirmMoveNodePosition();
+            notifier.setMapIdle(true);
+            paintLiveOverlays(ref.read(gpxEditorProvider));
+            unawaited(_updateGeometryNodesOverlay());
           },
 
           onMapClick: (coordinates) async {
@@ -491,6 +572,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           const ReactiveWaypointButton(),
           const ReactiveAddNodeButton(),
           const ReactiveDeleteNodeButton(),
+          const ReactiveMoveNodeButton(),
         ],
         const ReactiveGeometryEditToolbar(),
         const ReactiveDrawButton(),
@@ -609,6 +691,22 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return;
     }
 
+    if (state.activeTool == 'edit_geometry' &&
+        state.geometryEditMode == 'move' &&
+        _hasMouseConnected &&
+        !_isWebGeometryNodeDragging) {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .calculateMoveNodeSnap(
+            targetCoords.latitude,
+            targetCoords.longitude,
+            currentZoom,
+          );
+      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      paintLiveOverlays(ref.read(gpxEditorProvider));
+      return;
+    }
+
     // ✂️ 3. EINES CONTEXTUALS (SPLIT, RANGE_MAP, MERGE) PER A RATOLÍ:
     if (!['split', 'range_map', 'merge'].contains(state.activeTool)) return;
     if (_throttleTimer?.isActive ?? false) return;
@@ -684,7 +782,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         liveTool == 'edit_geometry' && liveState.geometryEditMode == 'add';
     final bool isGeometryDeleteMode =
         liveTool == 'edit_geometry' && liveState.geometryEditMode == 'delete';
-    final bool isGeometrySnapMode = isGeometryAddMode || isGeometryDeleteMode;
+    final bool isGeometryMoveMode =
+        liveTool == 'edit_geometry' && liveState.geometryEditMode == 'move';
+    final bool isGeometrySnapMode =
+        isGeometryAddMode || isGeometryDeleteMode || isGeometryMoveMode;
 
     if (liveTool == 'edit_geometry' && !isGeometrySnapMode) {
       if (_throttleTimer?.isActive ?? false) return;
@@ -710,7 +811,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                 pos.target.longitude,
                 pos.zoom,
               );
-        } else {
+        } else if (isGeometryDeleteMode) {
           ref
               .read(gpxEditorProvider.notifier)
               .calculateDeleteNodeSnap(
@@ -718,6 +819,20 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                 pos.target.longitude,
                 pos.zoom,
               );
+        } else {
+          final notifier = ref.read(gpxEditorProvider.notifier);
+          if (liveState.geometryMoveNodeIndex == null) {
+            notifier.calculateMoveNodeSnap(
+              pos.target.latitude,
+              pos.target.longitude,
+              pos.zoom,
+            );
+          } else {
+            notifier.moveSelectedNodeTo(
+              pos.target.latitude,
+              pos.target.longitude,
+            );
+          }
         }
         unawaited(_updateGeometryNodesOverlay());
         paintLiveOverlays(ref.read(gpxEditorProvider));
@@ -796,7 +911,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     if (state.activeTool == 'edit_geometry') {
       await _updateGeometryNodesOverlay();
       if (state.geometryEditMode != 'add' &&
-          state.geometryEditMode != 'delete') {
+          state.geometryEditMode != 'delete' &&
+          state.geometryEditMode != 'move') {
         return;
       }
 
@@ -809,7 +925,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               pos.target.longitude,
               pos.zoom,
             );
-      } else {
+      } else if (state.geometryEditMode == 'delete') {
         ref
             .read(gpxEditorProvider.notifier)
             .calculateDeleteNodeSnap(
@@ -817,6 +933,20 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               pos.target.longitude,
               pos.zoom,
             );
+      } else {
+        final notifier = ref.read(gpxEditorProvider.notifier);
+        if (state.geometryMoveNodeIndex == null) {
+          notifier.calculateMoveNodeSnap(
+            pos.target.latitude,
+            pos.target.longitude,
+            pos.zoom,
+          );
+        } else {
+          notifier.moveSelectedNodeTo(
+            pos.target.latitude,
+            pos.target.longitude,
+          );
+        }
       }
       ref.read(gpxEditorProvider.notifier).setMapIdle(true);
       paintLiveOverlays(ref.read(gpxEditorProvider));

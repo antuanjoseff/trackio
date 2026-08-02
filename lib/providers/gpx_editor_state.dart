@@ -31,6 +31,8 @@ class GpxEditorState {
   // 🌟 Edició de geometria
   final String? geometryEditMode; // 'add' | 'delete' | 'move'
   final int? geometryInsertIndex;
+  final int? geometryMoveNodeIndex;
+  final bool geometryCanUndo;
 
   // 🌟 Dibuix interactiu
   final List<TrackPointModel> drawingPoints;
@@ -60,6 +62,8 @@ class GpxEditorState {
     this.waypointCameraPosition,
     this.geometryEditMode,
     this.geometryInsertIndex,
+    this.geometryMoveNodeIndex,
+    this.geometryCanUndo = false,
     this.showSidebar = true,
     this.drawingPoints = const [],
     this.drawingLivePoint,
@@ -94,6 +98,8 @@ class GpxEditorState {
     Object? waypointCameraPosition = _noChange,
     Object? geometryEditMode = _noChange,
     Object? geometryInsertIndex = _noChange,
+    Object? geometryMoveNodeIndex = _noChange,
+    bool? geometryCanUndo,
     bool? showSidebar,
     List<TrackPointModel>? drawingPoints,
     Object? drawingLivePoint = _noChange,
@@ -148,6 +154,10 @@ class GpxEditorState {
       geometryInsertIndex: identical(geometryInsertIndex, _noChange)
           ? this.geometryInsertIndex
           : geometryInsertIndex as int?,
+      geometryMoveNodeIndex: identical(geometryMoveNodeIndex, _noChange)
+          ? this.geometryMoveNodeIndex
+          : geometryMoveNodeIndex as int?,
+      geometryCanUndo: geometryCanUndo ?? this.geometryCanUndo,
       showSidebar: showSidebar ?? this.showSidebar,
       drawingPoints: drawingPoints ?? this.drawingPoints,
       drawingLivePoint: identical(drawingLivePoint, _noChange)

@@ -141,7 +141,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get moveNode => 'Move node';
 
   @override
+  String get selectMoveNode => 'Select node to move';
+
+  @override
+  String get confirmMoveNode => 'Confirm new position';
+
+  @override
   String get confirmAddNode => 'Add node here';
+
+  @override
+  String get undoGeometryEdit => 'Undo change';
 
   @override
   String get selectDrawPoint => 'Fix point on map';

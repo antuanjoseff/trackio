@@ -143,7 +143,16 @@ class AppLocalizationsCa extends AppLocalizations {
   String get moveNode => 'Moure node';
 
   @override
+  String get selectMoveNode => 'Seleccionar node a moure';
+
+  @override
+  String get confirmMoveNode => 'Fixar nova posició';
+
+  @override
   String get confirmAddNode => 'Afegir node aquí';
+
+  @override
+  String get undoGeometryEdit => 'Desfer canvi';
 
   @override
   String get selectDrawPoint => 'Fixar punt al mapa';

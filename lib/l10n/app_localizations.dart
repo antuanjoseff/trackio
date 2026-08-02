@@ -358,11 +358,29 @@ abstract class AppLocalizations {
   /// **'Move node'**
   String get moveNode;
 
+  /// No description provided for @selectMoveNode.
+  ///
+  /// In en, this message translates to:
+  /// **'Select node to move'**
+  String get selectMoveNode;
+
+  /// No description provided for @confirmMoveNode.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm new position'**
+  String get confirmMoveNode;
+
   /// No description provided for @confirmAddNode.
   ///
   /// In en, this message translates to:
   /// **'Add node here'**
   String get confirmAddNode;
+
+  /// No description provided for @undoGeometryEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo change'**
+  String get undoGeometryEdit;
 
   /// No description provided for @selectDrawPoint.
   ///

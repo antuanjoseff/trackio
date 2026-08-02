@@ -11,6 +11,9 @@ class StaticEditorMapWidget extends StatefulWidget {
   final Function(CameraPosition) onCameraMove;
   final VoidCallback onCameraIdle;
   final Function(LatLng coordinates)? onMouseHoverMap;
+  final Function(LatLng coordinates)? onMousePrimaryDownMap;
+  final Function(LatLng coordinates)? onMousePrimaryDragMap;
+  final VoidCallback? onMousePrimaryUpMap;
   final MouseCursor cursor;
   final bool panEnabled;
 
@@ -25,6 +28,9 @@ class StaticEditorMapWidget extends StatefulWidget {
     this.cursor = MouseCursor.defer,
     this.panEnabled = true,
     this.onMouseHoverMap,
+    this.onMousePrimaryDownMap,
+    this.onMousePrimaryDragMap,
+    this.onMousePrimaryUpMap,
     this.onMapClick,
   });
 
@@ -57,7 +63,7 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
   }
 
   Future<void> _handleMousePrimaryDown(PointerDownEvent event) async {
-    if (!_hasMouse || widget.onMapClick == null || _mapController == null) {
+    if (!_hasMouse || _mapController == null) {
       return;
     }
     if (event.kind != PointerDeviceKind.mouse ||
@@ -72,9 +78,17 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     _suppressNativeMapClickUntil = DateTime.now().add(
       const Duration(milliseconds: 300),
     );
+
+    if (widget.onMousePrimaryDownMap != null) {
+      final latLng = await _mapController!.toLatLng(
+        math.Point<num>(event.localPosition.dx, event.localPosition.dy),
+      );
+      if (!mounted) return;
+      widget.onMousePrimaryDownMap!(latLng);
+    }
   }
 
-  void _handleMousePrimaryMove(PointerMoveEvent event) {
+  Future<void> _handleMousePrimaryMove(PointerMoveEvent event) async {
     if (event.kind != PointerDeviceKind.mouse) return;
     final Offset? down = _mousePrimaryDownOffset;
     if (down == null) return;
@@ -83,11 +97,21 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     final double dy = event.localPosition.dy - down.dy;
     if ((dx * dx + dy * dy) >= (_mouseClickSlopPx * _mouseClickSlopPx)) {
       _mousePrimaryMoved = true;
+
+      if (widget.onMousePrimaryDragMap != null &&
+          _mapController != null &&
+          event.buttons == kPrimaryMouseButton) {
+        final latLng = await _mapController!.toLatLng(
+          math.Point<num>(event.localPosition.dx, event.localPosition.dy),
+        );
+        if (!mounted) return;
+        widget.onMousePrimaryDragMap!(latLng);
+      }
     }
   }
 
   Future<void> _handleMousePrimaryUp(PointerUpEvent event) async {
-    if (!_hasMouse || widget.onMapClick == null || _mapController == null) {
+    if (!_hasMouse || _mapController == null) {
       _mousePrimaryDownOffset = null;
       _mousePrimaryMoved = false;
       return;
@@ -104,7 +128,11 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     _mousePrimaryDownOffset = null;
     _mousePrimaryMoved = false;
 
-    if (!shouldTriggerClick) {
+    if (widget.onMousePrimaryUpMap != null) {
+      widget.onMousePrimaryUpMap!();
+    }
+
+    if (!shouldTriggerClick || widget.onMapClick == null) {
       return;
     }
 

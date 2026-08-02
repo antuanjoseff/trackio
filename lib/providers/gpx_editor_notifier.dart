@@ -7,6 +7,24 @@ import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/services/track_elevation_service.dart';
 import 'dart:math' as math;
 
+enum _GeometryEditActionType { add, delete, move }
+
+class _GeometryUndoEntry {
+  final _GeometryEditActionType action;
+  final int trackId;
+  final int index;
+  final TrackPointModel? beforePoint;
+  final TrackPointModel? afterPoint;
+
+  const _GeometryUndoEntry({
+    required this.action,
+    required this.trackId,
+    required this.index,
+    this.beforePoint,
+    this.afterPoint,
+  });
+}
+
 final gpxEditorProvider = StateNotifierProvider<GpxEditor, GpxEditorState>((
   ref,
 ) {
@@ -17,6 +35,12 @@ final gpxEditorProvider = StateNotifierProvider<GpxEditor, GpxEditorState>((
 class GpxEditor extends StateNotifier<GpxEditorState> {
   // 🌟 REPARAT: Eliminem l'antiga instància d'EnvironmentSensors i canviem el tipat a int
   StreamSubscription<int>? _lightSubscription;
+  final List<_GeometryUndoEntry> _geometryUndoStack = [];
+  int? _moveOriginTrackId;
+  int? _moveOriginIndex;
+  TrackPointModel? _moveOriginPoint;
+
+  static const int _maxGeometryUndoEntries = 100;
 
   // El constructor clàssic inicialitza l'estat i activa el sensor modern
   GpxEditor() : super(GpxEditorState.initial());
@@ -28,12 +52,52 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     super.dispose();
   }
 
+  TrackPointModel _clonePoint(TrackPointModel point) {
+    return TrackPointModel(
+      latitude: point.latitude,
+      longitude: point.longitude,
+      elevation: point.elevation,
+      timestamp: point.timestamp,
+    );
+  }
+
+  bool _samePoint(TrackPointModel a, TrackPointModel b) {
+    return a.latitude == b.latitude &&
+        a.longitude == b.longitude &&
+        a.elevation == b.elevation &&
+        a.timestamp == b.timestamp;
+  }
+
+  void _refreshGeometryUndoAvailability() {
+    state = state.copyWith(geometryCanUndo: _geometryUndoStack.isNotEmpty);
+  }
+
+  void _pushGeometryUndo(_GeometryUndoEntry entry) {
+    _geometryUndoStack.add(entry);
+    if (_geometryUndoStack.length > _maxGeometryUndoEntries) {
+      _geometryUndoStack.removeAt(0);
+    }
+    _refreshGeometryUndoAvailability();
+  }
+
+  void _clearGeometryUndoHistory() {
+    if (_geometryUndoStack.isEmpty && !state.geometryCanUndo) return;
+    _geometryUndoStack.clear();
+    _refreshGeometryUndoAvailability();
+  }
+
   /// Selecciona el track en el estado global.
   void selectTrack(int? trackId) {
+    _moveOriginTrackId = null;
+    _moveOriginIndex = null;
+    _moveOriginPoint = null;
+    _clearGeometryUndoHistory();
+
     state = state.copyWith(
       selectedTrackId: trackId,
       snappedPoint: null,
       snappedPointIndex: null,
+      geometryMoveNodeIndex: null,
       selectionStartIndex: null,
       selectionEndIndex: -1,
       isSelectingRange: false,
@@ -44,12 +108,18 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   void setActiveTool(String tool) {
     final bool isGeometryTool = tool == 'edit_geometry';
+    if (!isGeometryTool) {
+      _moveOriginTrackId = null;
+      _moveOriginIndex = null;
+      _moveOriginPoint = null;
+    }
 
     state = state.copyWith(
       activeTool: tool,
       snappedPoint: null,
       snappedPointIndex: null,
       geometryInsertIndex: null,
+      geometryMoveNodeIndex: null,
       geometryEditMode: isGeometryTool ? 'add' : null,
       // Si obrim qualsevol altra eina, netegem el rang estàtic de la memòria
       selectionStartIndex: null,
@@ -81,6 +151,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       snappedPoint: null,
       snappedPointIndex: null,
       geometryInsertIndex: null,
+      geometryMoveNodeIndex: null,
       isMapIdle: false,
     );
   }
@@ -219,13 +290,45 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       targetTrack.points,
     );
 
+    final TrackPointModel previousPoint = updatedPoints[insertIndex - 1];
+    final TrackPointModel nextPoint = updatedPoints[insertIndex];
+
+    double? averagedElevation;
+    if (previousPoint.elevation != null && nextPoint.elevation != null) {
+      averagedElevation =
+          (previousPoint.elevation! + nextPoint.elevation!) / 2.0;
+    } else {
+      averagedElevation = previousPoint.elevation ?? nextPoint.elevation;
+    }
+
+    DateTime? averagedTimestamp;
+    if (previousPoint.timestamp != null && nextPoint.timestamp != null) {
+      final int averagedMillis =
+          ((previousPoint.timestamp!.millisecondsSinceEpoch +
+                      nextPoint.timestamp!.millisecondsSinceEpoch) /
+                  2)
+              .round();
+      averagedTimestamp = DateTime.fromMillisecondsSinceEpoch(averagedMillis);
+    } else {
+      averagedTimestamp = previousPoint.timestamp ?? nextPoint.timestamp;
+    }
+
     updatedPoints.insert(
       insertIndex,
       TrackPointModel(
         latitude: state.snappedPoint!.latitude,
         longitude: state.snappedPoint!.longitude,
-        elevation: state.snappedPoint!.elevation,
-        timestamp: DateTime.now(),
+        elevation: averagedElevation,
+        timestamp: averagedTimestamp,
+      ),
+    );
+
+    _pushGeometryUndo(
+      _GeometryUndoEntry(
+        action: _GeometryEditActionType.add,
+        trackId: targetTrack.id,
+        index: insertIndex,
+        afterPoint: _clonePoint(updatedPoints[insertIndex]),
       ),
     );
 
@@ -323,9 +426,22 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final int deleteIndex = state.snappedPointIndex!;
     if (deleteIndex < 0 || deleteIndex >= targetTrack.points.length) return;
 
+    final TrackPointModel deletedPoint = _clonePoint(
+      targetTrack.points[deleteIndex],
+    );
+
     final List<TrackPointModel> updatedPoints = List<TrackPointModel>.from(
       targetTrack.points,
     )..removeAt(deleteIndex);
+
+    _pushGeometryUndo(
+      _GeometryUndoEntry(
+        action: _GeometryEditActionType.delete,
+        trackId: targetTrack.id,
+        index: deleteIndex,
+        beforePoint: deletedPoint,
+      ),
+    );
 
     final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
     updatedTracks[trackIndex] = targetTrack.copyWith(points: updatedPoints);
@@ -337,6 +453,275 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       geometryInsertIndex: null,
       isMapIdle: false,
     );
+  }
+
+  void calculateMoveNodeSnap(
+    double centerLat,
+    double centerLng,
+    double currentZoom,
+  ) {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'move') {
+      return;
+    }
+    if (state.selectedTrackId == null || state.tracks.isEmpty) {
+      return;
+    }
+
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
+    if (track.points.isEmpty) {
+      state = state.copyWith(
+        snappedPoint: null,
+        snappedPointIndex: null,
+        geometryInsertIndex: null,
+      );
+      return;
+    }
+
+    if (state.geometryMoveNodeIndex != null) {
+      final int selectedIndex = state.geometryMoveNodeIndex!;
+      if (selectedIndex < 0 || selectedIndex >= track.points.length) {
+        state = state.copyWith(
+          geometryMoveNodeIndex: null,
+          snappedPoint: null,
+          snappedPointIndex: null,
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        snappedPoint: track.points[selectedIndex],
+        snappedPointIndex: selectedIndex,
+        geometryInsertIndex: null,
+      );
+      return;
+    }
+
+    double bestDistance = double.infinity;
+    int bestIndex = -1;
+
+    for (int i = 0; i < track.points.length; i++) {
+      final p = track.points[i];
+      if (p.latitude == null || p.longitude == null) continue;
+
+      final lat = (p.latitude! - centerLat) * 111320;
+      final lng =
+          (p.longitude! - centerLng) *
+          111320 *
+          math.cos(centerLat * math.pi / 180);
+
+      final distance = lat * lat + lng * lng;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+
+    final double maxDistance = currentZoom < 12
+        ? 120.0
+        : (currentZoom < 15 ? 60.0 : 25.0);
+
+    if (bestIndex >= 0 && bestDistance < maxDistance * maxDistance) {
+      state = state.copyWith(
+        snappedPoint: track.points[bestIndex],
+        snappedPointIndex: bestIndex,
+        geometryInsertIndex: null,
+      );
+    } else {
+      state = state.copyWith(
+        snappedPoint: null,
+        snappedPointIndex: null,
+        geometryInsertIndex: null,
+      );
+    }
+  }
+
+  void selectMoveNodeFromCurrentSnap() {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'move') {
+      return;
+    }
+    if (state.selectedTrackId == null || state.snappedPointIndex == null) {
+      return;
+    }
+
+    final trackIndex = state.tracks.indexWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    if (trackIndex == -1) return;
+
+    final int selectedIndex = state.snappedPointIndex!;
+    final targetTrack = state.tracks[trackIndex];
+    if (selectedIndex < 0 || selectedIndex >= targetTrack.points.length) return;
+
+    _moveOriginTrackId = targetTrack.id;
+    _moveOriginIndex = selectedIndex;
+    _moveOriginPoint = _clonePoint(targetTrack.points[selectedIndex]);
+
+    state = state.copyWith(
+      geometryMoveNodeIndex: state.snappedPointIndex,
+      isMapIdle: false,
+    );
+  }
+
+  void moveSelectedNodeTo(double latitude, double longitude) {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'move') {
+      return;
+    }
+    if (state.selectedTrackId == null || state.geometryMoveNodeIndex == null) {
+      return;
+    }
+
+    final trackIndex = state.tracks.indexWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    if (trackIndex == -1) return;
+
+    final targetTrack = state.tracks[trackIndex];
+    final int moveIndex = state.geometryMoveNodeIndex!;
+    if (moveIndex < 0 || moveIndex >= targetTrack.points.length) return;
+
+    final oldPoint = targetTrack.points[moveIndex];
+    final movedPoint = TrackPointModel(
+      latitude: latitude,
+      longitude: longitude,
+      elevation: oldPoint.elevation,
+      timestamp: oldPoint.timestamp,
+    );
+
+    final List<TrackPointModel> updatedPoints = List<TrackPointModel>.from(
+      targetTrack.points,
+    );
+    updatedPoints[moveIndex] = movedPoint;
+
+    final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
+    updatedTracks[trackIndex] = targetTrack.copyWith(points: updatedPoints);
+
+    state = state.copyWith(
+      tracks: updatedTracks,
+      snappedPoint: movedPoint,
+      snappedPointIndex: moveIndex,
+      geometryInsertIndex: null,
+    );
+  }
+
+  void confirmMoveNodePosition() {
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != 'move') {
+      return;
+    }
+
+    final int? originTrackId = _moveOriginTrackId;
+    final int? originIndex = _moveOriginIndex;
+    final TrackPointModel? originPoint = _moveOriginPoint;
+
+    if (originTrackId != null && originIndex != null && originPoint != null) {
+      final int trackIndex = state.tracks.indexWhere(
+        (t) => t.id == originTrackId,
+      );
+      if (trackIndex != -1) {
+        final track = state.tracks[trackIndex];
+        if (originIndex >= 0 && originIndex < track.points.length) {
+          final TrackPointModel currentPoint = track.points[originIndex];
+          if (!_samePoint(originPoint, currentPoint)) {
+            _pushGeometryUndo(
+              _GeometryUndoEntry(
+                action: _GeometryEditActionType.move,
+                trackId: originTrackId,
+                index: originIndex,
+                beforePoint: _clonePoint(originPoint),
+                afterPoint: _clonePoint(currentPoint),
+              ),
+            );
+          }
+        }
+      }
+    }
+
+    _moveOriginTrackId = null;
+    _moveOriginIndex = null;
+    _moveOriginPoint = null;
+
+    state = state.copyWith(
+      geometryMoveNodeIndex: null,
+      snappedPoint: null,
+      snappedPointIndex: null,
+      isMapIdle: false,
+    );
+  }
+
+  void undoLastGeometryEdit() {
+    if (_geometryUndoStack.isEmpty) return;
+
+    final _GeometryUndoEntry action = _geometryUndoStack.removeLast();
+    final int trackIndex = state.tracks.indexWhere(
+      (t) => t.id == action.trackId,
+    );
+    if (trackIndex == -1) {
+      _refreshGeometryUndoAvailability();
+      return;
+    }
+
+    final targetTrack = state.tracks[trackIndex];
+    final List<TrackPointModel> updatedPoints = List<TrackPointModel>.from(
+      targetTrack.points,
+    );
+
+    TrackPointModel? nextSnappedPoint;
+    int? nextSnappedPointIndex;
+
+    switch (action.action) {
+      case _GeometryEditActionType.add:
+        if (action.index < 0 || action.index >= updatedPoints.length) {
+          _refreshGeometryUndoAvailability();
+          return;
+        }
+        updatedPoints.removeAt(action.index);
+        break;
+      case _GeometryEditActionType.delete:
+        if (action.beforePoint == null) {
+          _refreshGeometryUndoAvailability();
+          return;
+        }
+        if (action.index < 0 || action.index > updatedPoints.length) {
+          _refreshGeometryUndoAvailability();
+          return;
+        }
+        final restored = _clonePoint(action.beforePoint!);
+        updatedPoints.insert(action.index, restored);
+        nextSnappedPoint = restored;
+        nextSnappedPointIndex = action.index;
+        break;
+      case _GeometryEditActionType.move:
+        if (action.beforePoint == null) {
+          _refreshGeometryUndoAvailability();
+          return;
+        }
+        if (action.index < 0 || action.index >= updatedPoints.length) {
+          _refreshGeometryUndoAvailability();
+          return;
+        }
+        final restored = _clonePoint(action.beforePoint!);
+        updatedPoints[action.index] = restored;
+        nextSnappedPoint = restored;
+        nextSnappedPointIndex = action.index;
+        break;
+    }
+
+    final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
+    updatedTracks[trackIndex] = targetTrack.copyWith(points: updatedPoints);
+
+    state = state.copyWith(
+      tracks: updatedTracks,
+      snappedPoint: nextSnappedPoint,
+      snappedPointIndex: nextSnappedPointIndex,
+      geometryInsertIndex: null,
+      geometryMoveNodeIndex: null,
+      isMapIdle: true,
+    );
+
+    _refreshGeometryUndoAvailability();
   }
 
   void toggleElevationChart() {
@@ -380,6 +765,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   // Mantenim el teu mètode original de tota la vida intacte:
   void addImportedTracks(List<TrackModel> newTracks) {
+    _clearGeometryUndoHistory();
+
     final List<TrackModel> fixed = [];
     int baseTimestamp = DateTime.now().microsecondsSinceEpoch;
 
