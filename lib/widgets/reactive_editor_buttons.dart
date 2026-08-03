@@ -437,8 +437,14 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
     final canUndoGeometry = ref.watch(
       gpxEditorProvider.select((s) => s.geometryCanUndo),
     );
+    final bool isSmallScreen = MediaQuery.of(context).size.width <= 800;
+    final bool isMobileApp =
+        Theme.of(context).platform == TargetPlatform.android ||
+        Theme.of(context).platform == TargetPlatform.iOS;
 
-    if (activeTool != 'edit_geometry' || !hasSelectedTrack) {
+    if (activeTool != 'edit_geometry' ||
+        !hasSelectedTrack ||
+        (isSmallScreen && isMobileApp)) {
       return const SizedBox.shrink();
     }
 
@@ -537,6 +543,16 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                     color: canUndoGeometry
                         ? Colors.orange.shade700
                         : Colors.grey.shade400,
+                  ),
+                ),
+                IconButton(
+                  tooltip: t.cancel,
+                  onPressed: () => ref
+                      .read(gpxEditorProvider.notifier)
+                      .setActiveTool('none'),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.redAccent,
                   ),
                 ),
               ],

@@ -4,7 +4,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/l10n/app_localizations.dart';
-import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/screens/main_editor_screen.dart';
 

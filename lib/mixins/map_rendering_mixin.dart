@@ -458,9 +458,9 @@ mixin MapRenderingMixin {
           "layer_geometry_nodes",
           const CircleLayerProperties(
             circleColor: "#FFFFFF",
-            circleRadius: 4.0,
+            circleRadius: 5.5,
             circleStrokeColor: "#1A73E8",
-            circleStrokeWidth: 1.5,
+            circleStrokeWidth: 2.0,
             circleOpacity: 0.95,
           ),
         );

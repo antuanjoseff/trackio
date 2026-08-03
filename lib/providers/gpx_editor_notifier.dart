@@ -120,7 +120,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       snappedPointIndex: null,
       geometryInsertIndex: null,
       geometryMoveNodeIndex: null,
-      geometryEditMode: isGeometryTool ? 'add' : null,
+      geometryEditMode: null,
       // Si obrim qualsevol altra eina, netegem el rang estàtic de la memòria
       selectionStartIndex: null,
       selectionEndIndex: -1,
