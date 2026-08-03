@@ -11,22 +11,17 @@ class CogService {
   final int _maxTiles = 4;
 
   Future<CogTile> _downloadTile(double lat, double lon) async {
-    // final uri = Uri.https(
-    //   'cog-tiles-euaeg7eaavbqczgf.spaincentral-01.azurewebsites.net',
-    //   '/api/getTileGrid',
-    //   {'lat': lat.toString(), 'lon': lon.toString()},
-    // );
-
     final uri = Uri.http('213.165.93.0', '/getTileGrid', {
       'lat': lat.toString(),
       'lon': lon.toString(),
     });
 
     final response = await http.get(uri);
-
     final bbox = response.headers['x-bbox']!
+        .replaceAll('(', '')
+        .replaceAll(')', '')
         .split(',')
-        .map(double.parse)
+        .map((e) => double.parse(e.trim()))
         .toList();
 
     final width = int.parse(response.headers['x-width']!);
@@ -75,6 +70,7 @@ class CogService {
 
     double getV(int r, int c) {
       final offset = (r * tile.width + c) * 4;
+
       return ByteData.sublistView(
         tile.data,
         offset,
@@ -86,7 +82,6 @@ class CogService {
     final v21 = getV(y1, x2);
     final v12 = getV(y2, x1);
     final v22 = getV(y2, x2);
-
     final xFrac = x - x1;
     final yFrac = y - y1;
 
@@ -94,11 +89,13 @@ class CogService {
     final bottom = v12 + xFrac * (v22 - v12);
 
     final ele = top + yFrac * (bottom - top);
-    return ele > 0 ? ele : 0.0;
+
+    return ele;
   }
 
   Future<double> getElevation(double lat, double lon) async {
     final tile = await _getTileFor(lat, lon);
-    return _interpolate(tile, lat, lon);
+    final elevation = _interpolate(tile, lat, lon);
+    return elevation;
   }
 }
