@@ -46,37 +46,32 @@ class SelectionPainter extends CustomPainter {
     final double xAxisY =
         chartHeight - bottomReserved - bottomOffset; // El terra real
 
-    // 🏆 LA TEVA FÓRMULA DE LA RÀTIO:
-    // Calculem la ràtio exacte de compressió entre els punts reals i els del gràfic
-    final double ratio = totalTrackPoints / altitudes.length;
-
-    // Convertim l'índex complet del mapa/track (index) a l'índex comprimit del gràfic dividint per la ràtio
-    final int safeChartIndex = (index / ratio).round().clamp(
-      0,
-      altitudes.length - 1,
-    );
-
-    // Llegim l'altitud real directament des del node correcte de la carena
+    // 🌟 LA CLAU DE SINCRO AMB EL RATOLÍ:
+    // El paràmetre 'index' que ens arriba ara ja és l'índex corregit i filtrat de la muntanya.
+    // El forcem a encaixar de forma segura dins de la llista d'altituds.
+    final int safeChartIndex = index.clamp(0, altitudes.length - 1);
     final double realAltitude = altitudes[safeChartIndex];
 
     final double yRange = (maxY - minY) == 0 ? 1.0 : (maxY - minY);
     final double rel = (realAltitude - minY) / yRange;
 
-    // Calculem la coordenada vertical dy invertida de Flutter clada al perfil
+    // Calculem la coordenada vertical 'dy' que intersecta en la carena lila [INDEX]
     final double dy =
         topOffset + (usableChartHeight * (1.0 - rel.clamp(0.0, 1.0)));
 
-    // 1. La línia vertical neix al terra real de la quadrícula (xAxisY) i puja síncronament fins al cercle (dy)
+    // 1. 🌟 LA LÍNIA VERTICAL: Es pinta EXACTAMENT a la 'x' real del ratolí de pantalla,
+    // neix a la base (xAxisY) i puja fins a tocar la línia de la muntanya (dy) [INDEX].
     final linePaint = Paint()
-      ..color = color.withValues(alpha: 0.6)
+      ..color = color
+          .withValues(alpha: 0.6) // Translúcid homogeni de seguretat [INDEX]
       ..strokeWidth = 2.5;
     canvas.drawLine(Offset(x, xAxisY), Offset(x, dy), linePaint);
 
-    // 2. Cercle interior del color de l'agulla (verd, vermell o blau) intersectant amb el relleu
+    // 2. 🌟 EL CERCLE BLAU: Es clava a la mateixa 'x' del ratolí, just a la intersecció 'dy' [INDEX]
     final dotPaint = Paint()..color = color;
     canvas.drawCircle(Offset(x, dy), 5.0, dotPaint);
 
-    // 3. Anell exterior blanc de contrast perfecte sobre la corba del perfil
+    // 3. L'ANELL EXTERIOR BLANC: Enquadrat a la mateixa posició de contrast [INDEX]
     final dotBorder = Paint()
       ..color = Colors.white
       ..strokeWidth = 1.8

@@ -157,18 +157,35 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
   int _metersToIndex(double meters) {
     if (_distances.isEmpty) return 0;
-    int low = 0;
-    int high = _distances.length - 1;
 
-    while (low < high) {
-      int mid = (low + high) ~/ 2;
-      if (_distances[mid] < meters) {
-        low = mid + 1;
-      } else {
-        high = mid;
+    // 1. Calculem exactament el mateix 'step' de compressió que utilitza el gràfic
+    final int len = _validPoints.length;
+    int step = 1;
+    if (len > 2000) {
+      step = (len / 2000).ceil();
+    }
+
+    double minDiff = double.infinity;
+    int bestIndexInFiltered = 0;
+    int filteredCounter = 0;
+
+    // 2. Recorrem el track aplicant el mateix filtre per buscar el punt més proper al ratolí
+    for (int i = 0; i < len; i++) {
+      if (i % step == 0 || i == len - 1) {
+        // Control de seguretat síncron
+        if (i < _distances.length) {
+          final double diff = (_distances[i] - meters).abs();
+          if (diff < minDiff) {
+            minDiff = diff;
+            bestIndexInFiltered = filteredCounter;
+          }
+        }
+        filteredCounter++;
       }
     }
-    return low.clamp(0, _validPoints.length - 1);
+
+    // 3. Retornem l'índex filtrat forçant-lo a encaixar dins de la llista del pintor
+    return bestIndexInFiltered.clamp(0, _filteredAltitudes.length - 1);
   }
 
   Widget _buildFlutterTooltip(
