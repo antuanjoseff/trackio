@@ -17,18 +17,15 @@ class CogService {
     });
 
     final response = await http.get(uri);
-
-    // 🧼 Neteja simplificada: El backend ja envia "2.82,41.99,2.85,42.01"
-    final bboxStr = response.headers['x-bbox']!;
-    final bbox = bboxStr
+    final bbox = response.headers['x-bbox']!
+        .replaceAll('(', '')
+        .replaceAll(')', '')
         .split(',')
-        .map(
-          (e) => double.parse(e.trim()),
-        ) // El .trim() cura en salut per si hi ha espais
+        .map((e) => double.parse(e.trim()))
         .toList();
 
-    final width = int.parse(response.headers['x-width']!.trim());
-    final height = int.parse(response.headers['x-height']!.trim());
+    final width = int.parse(response.headers['x-width']!);
+    final height = int.parse(response.headers['x-height']!);
 
     return CogTile(
       minLon: bbox[0],
