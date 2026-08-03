@@ -11,11 +11,16 @@ class CogService {
   final int _maxTiles = 4;
 
   Future<CogTile> _downloadTile(double lat, double lon) async {
-    final uri = Uri.https(
-      'cog-tiles-euaeg7eaavbqczgf.spaincentral-01.azurewebsites.net',
-      '/api/getTileGrid',
-      {'lat': lat.toString(), 'lon': lon.toString()},
-    );
+    // final uri = Uri.https(
+    //   'cog-tiles-euaeg7eaavbqczgf.spaincentral-01.azurewebsites.net',
+    //   '/api/getTileGrid',
+    //   {'lat': lat.toString(), 'lon': lon.toString()},
+    // );
+
+    final uri = Uri.http('213.165.93.0', '/getTileGrid', {
+      'lat': lat.toString(),
+      'lon': lon.toString(),
+    });
 
     final response = await http.get(uri);
 
