@@ -139,6 +139,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     final double width = renderBox.size.width;
     final double height = renderBox.size.height;
+    const double minNodeSpacingPx = 15.0;
+    final double devicePixelRatio =
+        MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
+    final double coordinateScale = _isMobileApp && devicePixelRatio > 0
+        ? devicePixelRatio
+        : 1.0;
 
     final List<TrackPointModel> visibleNodes = [];
     math.Point<num>? lastAcceptedPoint;
@@ -150,8 +156,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         LatLng(point.latitude!, point.longitude!),
       );
 
-      final double x = screenPoint.x.toDouble();
-      final double y = screenPoint.y.toDouble();
+      final double x = screenPoint.x.toDouble() / coordinateScale;
+      final double y = screenPoint.y.toDouble() / coordinateScale;
 
       if (x < 0 || x > width || y < 0 || y > height) continue;
 
@@ -159,11 +165,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         final double dx = x - lastAcceptedPoint.x.toDouble();
         final double dy = y - lastAcceptedPoint.y.toDouble();
         final double distancePx = math.sqrt((dx * dx) + (dy * dy));
-        if (distancePx < 15.0) continue;
+        if (distancePx < minNodeSpacingPx) continue;
       }
 
       visibleNodes.add(point);
-      lastAcceptedPoint = screenPoint;
+      lastAcceptedPoint = math.Point<num>(x, y);
     }
 
     setGeometryNodesOverlay(visibleNodes);
@@ -788,6 +794,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         isGeometryAddMode || isGeometryDeleteMode || isGeometryMoveMode;
 
     if (liveTool == 'edit_geometry' && !isGeometrySnapMode) {
+      // En APK evitem refrescar nodes mentre es fa pan per reduir flicker;
+      // es recalculen de manera estable a _handleCameraIdle().
+      if (_isMobileApp) return;
+
       if (_throttleTimer?.isActive ?? false) return;
       _throttleTimer = Timer(const Duration(milliseconds: 80), () {
         unawaited(_updateGeometryNodesOverlay());
