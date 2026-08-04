@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/track_stats_calculator.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -85,7 +86,7 @@ class TrackStatsPanel extends ConsumerWidget {
       decoration: BoxDecoration(
         // Si es un tramo, se tiñe sutilmente de naranja para avisar al usuario
         color: isSegment
-            ? Colors.orange.shade50.withOpacity(0.5)
+            ? AppColors.starTrekGold.withOpacity(0.25)
             : Colors.white,
         border: Border(
           top: BorderSide(color: Colors.grey.shade200, width: 1),
@@ -106,7 +107,7 @@ class TrackStatsPanel extends ConsumerWidget {
                     : t.showSpeed,
                 style: IconButton.styleFrom(
                   backgroundColor: editorState.showSpeedInChart
-                      ? Colors.teal.shade50
+                      ? AppColors.starTrekGold.withOpacity(0.35)
                       : Colors.grey.shade100,
                   shape: const CircleBorder(),
                 ),
@@ -115,7 +116,7 @@ class TrackStatsPanel extends ConsumerWidget {
                       ? Icons.speed
                       : Icons.speed_outlined,
                   color: editorState.showSpeedInChart
-                      ? Colors.teal.shade700
+                      ? AppColors.starTrekRed
                       : Colors.grey.shade500,
                   size: 15,
                 ),
@@ -154,10 +155,10 @@ class TrackStatsPanel extends ConsumerWidget {
               decoration: BoxDecoration(
                 // Se vuelve verde llamativo si está listo para ser guardado como un track nuevo
                 color: canAddTrack
-                    ? Colors.green.shade600
+                    ? AppColors.starTrekRed
                     : (isSegment
-                          ? Colors.orange.shade200
-                          : Colors.blue.shade100),
+                          ? AppColors.starTrekGold.withOpacity(0.45)
+                          : AppColors.starTrekGold.withOpacity(0.25)),
                 borderRadius: BorderRadius.circular(4),
                 boxShadow: canAddTrack
                     ? [
@@ -186,8 +187,8 @@ class TrackStatsPanel extends ConsumerWidget {
                       color: canAddTrack
                           ? Colors.white
                           : (isSegment
-                                ? Colors.orange.shade900
-                                : Colors.blue.shade900),
+                                ? AppColors.starTrekRed
+                                : AppColors.starTrekRed),
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -234,7 +235,7 @@ class TrackStatsPanel extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: Colors.grey.shade600),
+          Icon(icon, size: 13, color: AppColors.starTrekRed),
           const SizedBox(width: 5),
           Text(
             value,

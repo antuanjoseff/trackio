@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/l10n/app_localizations.dart';
@@ -542,7 +543,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.85),
+                color: AppColors.starTrekGold.withOpacity(0.85),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -557,7 +558,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                   liveShowSidebar
                       ? Icons.view_sidebar
                       : Icons.view_sidebar_outlined,
-                  color: Colors.blue,
+                  color: AppColors.starTrekRed,
                 ),
                 onPressed: () =>
                     ref.read(gpxEditorProvider.notifier).toggleSidebar(),
@@ -567,7 +568,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
         if (showReticle)
           const Center(
-            child: Icon(Icons.add_circle_outline, size: 40, color: Colors.red),
+            child: Icon(
+              Icons.add_circle_outline,
+              size: 40,
+              color: AppColors.starTrekRed,
+            ),
           ),
 
         // 🌟 En ratolí ocultem botons contextuals, excepte el menú de dibuix

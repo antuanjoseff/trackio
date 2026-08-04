@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -39,70 +40,74 @@ class EditorSidebarWidget extends ConsumerWidget {
     // 🌟 NOVEDAT: Avaluem si estem a l'APK mòbil o pantalles compactes per estilitzar la fila
     final bool isMobile = MediaQuery.of(context).size.width <= 800;
 
-    return Padding(
-      padding: const EdgeInsets.all(
-        12.0,
-      ), // Una mica més estret als marges mòbils
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize:
-            MainAxisSize.min, // Força el desplegament compacte vertical
-        children: [
-          // 📥 BOTÓ IMPORTAR GPX (Només es mostra a la Web, ja que a l'APK va a dalt de l'AppBar)
-          if (!isMobile) ...[
-            InkWell(
-              onTap: onImportPressed,
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 4.0,
-                  horizontal: 2.0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      t.importGpx.toUpperCase(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        letterSpacing: 1,
+    return Container(
+      color: AppColors.starTrekGold,
+      child: Padding(
+        padding: const EdgeInsets.all(
+          12.0,
+        ), // Una mica més estret als marges mòbils
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize:
+              MainAxisSize.min, // Força el desplegament compacte vertical
+          children: [
+            // 📥 BOTÓ IMPORTAR GPX (Només es mostra a la Web, ja que a l'APK va a dalt de l'AppBar)
+            if (!isMobile) ...[
+              InkWell(
+                onTap: onImportPressed,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4.0,
+                    horizontal: 2.0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        t.importGpx.toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 1,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const Icon(
-                      Icons.add_circle_outline,
-                      size: 16,
-                      color: Colors.blue,
-                    ),
-                  ],
+                      const Icon(
+                        Icons.add_circle_outline,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const Divider(),
-          ],
+              const Divider(color: Colors.white54),
+            ],
 
-          // 📜 LLISTA REORDENABLE DE TRACKS (⚡ DUAL: Mòbil s'estira, Web s'adapta al contingut)
-          if (isMobile)
-            Expanded(
-              child: _buildTracksListView(
-                ref,
-                tracks,
-                selectedTrackId,
-                isMobile,
-                context,
+            // 📜 LLISTA REORDENABLE DE TRACKS (⚡ DUAL: Mòbil s'estira, Web s'adapta al contingut)
+            if (isMobile)
+              Expanded(
+                child: _buildTracksListView(
+                  ref,
+                  tracks,
+                  selectedTrackId,
+                  isMobile,
+                  context,
+                ),
+              )
+            else
+              Flexible(
+                child: _buildTracksListView(
+                  ref,
+                  tracks,
+                  selectedTrackId,
+                  isMobile,
+                  context,
+                ),
               ),
-            )
-          else
-            Flexible(
-              child: _buildTracksListView(
-                ref,
-                tracks,
-                selectedTrackId,
-                isMobile,
-                context,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -118,7 +123,12 @@ class EditorSidebarWidget extends ConsumerWidget {
     if (tracks.isEmpty) {
       return Padding(
         padding: EdgeInsets.symmetric(vertical: isMobile ? 0.0 : 20.0),
-        child: Center(child: Text(t.noTracksLoaded)),
+        child: Center(
+          child: Text(
+            t.noTracksLoaded,
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
       );
     }
 
@@ -327,7 +337,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                                 size: 20,
                               ),
                               color: isSelected
-                                  ? Colors.blue.shade700
+                                  ? AppColors.starTrekRed
                                   : Colors.grey.shade600,
                               tooltip: t.downloadGpx,
                               constraints: const BoxConstraints(
@@ -356,7 +366,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                                   size: 20,
                                 ),
                                 color: isSelected
-                                    ? Colors.blue.shade700
+                                    ? AppColors.starTrekRed
                                     : Colors.grey.shade600,
                                 tooltip: t.shareGpx,
                                 constraints: const BoxConstraints(
@@ -386,7 +396,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                                 size: 20,
                               ),
                               color: isSelected
-                                  ? Colors.red.shade600
+                                  ? AppColors.starTrekRed
                                   : Colors.grey.shade500,
                               tooltip: t.deleteTrack,
                               constraints: const BoxConstraints(

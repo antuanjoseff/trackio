@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 
 class SelectionPainter extends CustomPainter {
   final double? needleX; // en píxels reals de pantalla
@@ -79,27 +80,38 @@ class SelectionPainter extends CustomPainter {
     canvas.drawCircle(Offset(x, dy), 5.0, dotBorder);
   }
 
-  double _currentWidth = 500.0;
-
   @override
   void paint(Canvas canvas, Size size) {
     if (altitudes.isEmpty) return;
-    _currentWidth =
-        size.width; // Capturem l'amplada real en viu del frame del navegador
 
     // 🟢 1. AGULLA ESQUERRA (Verda d'inici de rang)
     if (startX != null && startPointsIndex != null) {
-      _paintNeedleLineAndDot(canvas, startX!, startPointsIndex!, Colors.green);
+      _paintNeedleLineAndDot(
+        canvas,
+        startX!,
+        startPointsIndex!,
+        AppColors.starTrekGold,
+      );
     }
 
     // 🔴 2. AGULLA DRETA (Vermella de final de rang)
     if (endX != null && endPointsIndex != null) {
-      _paintNeedleLineAndDot(canvas, endX!, endPointsIndex!, Colors.red);
+      _paintNeedleLineAndDot(
+        canvas,
+        endX!,
+        endPointsIndex!,
+        AppColors.starTrekRed,
+      );
     }
 
     // 🔵 3. AGULLA CENTRAL (Dit Blau d'exploració o Hover del ratolí)
     if (needleX != null && snappedIdx != null) {
-      _paintNeedleLineAndDot(canvas, needleX!, snappedIdx!, Colors.blue);
+      _paintNeedleLineAndDot(
+        canvas,
+        needleX!,
+        snappedIdx!,
+        AppColors.starTrekGold,
+      );
     }
   }
 

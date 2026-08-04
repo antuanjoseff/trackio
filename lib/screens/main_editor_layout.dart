@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -85,13 +86,13 @@ class MainEditorLayout extends ConsumerWidget {
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                   letterSpacing: 1,
-                                  color: Colors.grey,
+                                  color: Colors.white,
                                 ),
                               ),
                               IconButton(
                                 icon: const Icon(
                                   Icons.close_rounded,
-                                  color: Colors.redAccent,
+                                  color: AppColors.starTrekRed,
                                   size: 22,
                                 ),
                                 tooltip: "Tancar",
@@ -125,21 +126,14 @@ class MainEditorLayout extends ConsumerWidget {
               ? null
               : AppBar(
                   leading: Center(
-                    child: Container(
-                      margin: const EdgeInsets.only(left: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        shape: BoxShape.circle,
+                    child: IconButton(
+                      tooltip: t.importTracks,
+                      icon: const Icon(
+                        Icons.upload,
+                        color: AppColors.starTrekRed,
+                        size: 20,
                       ),
-                      child: IconButton(
-                        tooltip: t.importTracks,
-                        icon: const Icon(
-                          Icons.upload,
-                          color: Colors.blue,
-                          size: 20,
-                        ),
-                        onPressed: onImportPressed,
-                      ),
+                      onPressed: onImportPressed,
                     ),
                   ),
                   title: Text(t.appTitle),
@@ -152,7 +146,7 @@ class MainEditorLayout extends ConsumerWidget {
                         icon: TrackioIcons.reverseDirection(
                           color: isDisabled
                               ? Colors.grey.shade400
-                              : Colors.blue,
+                              : AppColors.starTrekRed,
                         ),
                         onPressed: isDisabled
                             ? null
@@ -164,17 +158,17 @@ class MainEditorLayout extends ConsumerWidget {
                         tooltip: t.toolSplit,
                         isSelected: liveActiveTool == 'split',
                         selectedIcon: TrackioIcons.cutGpx(
-                          color: Colors.purple.shade700,
+                          color: AppColors.starTrekRed,
                           size: 20,
                         ),
                         icon: TrackioIcons.cutGpx(
                           color: isDisabled
                               ? Colors.grey.shade400
-                              : Colors.purple,
+                              : AppColors.starTrekRed,
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: liveActiveTool == 'split'
-                              ? Colors.purple.shade50
+                              ? AppColors.starTrekGold.withOpacity(0.25)
                               : null,
                         ),
                         onPressed: isDisabled
@@ -193,16 +187,16 @@ class MainEditorLayout extends ConsumerWidget {
                         tooltip: t.toolMerge,
                         isSelected: liveActiveTool == 'merge',
                         selectedIcon: TrackioIcons.joinGpx(
-                          color: Colors.teal.shade700,
+                          color: AppColors.starTrekRed,
                         ),
                         icon: TrackioIcons.joinGpx(
                           color: isDisabled
                               ? Colors.grey.shade400
-                              : Colors.teal,
+                              : AppColors.starTrekRed,
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: liveActiveTool == 'merge'
-                              ? Colors.teal.shade50
+                              ? AppColors.starTrekGold.withOpacity(0.25)
                               : null,
                         ),
                         onPressed: isDisabled
@@ -223,19 +217,19 @@ class MainEditorLayout extends ConsumerWidget {
                         isSelected: liveActiveTool == 'range_map',
                         selectedIcon: TrackioLargeIcon(
                           child: TrackRangeSelection(
-                            color: Colors.orange.shade700,
+                            color: AppColors.starTrekRed,
                           ),
                         ),
                         icon: TrackioLargeIcon(
                           child: TrackRangeSelection(
                             color: isDisabled
                                 ? Colors.grey.shade400
-                                : Colors.orange,
+                                : AppColors.starTrekRed,
                           ),
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: liveActiveTool == 'range_map'
-                              ? Colors.orange.shade50
+                              ? AppColors.starTrekGold.withOpacity(0.25)
                               : null,
                         ),
                         onPressed: isDisabled
@@ -254,16 +248,16 @@ class MainEditorLayout extends ConsumerWidget {
                         tooltip: t.addWaypoint,
                         isSelected: liveActiveTool == 'add_waypoint',
                         selectedIcon: TrackioIcons.addWaypoint(
-                          color: Colors.indigo.shade700,
+                          color: AppColors.starTrekRed,
                         ),
                         icon: TrackioIcons.addWaypoint(
                           color: isDisabled
                               ? Colors.grey.shade400
-                              : Colors.indigo,
+                              : AppColors.starTrekRed,
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: liveActiveTool == 'add_waypoint'
-                              ? Colors.indigo.shade50
+                              ? AppColors.starTrekGold.withOpacity(0.25)
                               : null,
                         ),
                         onPressed: isDisabled
@@ -283,16 +277,16 @@ class MainEditorLayout extends ConsumerWidget {
                         isSelected: liveActiveTool == 'draw',
                         selectedIcon: const Icon(
                           Icons.gesture_rounded,
-                          color: Colors.pinkAccent,
+                          color: AppColors.starTrekRed,
                           size: 20,
                         ),
                         icon: const Icon(
                           Icons.gesture_rounded,
-                          color: Colors.pink,
+                          color: AppColors.starTrekRed,
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: liveActiveTool == 'draw'
-                              ? Colors.pink.shade50
+                              ? AppColors.starTrekGold.withOpacity(0.25)
                               : null,
                         ),
                         onPressed: () => ref
@@ -308,17 +302,17 @@ class MainEditorLayout extends ConsumerWidget {
                         isSelected: liveActiveTool == 'edit_geometry',
                         selectedIcon: Icon(
                           Icons.hub_rounded,
-                          color: Colors.cyan.shade700,
+                          color: AppColors.starTrekRed,
                         ),
                         icon: Icon(
                           Icons.hub_rounded,
                           color: isDisabled
                               ? Colors.grey.shade400
-                              : Colors.cyan,
+                              : AppColors.starTrekRed,
                         ),
                         style: IconButton.styleFrom(
                           backgroundColor: liveActiveTool == 'edit_geometry'
-                              ? Colors.cyan.shade50
+                              ? AppColors.starTrekGold.withOpacity(0.25)
                               : null,
                         ),
                         onPressed: isDisabled
@@ -347,12 +341,12 @@ class MainEditorLayout extends ConsumerWidget {
                             ? Icons.insert_chart
                             : Icons.insert_chart_outlined,
                         color: liveShowChart
-                            ? Colors.blue
+                            ? AppColors.starTrekRed
                             : Colors.grey.shade600,
                       ),
                       style: IconButton.styleFrom(
                         backgroundColor: liveShowChart
-                            ? Colors.blue.shade50
+                            ? AppColors.starTrekGold.withOpacity(0.25)
                             : null,
                       ),
                       onPressed: () => ref
@@ -405,7 +399,9 @@ class MainEditorLayout extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const CircularProgressIndicator(color: Colors.blue),
+                      const CircularProgressIndicator(
+                        color: AppColors.starTrekRed,
+                      ),
                       const SizedBox(width: 16),
                       Text(
                         t.processingGpxFile,

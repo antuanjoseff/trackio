@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -68,7 +69,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
+                      color: AppColors.starTrekGold.withOpacity(0.95),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
@@ -85,7 +86,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                         _buildCompactBtn(
                           icon: Icon(
                             isMobile ? Icons.menu_rounded : Icons.view_sidebar,
-                            color: Colors.blue.shade700,
+                            color: AppColors.starTrekRed,
                           ),
                           tooltip: "Menú",
                           onPressed: () => Scaffold.of(context).openDrawer(),
@@ -94,7 +95,10 @@ class TrackioHorizontalLayout extends ConsumerWidget {
 
                         // 2. IMPORTAR GPX
                         _buildCompactBtn(
-                          icon: const Icon(Icons.upload, color: Colors.blue),
+                          icon: const Icon(
+                            Icons.upload,
+                            color: AppColors.starTrekRed,
+                          ),
                           tooltip: t.importTracks,
                           onPressed: onImportPressed,
                         ),
@@ -108,7 +112,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                 ? Icons.insert_chart
                                 : Icons.insert_chart_outlined,
                             color: liveShowChart
-                                ? Colors.blue
+                                ? AppColors.starTrekRed
                                 : Colors.grey.shade600,
                           ),
                           tooltip: t.elevationProfile,
@@ -137,7 +141,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
+                      color: AppColors.starTrekGold.withOpacity(0.95),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
@@ -156,7 +160,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                             child: TrackioIcons.reverseDirection(
                               color: isDisabled
                                   ? Colors.grey.shade400
-                                  : Colors.blue,
+                                  : AppColors.starTrekRed,
                             ),
                           ),
                           tooltip: t.toolInverse,
@@ -174,8 +178,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               color: isDisabled
                                   ? Colors.grey.shade400
                                   : (liveActiveTool == 'split'
-                                        ? Colors.purple.shade700
-                                        : Colors.purple),
+                                        ? AppColors.starTrekRed
+                                        : AppColors.starTrekRed),
                             ),
                           ),
                           tooltip: t.toolSplit,
@@ -199,8 +203,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               color: isDisabled
                                   ? Colors.grey.shade400
                                   : (liveActiveTool == 'merge'
-                                        ? Colors.teal.shade700
-                                        : Colors.teal),
+                                        ? AppColors.starTrekRed
+                                        : AppColors.starTrekRed),
                             ),
                           ),
                           tooltip: t.toolMerge,
@@ -224,8 +228,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               color: isDisabled
                                   ? Colors.grey.shade400
                                   : (liveActiveTool == 'range_map'
-                                        ? Colors.orange.shade700
-                                        : Colors.orange),
+                                        ? AppColors.starTrekRed
+                                        : AppColors.starTrekRed),
                             ),
                           ),
                           tooltip: t.selectRange,
@@ -249,8 +253,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               color: isDisabled
                                   ? Colors.grey.shade400
                                   : (liveActiveTool == 'add_waypoint'
-                                        ? Colors.indigo.shade700
-                                        : Colors.indigo),
+                                        ? AppColors.starTrekRed
+                                        : AppColors.starTrekRed),
                             ),
                           ),
                           tooltip: t.addWaypoint,
@@ -273,8 +277,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                             child: Icon(
                               Icons.gesture_rounded,
                               color: liveActiveTool == 'draw'
-                                  ? Colors.pinkAccent
-                                  : Colors.pink,
+                                  ? AppColors.starTrekRed
+                                  : AppColors.starTrekRed,
                             ),
                           ),
                           tooltip: t.toolDraw,
@@ -317,7 +321,9 @@ class TrackioHorizontalLayout extends ConsumerWidget {
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: isActive ? Colors.blue.shade50 : Colors.transparent,
+        color: isActive
+            ? AppColors.starTrekRed.withOpacity(0.16)
+            : Colors.transparent,
         shape: BoxShape.circle,
       ),
       child: IconButton(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 
 Future<Map<String, dynamic>?> askTrackNameDialog({
@@ -46,7 +47,7 @@ Future<Map<String, dynamic>?> askTrackNameDialog({
                           children: [
                             const Icon(
                               Icons.straighten,
-                              color: Colors.blueAccent,
+                              color: AppColors.starTrekRed,
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -67,7 +68,10 @@ Future<Map<String, dynamic>?> askTrackNameDialog({
                         ),
                         Column(
                           children: [
-                            const Icon(Icons.terrain, color: Colors.orange),
+                            const Icon(
+                              Icons.terrain,
+                              color: AppColors.starTrekGold,
+                            ),
                             const SizedBox(height: 4),
                             Text(
                               displayElevation,
@@ -94,7 +98,7 @@ Future<Map<String, dynamic>?> askTrackNameDialog({
                     controller: nameController,
                     autofocus: true,
                     decoration: InputDecoration(
-                      labelText: t.route ?? 'Nom de la ruta',
+                      labelText: t.route,
                       border: const OutlineInputBorder(),
                     ),
                   ),
@@ -180,7 +184,7 @@ Future<String?> askWaypointNameDialog(
       content: TextField(
         controller: controller,
         autofocus: true,
-        decoration: InputDecoration(labelText: t.route ?? 'Nom'),
+        decoration: InputDecoration(labelText: t.route),
         // 🌟 NOU PAS A PAS: Quan prems Enter al teclat dins de l'input de text,
         // s'executa immediatament la mateixa acció que el botó d'OK.
         onSubmitted: (String textValue) {

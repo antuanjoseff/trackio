@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -66,7 +67,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                 child: Builder(
                   builder: (context) => Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
+                      color: AppColors.starTrekGold.withOpacity(0.9),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
@@ -80,7 +81,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                       tooltip: "Sidebar",
                       icon: Icon(
                         isMobile ? Icons.menu_rounded : Icons.view_sidebar,
-                        color: Colors.blue.shade700,
+                        color: AppColors.starTrekRed,
                       ),
                       onPressed: () {
                         if (isMobile) {
@@ -106,8 +107,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                         icon: Icon(
                           Icons.add_circle,
                           color: geometryMode == 'add'
-                              ? Colors.green.shade700
-                              : Colors.green,
+                              ? AppColors.starTrekRed
+                              : AppColors.starTrekRed,
                           size: 28,
                         ),
                         tooltip: t.addNode,
@@ -121,8 +122,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                         icon: Icon(
                           Icons.remove_circle,
                           color: geometryMode == 'delete'
-                              ? Colors.red.shade700
-                              : Colors.red,
+                              ? AppColors.starTrekRed
+                              : AppColors.starTrekRed,
                           size: 28,
                         ),
                         tooltip: t.deleteNode,
@@ -136,8 +137,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                         icon: Icon(
                           Icons.open_with,
                           color: geometryMode == 'move'
-                              ? Colors.blue.shade700
-                              : Colors.blue,
+                              ? AppColors.starTrekRed
+                              : AppColors.starTrekRed,
                           size: 28,
                         ),
                         tooltip: t.moveNode,
@@ -150,7 +151,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                         icon: Icon(
                           Icons.undo,
                           color: canUndoGeometry
-                              ? Colors.orange.shade700
+                              ? AppColors.starTrekRed
                               : Colors.grey.shade400,
                           size: 28,
                         ),
@@ -165,7 +166,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                       _btn(
                         icon: const Icon(
                           Icons.close_rounded,
-                          color: Colors.redAccent,
+                          color: AppColors.starTrekRed,
                           size: 28,
                         ),
                         tooltip: t.cancel,
@@ -179,7 +180,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                           child: TrackioIcons.reverseDirection(
                             color: isDisabled
                                 ? Colors.grey.shade400
-                                : Colors.blue,
+                                : AppColors.starTrekRed,
                           ),
                         ),
                         tooltip: t.toolInverse,
@@ -196,8 +197,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             color: isDisabled
                                 ? Colors.grey.shade400
                                 : (liveActiveTool == 'split'
-                                      ? Colors.purple.shade700
-                                      : Colors.purple),
+                                    ? AppColors.starTrekRed
+                                      : AppColors.starTrekRed),
                           ),
                         ),
                         tooltip: t.toolSplit,
@@ -220,8 +221,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             color: isDisabled
                                 ? Colors.grey.shade400
                                 : (liveActiveTool == 'merge'
-                                      ? Colors.teal.shade700
-                                      : Colors.teal),
+                                    ? AppColors.starTrekRed
+                                      : AppColors.starTrekRed),
                           ),
                         ),
                         tooltip: t.toolMerge,
@@ -244,8 +245,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             color: isDisabled
                                 ? Colors.grey.shade400
                                 : (liveActiveTool == 'range_map'
-                                      ? Colors.orange.shade700
-                                      : Colors.orange),
+                                    ? AppColors.starTrekRed
+                                      : AppColors.starTrekRed),
                           ),
                         ),
                         tooltip: t.selectRange,
@@ -268,8 +269,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             color: isDisabled
                                 ? Colors.grey.shade400
                                 : (liveActiveTool == 'add_waypoint'
-                                      ? Colors.indigo.shade700
-                                      : Colors.indigo),
+                                    ? AppColors.starTrekRed
+                                      : AppColors.starTrekRed),
                           ),
                         ),
                         tooltip: t.addWaypoint,
@@ -290,8 +291,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                         icon: Icon(
                           Icons.gesture_rounded,
                           color: liveActiveTool == 'draw'
-                              ? Colors.pinkAccent
-                              : Colors.pink,
+                              ? AppColors.starTrekRed
+                              : AppColors.starTrekRed,
                           size: 28,
                         ),
                         tooltip: t.toolDraw,
@@ -310,8 +311,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
                           color: isDisabled
                               ? Colors.grey.shade400
                               : (liveActiveTool == 'edit_geometry'
-                                    ? Colors.cyan.shade700
-                                    : Colors.cyan),
+                                ? AppColors.starTrekRed
+                                    : AppColors.starTrekRed),
                           size: 28,
                         ),
                         tooltip: t.toolEditGeometry,
@@ -361,10 +362,12 @@ class TrackioVerticalLayout extends ConsumerWidget {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: isActive ? Colors.blue.shade50 : Colors.white.withOpacity(0.9),
+        color: isActive
+            ? AppColors.starTrekRed.withOpacity(0.16)
+            : AppColors.starTrekGold.withOpacity(0.9),
         shape: BoxShape.circle,
         border: isActive
-            ? Border.all(color: Colors.blue.shade300, width: 1.5)
+            ? Border.all(color: AppColors.starTrekRed.withOpacity(0.5), width: 1.5)
             : null,
         boxShadow: [
           BoxShadow(

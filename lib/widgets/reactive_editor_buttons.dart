@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -28,7 +29,7 @@ class ReactiveSplitButton extends ConsumerWidget {
         offset: const Offset(0, 60),
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.purple.shade700,
+            backgroundColor: AppColors.starTrekRed,
             foregroundColor: Colors.white,
             elevation: 6,
           ),
@@ -88,8 +89,8 @@ class ReactiveRangeButton extends ConsumerWidget {
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: isSelectingRange
-              ? Colors.red.shade600
-              : Colors.green.shade600,
+              ? AppColors.starTrekRed
+              : AppColors.starTrekGold,
           foregroundColor: Colors.white,
         ),
         onPressed: () {
@@ -129,7 +130,7 @@ class ReactiveMergeButton extends ConsumerWidget {
         offset: const Offset(0, 60),
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green.shade700,
+            backgroundColor: AppColors.starTrekRed,
             foregroundColor: Colors.white,
             elevation: 6,
           ),
@@ -181,7 +182,7 @@ class ReactiveWaypointButton extends ConsumerWidget {
       right: 0,
       child: Center(
         child: FloatingActionButton.extended(
-          backgroundColor: Colors.blueAccent.shade700,
+          backgroundColor: AppColors.starTrekRed,
           icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white),
           label: Text(
             t.addWaypoint,
@@ -272,7 +273,7 @@ class ReactiveAddNodeButton extends ConsumerWidget {
       right: 0,
       child: Center(
         child: FloatingActionButton.extended(
-          backgroundColor: Colors.green.shade700,
+          backgroundColor: AppColors.starTrekRed,
           icon: const Icon(Icons.add_circle_outline, color: Colors.white),
           label: Text(
             t.confirmAddNode,
@@ -326,7 +327,7 @@ class ReactiveDeleteNodeButton extends ConsumerWidget {
       right: 0,
       child: Center(
         child: FloatingActionButton.extended(
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: AppColors.starTrekRed,
           icon: const Icon(Icons.remove_circle_outline, color: Colors.white),
           label: Text(
             t.deleteNode,
@@ -386,8 +387,8 @@ class ReactiveMoveNodeButton extends ConsumerWidget {
       child: Center(
         child: FloatingActionButton.extended(
           backgroundColor: isNodeAlreadySelected
-              ? Colors.blue.shade700
-              : Colors.blueGrey.shade700,
+              ? AppColors.starTrekRed
+              : AppColors.starTrekGold,
           icon: Icon(
             isNodeAlreadySelected
                 ? Icons.check_circle_outline
@@ -457,7 +458,7 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
           color: Colors.transparent,
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.96),
+              color: AppColors.starTrekGold.withOpacity(0.96),
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -475,52 +476,37 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                   tooltip: t.addNode,
                   style: IconButton.styleFrom(
                     backgroundColor: geometryMode == 'add'
-                        ? Colors.green.shade50
+                        ? AppColors.starTrekRed.withOpacity(0.16)
                         : null,
                   ),
                   onPressed: () => ref
                       .read(gpxEditorProvider.notifier)
                       .setGeometryEditMode('add'),
-                  icon: Icon(
-                    Icons.add_circle,
-                    color: geometryMode == 'add'
-                        ? Colors.green.shade700
-                        : Colors.green,
-                  ),
+                  icon: Icon(Icons.add_circle, color: AppColors.starTrekRed),
                 ),
                 IconButton(
                   tooltip: t.deleteNode,
                   style: IconButton.styleFrom(
                     backgroundColor: geometryMode == 'delete'
-                        ? Colors.red.shade50
+                        ? AppColors.starTrekRed.withOpacity(0.16)
                         : null,
                   ),
                   onPressed: () => ref
                       .read(gpxEditorProvider.notifier)
                       .setGeometryEditMode('delete'),
-                  icon: Icon(
-                    Icons.remove_circle,
-                    color: geometryMode == 'delete'
-                        ? Colors.red.shade700
-                        : Colors.red,
-                  ),
+                  icon: Icon(Icons.remove_circle, color: AppColors.starTrekRed),
                 ),
                 IconButton(
                   tooltip: t.moveNode,
                   style: IconButton.styleFrom(
                     backgroundColor: geometryMode == 'move'
-                        ? Colors.blue.shade50
+                        ? AppColors.starTrekRed.withOpacity(0.16)
                         : null,
                   ),
                   onPressed: () => ref
                       .read(gpxEditorProvider.notifier)
                       .setGeometryEditMode('move'),
-                  icon: Icon(
-                    Icons.open_with,
-                    color: geometryMode == 'move'
-                        ? Colors.blue.shade700
-                        : Colors.blue,
-                  ),
+                  icon: Icon(Icons.open_with, color: AppColors.starTrekRed),
                 ),
                 IconButton(
                   tooltip: t.undoGeometryEdit,
@@ -541,7 +527,7 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                   icon: Icon(
                     Icons.undo,
                     color: canUndoGeometry
-                        ? Colors.orange.shade700
+                        ? AppColors.starTrekRed
                         : Colors.grey.shade400,
                   ),
                 ),
@@ -552,7 +538,7 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                       .setActiveTool('none'),
                   icon: const Icon(
                     Icons.close_rounded,
-                    color: Colors.redAccent,
+                    color: AppColors.starTrekRed,
                   ),
                 ),
               ],

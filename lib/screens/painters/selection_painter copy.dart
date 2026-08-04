@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 
 class SelectionPainter extends CustomPainter {
   // 🔒 REPARACIÓ CRÍTICA: Ara reben directament els píxels reals (X) calculats des de la vista
@@ -69,18 +70,33 @@ class SelectionPainter extends CustomPainter {
 
     // 🟢 1. AGULLA ESQUERRA (Verda d'inici de rang fix o arrossegat)
     if (startX != null && startPointsIndex != null) {
-      _paintNeedleLineAndDot(canvas, startX!, startPointsIndex!, Colors.green);
+      _paintNeedleLineAndDot(
+        canvas,
+        startX!,
+        startPointsIndex!,
+        AppColors.starTrekGold,
+      );
     }
 
     // 🔴 2. AGULLA DRETA (Vermella de final de rang fix o arrossegat)
     if (endX != null && endPointsIndex != null) {
-      _paintNeedleLineAndDot(canvas, endX!, endPointsIndex!, Colors.red);
+      _paintNeedleLineAndDot(
+        canvas,
+        endX!,
+        endPointsIndex!,
+        AppColors.starTrekRed,
+      );
     }
 
     // 🔵 3. AGULLA CENTRAL (Dit Blau d'exploració mòbil)
     // Es pinta l'última per assegurar que el handle es visualitza sempre al capdamunt per sobre del rang
     if (needleX != null && snappedIdx != null) {
-      _paintNeedleLineAndDot(canvas, needleX!, snappedIdx!, Colors.blue);
+      _paintNeedleLineAndDot(
+        canvas,
+        needleX!,
+        snappedIdx!,
+        AppColors.starTrekGold,
+      );
     }
   }
 

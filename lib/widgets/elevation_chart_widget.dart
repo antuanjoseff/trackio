@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:latlong2/latlong.dart' as geo;
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
-import 'package:trackio/providers/gpx_editor_state.dart';
 
 import 'package:trackio/screens/painters/selection_painter.dart';
 import 'package:trackio/screens/painters/range_area_painter.dart';
@@ -268,11 +268,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       );
     }
 
-    final int trackColorValue = int.parse(
-      widget.track.hexColor.replaceFirst('#', '0xFF'),
-    );
-    final Color trackColor = Color(trackColorValue);
-
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final start = ref.watch(
       gpxEditorProvider.select((s) => s.selectionStartIndex),
@@ -357,9 +352,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                if (showRangeArea &&
-                    startPointsIndex != null &&
-                    endPointsIndex != null)
+                if (showRangeArea && endPointsIndex != null)
                   CustomPaint(
                     painter: RangeAreaPainter(
                       startX: startXRealPixel,
@@ -418,9 +411,18 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               isCurved: true,
                               curveSmoothness: 0.4,
                               preventCurveOverShooting: true,
-                              color: trackColor,
+                              color: AppColors.starTrekRed,
                               barWidth: 2.5,
-                              dotData: const FlDotData(show: false),
+                              dotData: FlDotData(
+                                show: true,
+                                getDotPainter:
+                                    (spot, percent, barData, index) =>
+                                        FlDotCirclePainter(
+                                          radius: 2.8,
+                                          color: AppColors.starTrekGold,
+                                          strokeWidth: 0,
+                                        ),
+                              ),
                             ),
                             if (showSpeed && _speedSpots.isNotEmpty)
                               LineChartBarData(
@@ -428,7 +430,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                                 isCurved: true,
                                 curveSmoothness: 0.4,
                                 preventCurveOverShooting: true,
-                                color: Colors.teal.shade500.withValues(
+                                color: AppColors.starTrekGold.withValues(
                                   alpha: 0.6,
                                 ),
                                 barWidth: 1.3,
@@ -470,14 +472,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                     final bool touchedStart =
                         startXRealPixel != null &&
-                        (x - startXRealPixel!).abs() < 24;
+                        (x - startXRealPixel).abs() < 24;
 
                     final bool touchedEnd =
-                        endXRealPixel != null &&
-                        (x - endXRealPixel!).abs() < 24;
+                        endXRealPixel != null && (x - endXRealPixel).abs() < 24;
 
                     final bool touchedBlueNeedle =
-                        graphX != null && (x - graphX!).abs() < 24;
+                        graphX != null && (x - graphX).abs() < 24;
 
                     // 🟢 AGULLA D'INICI DEL RANG
                     if (isRangeModeActive && touchedStart) {
@@ -619,16 +620,14 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 ),
 
                 // 5. Tooltips de distàncies (Verd, Vermell i Blau) clavats a sota
-                if (showRangeArea &&
-                    startPointsIndex != null &&
-                    endPointsIndex != null) ...[
+                if (showRangeArea && endPointsIndex != null) ...[
                   Positioned(
                     bottom: 2,
                     left: 4,
                     child: _buildFlutterTooltip(
                       "${(_distances[startPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
                       _getRealSpeedKmh(startPointsIndex),
-                      Colors.green,
+                      AppColors.starTrekGold,
                       showSpeed,
                     ),
                   ),
@@ -638,7 +637,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     child: _buildFlutterTooltip(
                       "${(_distances[endPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
                       _getRealSpeedKmh(endPointsIndex),
-                      Colors.red,
+                      AppColors.starTrekRed,
                       showSpeed,
                     ),
                   ),
@@ -654,7 +653,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     child: _buildFlutterTooltip(
                       "${(_distances[snappedIdx] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[snappedIdx].elevation?.toStringAsFixed(0)} m",
                       _getRealSpeedKmh(snappedIdx),
-                      Colors.blue,
+                      AppColors.starTrekGold,
                       showSpeed,
                     ),
                   ),

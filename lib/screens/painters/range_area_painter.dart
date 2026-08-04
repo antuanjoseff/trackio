@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 
 class RangeAreaPainter extends CustomPainter {
   final double? startX; // Píxels reals d'inici de l'agulla verda (X)
@@ -92,8 +93,8 @@ class RangeAreaPainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..shader = LinearGradient(
         colors: [
-          Colors.orange.withOpacity(0.12),
-          Colors.orange.withOpacity(0.32),
+          AppColors.starTrekGold.withOpacity(0.12),
+          AppColors.starTrekGold.withOpacity(0.32),
         ],
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,

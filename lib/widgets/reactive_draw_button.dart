@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -53,7 +54,7 @@ class ReactiveDrawButton extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(30),
             ),
-            color: Colors.white,
+            color: AppColors.starTrekGold.withOpacity(0.96),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -62,7 +63,10 @@ class ReactiveDrawButton extends ConsumerWidget {
                   // 1️⃣ BOTÓ CANCEL·LAR
                   if (useCompactMode)
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.red),
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.starTrekRed,
+                      ),
                       tooltip: t.cancel,
                       onPressed: () {
                         ref.read(gpxEditorProvider.notifier).cancelDrawing();
@@ -80,7 +84,9 @@ class ReactiveDrawButton extends ConsumerWidget {
                     )
                   else
                     TextButton.icon(
-                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.starTrekRed,
+                      ),
                       icon: const Icon(Icons.close),
                       label: Text(t.cancel),
                       onPressed: () {
@@ -107,7 +113,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                   if (!hasMouse) ...[
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
+                        backgroundColor: AppColors.starTrekRed,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -159,7 +165,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                     icon: Icon(
                       Icons.undo,
                       color: pointsCount > 0
-                          ? Colors.orange.shade800
+                          ? AppColors.starTrekRed
                           : Colors.grey.shade400,
                     ),
                     onPressed: pointsCount > 0
@@ -185,13 +191,13 @@ class ReactiveDrawButton extends ConsumerWidget {
                   if (useCompactMode)
                     Badge(
                       label: Text('$pointsCount'),
-                      backgroundColor: Colors.green.shade800,
+                      backgroundColor: AppColors.starTrekRed,
                       isLabelVisible: pointsCount > 0,
                       child: IconButton(
                         icon: Icon(
                           Icons.check_circle,
                           color: pointsCount > 0
-                              ? Colors.green.shade700
+                              ? AppColors.starTrekRed
                               : Colors.grey.shade400,
                           size: 24,
                         ),
@@ -204,7 +210,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                   else
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
+                        backgroundColor: AppColors.starTrekRed,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
