@@ -11,7 +11,7 @@ class CogService {
   final int _maxTiles = 4;
 
   Future<CogTile> _downloadTile(double lat, double lon) async {
-    final uri = Uri.http('213.165.93.0', '/getTileGrid', {
+    final uri = Uri.http('213.165.93.0', '/api/getTileGrid', {
       'lat': lat.toString(),
       'lon': lon.toString(),
     });
