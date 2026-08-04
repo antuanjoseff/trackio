@@ -403,21 +403,29 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
+                // ==========================================================
+                // 1. SUPERFÍCIE DEL TRAM SELECCIONAT
+                // ==========================================================
                 if (showRangeArea && endPointsIndex != null)
-                  CustomPaint(
-                    painter: RangeAreaPainter(
-                      startX: startXRealPixel,
-                      endX: endXRealPixel,
-                      chartHeight: currentChartHeight,
-                      maxDistance: maxDistance,
-                      spots: _spots,
-                      minY: _minAlt,
-                      maxY: _maxAlt,
-                      startIdx: startPointsIndex,
-                      endIdx: endPointsIndex,
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: RangeAreaPainter(
+                        startX: startXRealPixel,
+                        endX: endXRealPixel,
+                        chartHeight: currentChartHeight,
+                        maxDistance: maxDistance,
+                        spots: _spots,
+                        minY: _minAlt,
+                        maxY: _maxAlt,
+                        startIdx: startPointsIndex,
+                        endIdx: endPointsIndex,
+                      ),
                     ),
                   ),
 
+                // ==========================================================
+                // 2. GRÀFIC D'ELEVACIÓ
+                // ==========================================================
                 Positioned.fill(
                   child: Padding(
                     padding: const EdgeInsets.only(
@@ -438,6 +446,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                           minY: _minAlt,
                           maxY: _maxAlt,
                           clipData: const FlClipData.all(),
+
                           titlesData: FlTitlesData(
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(showTitles: false),
@@ -452,6 +461,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               sideTitles: SideTitles(showTitles: false),
                             ),
                           ),
+
                           lineBarsData: [
                             LineChartBarData(
                               spots: _spots,
@@ -462,6 +472,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               barWidth: 2.5,
                               dotData: const FlDotData(show: false),
                             ),
+
                             if (showSpeed && _speedSpots.isNotEmpty)
                               LineChartBarData(
                                 spots: _speedSpots,
@@ -480,7 +491,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     ),
                   ),
                 ),
-                // 3. CAPA DE LÍNIES VERTICALS AMB REGLA D'EXCLUSIÓ PER CONTROL DE BANDERA
+
+                // ==========================================================
+                // 3. LÍNIES VERTICALS / AGULLES
+                // ==========================================================
                 CustomPaint(
                   painter: SelectionPainter(
                     needleX: _hideBlueNeedle ? null : graphX,
@@ -496,15 +510,16 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                         : _spots.map((s) => s.y).toList(),
                     minY: _minAlt,
                     maxY: _maxAlt,
-
-                    // 🌟 EL CANVI EXCLUSIU EN AQUEST ARXIU: Envia la mida de la llista original per activar la ràtio
                     totalTrackPoints: _validPoints.length,
                   ),
                 ),
 
-                // 4. MÀQUINA DE GESTOS INTERACTIVA AMB DRAG REPARAT I CONTROL DE BANDERA EXCLUSIU WEB
+                // ==========================================================
+                // 4. GESTOS
+                // ==========================================================
                 GestureDetector(
                   behavior: HitTestBehavior.translucent,
+
                   onPanDown: (details) {
                     final double x = details.localPosition.dx;
 
@@ -540,10 +555,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       return;
                     }
 
-                    debugPrint(
-                      "DEBUG: nou punt blau x=$x start=$startXRealPixel end=$endXRealPixel graph=$graphX",
-                    );
-
                     final meters = dxToMeters(x);
                     final idx = _metersToIndex(meters);
 
@@ -553,21 +564,27 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     });
 
                     ref.read(gpxEditorProvider.notifier).clearChartSelection();
+
                     ref.read(gpxEditorProvider.notifier).updateChartNeedle(idx);
+
                     ref
                         .read(gpxEditorProvider.notifier)
                         .updateSnappedPoint(_validPoints[idx], idx);
                   },
+
                   onPanUpdate: (details) {
                     if (_draggingHandle == -1) return;
 
                     final double x = details.localPosition.dx;
                     final int idx = _metersToIndex(dxToMeters(x));
+
                     final int now = DateTime.now().millisecondsSinceEpoch;
 
                     if (_draggingHandle == 1) {
                       if (now - _lastUpdateTimestamp < 20) return;
+
                       _lastUpdateTimestamp = now;
+
                       if (endPointsIndex != null && idx > endPointsIndex) {
                         ref
                             .read(gpxEditorProvider.notifier)
@@ -575,17 +592,22 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               newStartIdx: endPointsIndex,
                               newEndIdx: idx,
                             );
+
                         setState(() {
                           _draggingHandle = 2;
                         });
+
                         return;
                       }
+
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateIndividualRangeHandle(newStartIdx: idx);
                     } else if (_draggingHandle == 2) {
                       if (now - _lastUpdateTimestamp < 20) return;
+
                       _lastUpdateTimestamp = now;
+
                       if (startPointsIndex != null && idx < startPointsIndex) {
                         ref
                             .read(gpxEditorProvider.notifier)
@@ -593,29 +615,36 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               newStartIdx: idx,
                               newEndIdx: startPointsIndex,
                             );
+
                         setState(() {
                           _draggingHandle = 1;
                         });
+
                         return;
                       }
+
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateIndividualRangeHandle(newEndIdx: idx);
                     } else if (_draggingHandle == 3) {
                       if (now - _lastUpdateTimestamp < 25) return;
+
                       _lastUpdateTimestamp = now;
 
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateChartNeedle(idx);
+
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateSnappedPoint(_validPoints[idx], idx);
                     }
                   },
-                  onPanEnd: (DragEndDetails details) {
+
+                  onPanEnd: (_) {
                     if (_draggingHandle == 1 || _draggingHandle == 2) {
                       final currentState = ref.read(gpxEditorProvider);
+
                       if (currentState.selectionStartIndex != null &&
                           currentState.selectionEndIndex != null) {
                         ref
@@ -626,44 +655,51 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             );
                       }
                     }
+
                     setState(() {
                       _draggingHandle = -1;
                     });
                   },
+
                   onPanCancel: () {
                     setState(() {
                       _draggingHandle = -1;
                     });
                   },
-                  onLongPressStart: (LongPressStartDetails details) {
-                    final double x = details.localPosition.dx;
-                    final int idx = _metersToIndex(dxToMeters(x));
+
+                  onLongPressStart: (details) {
+                    final idx = _metersToIndex(
+                      dxToMeters(details.localPosition.dx),
+                    );
 
                     setState(() {
                       _hideBlueNeedle = true;
                     });
 
                     ref.read(gpxEditorProvider.notifier).updateChartNeedle(idx);
+
                     ref
                         .read(gpxEditorProvider.notifier)
                         .updateSnappedPoint(_validPoints[idx], idx);
+
                     ref
                         .read(gpxEditorProvider.notifier)
                         .startChartRangeSelectionWithPercent();
                   },
+
                   onLongPressMoveUpdate: (details) {
-                    final double x = details.localPosition.dx;
-                    final int idx = _metersToIndex(dxToMeters(x));
-                    final int now = DateTime.now().millisecondsSinceEpoch;
-                    if (now - _lastUpdateTimestamp < 20) return;
-                    _lastUpdateTimestamp = now;
+                    final idx = _metersToIndex(
+                      dxToMeters(details.localPosition.dx),
+                    );
 
                     ref
                         .read(gpxEditorProvider.notifier)
                         .updateIndividualRangeHandle(newEndIdx: idx);
                   },
-                  onLongPressEnd: (details) {
+
+                  onLongPressEnd: (_) {
                     final currentState = ref.read(gpxEditorProvider);
+
                     if (currentState.selectionStartIndex != null &&
                         currentState.selectionEndIndex != null) {
                       ref
@@ -676,11 +712,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   },
                 ),
 
-                // 5. TOOLTIPS DE SELECCIÓ REPARATS AMB BARRERA RÍGIDA DE PROXIMITAT
+                // ==========================================================
+                // 5. TOOLTIPS
+                // ==========================================================
                 if (showRangeArea &&
                     endPointsIndex != null &&
                     startTooltipLeft != null &&
-                    endTooltipLeft != null) ...[
+                    endTooltipLeft != null)
                   Stack(
                     children: [
                       Positioned(
@@ -689,20 +727,21 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                         child: Container(
                           key: _startTooltipKey,
                           child: _buildFlutterTooltip(
-                            "${(_distances[startPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
+                            "${(_distances[startPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
                             _getRealSpeedKmh(startPointsIndex),
                             AppColors.starTrekGold,
                             showSpeed,
                           ),
                         ),
                       ),
+
                       Positioned(
                         bottom: 2,
                         left: endTooltipLeft,
                         child: Container(
                           key: _endTooltipKey,
                           child: _buildFlutterTooltip(
-                            "${(_distances[endPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
+                            "${(_distances[endPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
                             _getRealSpeedKmh(endPointsIndex),
                             AppColors.starTrekRed,
                             showSpeed,
@@ -711,18 +750,18 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       ),
                     ],
                   ),
-                ],
 
-                // Tooltip de l'agulla blava independent (Sense canvis, centrat clàssic)
+                // Tooltip agulla blava
                 if (!_hideBlueNeedle && snappedIdx != null && graphX != null)
                   Positioned(
                     bottom: 2,
                     left: (graphX - 65).clamp(
                       4.0,
-                      (chartWidth + paddingLeft + paddingRight) - 130.0,
+                      (chartWidth + paddingLeft + paddingRight) - 130,
                     ),
+
                     child: _buildFlutterTooltip(
-                      "${(_distances[snappedIdx] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[snappedIdx].elevation?.toStringAsFixed(0)} m",
+                      "${(_distances[snappedIdx] / 1000).toStringAsFixed(2)} km | ${_validPoints[snappedIdx].elevation?.toStringAsFixed(0)} m",
                       _getRealSpeedKmh(snappedIdx),
                       AppColors.starTrekGold,
                       showSpeed,

@@ -33,62 +33,64 @@ class RangeAreaPainter extends CustomPainter {
         endX == null ||
         spots.isEmpty ||
         startIdx == null ||
-        endIdx == null)
+        endIdx == null) {
       return;
+    }
+
     if (startIdx! >= endIdx! ||
         startIdx! >= spots.length ||
-        endIdx! >= spots.length)
+        endIdx! >= spots.length) {
       return;
+    }
 
-    final double topOffset = 0.0;
-    final double bottomOffset = 22.0;
-    final double usableChartHeight = chartHeight - topOffset - bottomOffset;
-    final double xAxisY =
-        chartHeight -
-        bottomOffset; // El terra unificat on descansen les agulles
+    const double topOffset = 0.0;
+    const double bottomOffset = 22.0;
 
-    // Constants de padding horitzontal de la gràfica
+    final double xAxisY = chartHeight - bottomOffset;
+    final double usableChartHeight = xAxisY - topOffset;
+
     const double paddingLeft = 12.0;
     const double paddingRight = 24.0;
     final double chartWidth = size.width - paddingLeft - paddingRight;
 
     if (chartWidth <= 0 || maxDistance <= 0) return;
 
-    // 📐 1. CONSTRUCCIÓ DEL PATH RESSEGUINT ELS METRES REALS DELS SPOTS
     final Path path = Path();
-
-    // El polígon neix a la base inferior de l'agulla verda (startX, Y del terra)
-    path.moveTo(startX!, xAxisY);
 
     final double yRange = (maxY - minY) == 0 ? 1.0 : (maxY - minY);
 
-    // Recorrem node per node el tram seleccionat del perfil utilitzant exactament els spots del gràfic de línies
+    bool firstPoint = true;
+
+    // Recorrem exactament el tram seleccionat
     for (int i = startIdx!; i <= endIdx!; i++) {
       final FlSpot spot = spots[i];
 
-      // 🌟 CLAVAT GEOMÈTRIC DE L'EIX X:
-      // Calculem la posició basant-nos en els METRES REALS acumulats en aquest punt (spot.x)
-      // i no en l'índex, replicant exactament la mateixa regla de tres interna que fa fl_chart
       final double pctX = spot.x / maxDistance;
       final double currentX = paddingLeft + (pctX * chartWidth);
 
-      // Calculem l'alçada Y exacta per a l'altitud d'aquest spot (spot.y)
       final double relY = (spot.y - minY) / yRange;
       final double currentY =
           topOffset + (usableChartHeight * (1.0 - relY.clamp(0.0, 1.0)));
 
-      // Unim els punts resseguint el perfil real de la muntanya
-      path.lineTo(currentX, currentY);
+      if (firstPoint) {
+        // Baixem primer fins a la base i després pugem al perfil
+        path.moveTo(currentX, xAxisY);
+        path.lineTo(currentX, currentY);
+        firstPoint = false;
+      } else {
+        path.lineTo(currentX, currentY);
+      }
     }
 
-    // Un cop acabat el recorregut, baixem en línia recta de tornada cap al terra de l'agulla vermella (endX, Y del terra)
+    // Tornem al terra al final del tram
     path.lineTo(endX!, xAxisY);
 
-    // Tanquem el polígon connectant l'últim punt amb la base del punt de partida
+    // Tanquem fins al punt inicial
     path.close();
 
-    // 🎨 2. APLICACIÓ DEL DEGRADAT INTERN DE CORTESIA
+    // 🎨 Degradat de la superfície seleccionada
     final Rect boundingRect = Rect.fromLTRB(startX!, 0.0, endX!, xAxisY);
+
     final Paint paint = Paint()
       ..style = PaintingStyle.fill
       ..shader = LinearGradient(
@@ -100,7 +102,6 @@ class RangeAreaPainter extends CustomPainter {
         end: Alignment.centerRight,
       ).createShader(boundingRect);
 
-    // Dibuixem la superfície a sobre del canvas de l'APK
     canvas.drawPath(path, paint);
   }
 
