@@ -34,8 +34,11 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   static const double maxSpeedTarget = 40.0;
 
   int _draggingHandle = -1;
-  bool _hideBlueNeedle =
-      false; // 🌟 LA BANDERA CONTROLADORA EXCLUSIVA PER A WEB
+  bool _hideBlueNeedle = false;
+  final GlobalKey _startTooltipKey = GlobalKey();
+  final GlobalKey _endTooltipKey = GlobalKey();
+
+  double _tooltipWidth = 0;
 
   @override
   void initState() {
@@ -68,7 +71,17 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         )
         .toList();
 
-    if (_validPoints.isEmpty) return;
+    if (_validPoints.isEmpty) {
+      setState(() {
+        _spots = [];
+        _speedSpots = [];
+        _distances = [];
+        _filteredAltitudes = [];
+        _minAlt = 0.0;
+        _maxAlt = 0.0;
+      });
+      return;
+    }
 
     final List<FlSpot> localSpots = [];
     final List<FlSpot> localSpeedSpots = [];
@@ -80,11 +93,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
     const geo.Distance distanceCalculator = geo.Distance();
     final int len = _validPoints.length;
-
-    int step = 1;
-    if (len > 2000) {
-      step = (len / 2000).ceil();
-    }
 
     localDistances.add(0.0);
 
@@ -103,20 +111,16 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         localDistances.add(totalDistanceMeters);
       }
 
-      if (i % step == 0 || i == len - 1) {
-        localSpots.add(FlSpot(totalDistanceMeters, alt));
-        localFilteredAltitudes.add(alt);
-        if (alt < minAlt) minAlt = alt;
-        if (alt > maxAlt) maxAlt = alt;
-      }
+      localSpots.add(FlSpot(totalDistanceMeters, alt));
+      localFilteredAltitudes.add(alt);
+      if (alt < minAlt) minAlt = alt;
+      if (alt > maxAlt) maxAlt = alt;
     }
 
     final double finalMinAlt = (minAlt - 12.0).clamp(0, double.infinity);
     final double finalMaxAlt = maxAlt;
 
     for (int i = 0; i < len; i++) {
-      if (i % step != 0 && i != len - 1) continue;
-
       double speedKmh = 0.0;
       if (i > 0) {
         final pPrev = _validPoints[i - 1];
@@ -158,34 +162,28 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   int _metersToIndex(double meters) {
     if (_distances.isEmpty) return 0;
 
-    // 1. Calculem exactament el mateix 'step' de compressió que utilitza el gràfic
-    final int len = _validPoints.length;
-    int step = 1;
-    if (len > 2000) {
-      step = (len / 2000).ceil();
-    }
+    // Búsqueda binària per trobar l'índex real més proper en distància.
+    int low = 0;
+    int high = _distances.length - 1;
 
-    double minDiff = double.infinity;
-    int bestIndexInFiltered = 0;
-    int filteredCounter = 0;
-
-    // 2. Recorrem el track aplicant el mateix filtre per buscar el punt més proper al ratolí
-    for (int i = 0; i < len; i++) {
-      if (i % step == 0 || i == len - 1) {
-        // Control de seguretat síncron
-        if (i < _distances.length) {
-          final double diff = (_distances[i] - meters).abs();
-          if (diff < minDiff) {
-            minDiff = diff;
-            bestIndexInFiltered = filteredCounter;
-          }
-        }
-        filteredCounter++;
+    while (low < high) {
+      final int mid = (low + high) >> 1;
+      if (_distances[mid] < meters) {
+        low = mid + 1;
+      } else {
+        high = mid;
       }
     }
 
-    // 3. Retornem l'índex filtrat forçant-lo a encaixar dins de la llista del pintor
-    return bestIndexInFiltered.clamp(0, _filteredAltitudes.length - 1);
+    final int right = low;
+    final int left = right > 0 ? right - 1 : 0;
+    final double leftDiff = (_distances[left] - meters).abs();
+    final double rightDiff = (_distances[right] - meters).abs();
+
+    return (rightDiff < leftDiff ? right : left).clamp(
+      0,
+      _distances.length - 1,
+    );
   }
 
   Widget _buildFlutterTooltip(
@@ -259,6 +257,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateTooltipSize();
+    });
     if (_validPoints.isEmpty) {
       return Center(
         child: Text(
@@ -344,6 +345,56 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
               ? mapX(endXForPainters)
               : null;
 
+          final double tooltipWidth = _tooltipWidth > 0 ? _tooltipWidth : 130.0;
+
+          final double tooltipMinLeft = 4.0;
+          final double tooltipMaxLeft =
+              (chartWidth + paddingLeft + paddingRight) - tooltipWidth;
+
+          double? startTooltipLeft;
+          double? endTooltipLeft;
+
+          if (startXRealPixel != null && endXRealPixel != null) {
+            final bool startIsLeft = startXRealPixel <= endXRealPixel;
+
+            final double xLeft = startIsLeft ? startXRealPixel : endXRealPixel;
+
+            final double xRight = startIsLeft ? endXRealPixel : startXRealPixel;
+
+            final double distance = xRight - xLeft;
+
+            double leftBox;
+            double rightBox;
+
+            // ==========================================================
+            // ESTADO 1:
+            // Separadas -> siempre centradas en la aguja
+            // ==========================================================
+            if (distance >= tooltipWidth) {
+              leftBox = xLeft - tooltipWidth / 2;
+              rightBox = xRight - tooltipWidth / 2;
+            }
+            // ==========================================================
+            // ESTADO 2:
+            // Colisión real -> anclaje rígido
+            // ==========================================================
+            else {
+              final double midPoint = (xLeft + xRight) / 2;
+
+              leftBox = midPoint - tooltipWidth;
+              rightBox = midPoint;
+            }
+
+            // Clamp final
+            leftBox = leftBox.clamp(tooltipMinLeft, tooltipMaxLeft);
+
+            rightBox = rightBox.clamp(tooltipMinLeft, tooltipMaxLeft);
+
+            startTooltipLeft = startIsLeft ? leftBox : rightBox;
+
+            endTooltipLeft = startIsLeft ? rightBox : leftBox;
+          }
+
           final bool showRangeArea =
               isRangeModeActive && startPointsIndex != null;
 
@@ -362,12 +413,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       spots: _spots,
                       minY: _minAlt,
                       maxY: _maxAlt,
-                      startIdx: _spots.indexWhere(
-                        (spot) => spot.x >= _distances[startPointsIndex],
-                      ),
-                      endIdx: _spots.indexWhere(
-                        (spot) => spot.x >= _distances[endPointsIndex],
-                      ),
+                      startIdx: startPointsIndex,
+                      endIdx: endPointsIndex,
                     ),
                   ),
 
@@ -413,16 +460,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               preventCurveOverShooting: true,
                               color: AppColors.starTrekRed,
                               barWidth: 2.5,
-                              dotData: FlDotData(
-                                show: true,
-                                getDotPainter:
-                                    (spot, percent, barData, index) =>
-                                        FlDotCirclePainter(
-                                          radius: 2.8,
-                                          color: AppColors.starTrekGold,
-                                          strokeWidth: 0,
-                                        ),
-                              ),
+                              dotData: const FlDotData(show: false),
                             ),
                             if (showSpeed && _speedSpots.isNotEmpty)
                               LineChartBarData(
@@ -480,7 +518,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     final bool touchedBlueNeedle =
                         graphX != null && (x - graphX).abs() < 24;
 
-                    // 🟢 AGULLA D'INICI DEL RANG
                     if (isRangeModeActive && touchedStart) {
                       setState(() {
                         _draggingHandle = 1;
@@ -488,7 +525,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       return;
                     }
 
-                    // 🔴 AGULLA FINAL DEL RANG
                     if (isRangeModeActive && touchedEnd) {
                       setState(() {
                         _draggingHandle = 2;
@@ -496,7 +532,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       return;
                     }
 
-                    // 🔵 AGULLA BLAVA EXISTENT
                     if (touchedBlueNeedle) {
                       setState(() {
                         _hideBlueNeedle = false;
@@ -505,8 +540,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       return;
                     }
 
-                    // 🔵 NO S'HA TOCAT CAP AGULLA:
-                    // Creem una nova posició blava i eliminem qualsevol rang existent
                     debugPrint(
                       "DEBUG: nou punt blau x=$x start=$startXRealPixel end=$endXRealPixel graph=$graphX",
                     );
@@ -519,12 +552,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       _draggingHandle = 3;
                     });
 
-                    // 🔒 El rang verd/vermell desapareix
                     ref.read(gpxEditorProvider.notifier).clearChartSelection();
-
-                    // 🔵 Creem/movem l'agulla blava
                     ref.read(gpxEditorProvider.notifier).updateChartNeedle(idx);
-
                     ref
                         .read(gpxEditorProvider.notifier)
                         .updateSnappedPoint(_validPoints[idx], idx);
@@ -539,22 +568,40 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     if (_draggingHandle == 1) {
                       if (now - _lastUpdateTimestamp < 20) return;
                       _lastUpdateTimestamp = now;
-                      if (endPointsIndex != null && idx >= endPointsIndex)
+                      if (endPointsIndex != null && idx > endPointsIndex) {
+                        ref
+                            .read(gpxEditorProvider.notifier)
+                            .updateIndividualRangeHandle(
+                              newStartIdx: endPointsIndex,
+                              newEndIdx: idx,
+                            );
+                        setState(() {
+                          _draggingHandle = 2;
+                        });
                         return;
+                      }
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateIndividualRangeHandle(newStartIdx: idx);
                     } else if (_draggingHandle == 2) {
                       if (now - _lastUpdateTimestamp < 20) return;
                       _lastUpdateTimestamp = now;
-                      if (startPointsIndex != null && idx <= startPointsIndex)
+                      if (startPointsIndex != null && idx < startPointsIndex) {
+                        ref
+                            .read(gpxEditorProvider.notifier)
+                            .updateIndividualRangeHandle(
+                              newStartIdx: idx,
+                              newEndIdx: startPointsIndex,
+                            );
+                        setState(() {
+                          _draggingHandle = 1;
+                        });
                         return;
+                      }
                       ref
                           .read(gpxEditorProvider.notifier)
                           .updateIndividualRangeHandle(newEndIdx: idx);
-                    }
-                    // 🔵 ARROSSEGAMENT CONTÍNU DE L'AGULLA BLAVA ACTIU EN WEB (Handle 3)
-                    else if (_draggingHandle == 3) {
+                    } else if (_draggingHandle == 3) {
                       if (now - _lastUpdateTimestamp < 25) return;
                       _lastUpdateTimestamp = now;
 
@@ -592,7 +639,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     final double x = details.localPosition.dx;
                     final int idx = _metersToIndex(dxToMeters(x));
 
-                    // 🌟 LONGPRESS: Amaguem l'agulla blava immediatament en obrir rang
                     setState(() {
                       _hideBlueNeedle = true;
                     });
@@ -609,40 +655,65 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     final double x = details.localPosition.dx;
                     final int idx = _metersToIndex(dxToMeters(x));
                     final int now = DateTime.now().millisecondsSinceEpoch;
-
-                    if (now - _lastUpdateTimestamp < 25) return;
+                    if (now - _lastUpdateTimestamp < 20) return;
                     _lastUpdateTimestamp = now;
 
                     ref
                         .read(gpxEditorProvider.notifier)
                         .updateIndividualRangeHandle(newEndIdx: idx);
                   },
+                  onLongPressEnd: (details) {
+                    final currentState = ref.read(gpxEditorProvider);
+                    if (currentState.selectionStartIndex != null &&
+                        currentState.selectionEndIndex != null) {
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .finalizeChartRangeSelection(
+                            currentState.selectionStartIndex!,
+                            currentState.selectionEndIndex!,
+                          );
+                    }
+                  },
                 ),
 
-                // 5. Tooltips de distàncies (Verd, Vermell i Blau) clavats a sota
-                if (showRangeArea && endPointsIndex != null) ...[
-                  Positioned(
-                    bottom: 2,
-                    left: 4,
-                    child: _buildFlutterTooltip(
-                      "${(_distances[startPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
-                      _getRealSpeedKmh(startPointsIndex),
-                      AppColors.starTrekGold,
-                      showSpeed,
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 2,
-                    right: 4,
-                    child: _buildFlutterTooltip(
-                      "${(_distances[endPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
-                      _getRealSpeedKmh(endPointsIndex),
-                      AppColors.starTrekRed,
-                      showSpeed,
-                    ),
+                // 5. TOOLTIPS DE SELECCIÓ REPARATS AMB BARRERA RÍGIDA DE PROXIMITAT
+                if (showRangeArea &&
+                    endPointsIndex != null &&
+                    startTooltipLeft != null &&
+                    endTooltipLeft != null) ...[
+                  Stack(
+                    children: [
+                      Positioned(
+                        bottom: 2,
+                        left: startTooltipLeft,
+                        child: Container(
+                          key: _startTooltipKey,
+                          child: _buildFlutterTooltip(
+                            "${(_distances[startPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
+                            _getRealSpeedKmh(startPointsIndex),
+                            AppColors.starTrekGold,
+                            showSpeed,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 2,
+                        left: endTooltipLeft,
+                        child: Container(
+                          key: _endTooltipKey,
+                          child: _buildFlutterTooltip(
+                            "${(_distances[endPointsIndex] / 1000.0).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
+                            _getRealSpeedKmh(endPointsIndex),
+                            AppColors.starTrekRed,
+                            showSpeed,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
 
+                // Tooltip de l'agulla blava independent (Sense canvis, centrat clàssic)
                 if (!_hideBlueNeedle && snappedIdx != null && graphX != null)
                   Positioned(
                     bottom: 2,
@@ -663,5 +734,16 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         },
       ),
     );
+  }
+
+  void _updateTooltipSize() {
+    final RenderBox? box =
+        _startTooltipKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (box != null && box.size.width != _tooltipWidth) {
+      setState(() {
+        _tooltipWidth = box.size.width;
+      });
+    }
   }
 }
