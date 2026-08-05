@@ -472,80 +472,33 @@ mixin MapRenderingMixin {
   }
 
   Future<void> paintTracks(List<TrackModel> tracks, int? activeTrackId) async {
-    if (controller == null) return;
+    if (controller == null) {
+      return;
+    }
 
-    if (_paintingTracks) return;
+    // 🔒 Evita dues pintades simultànies (molt freqüent en Flutter Web)
+    if (_paintingTracks) {
+      return;
+    }
 
     _paintingTracks = true;
 
     try {
-      final existingLayers = (await controller!.getLayerIds())
+      final List<String> currentLayers = (await controller!.getLayerIds())
+          .cast<String>();
+
+      final Set<String> currentLayerSet = currentLayers.toSet();
+
+      final Set<String> existingSourceSet = (await controller!.getSourceIds())
           .cast<String>()
           .toSet();
-
-      final existingSources = (await controller!.getSourceIds())
-          .cast<String>()
-          .toSet();
-
-      // ============================================================
-      // 1) ELIMINAR TRACKS QUE JA NO EXISTEIXEN
-      // ============================================================
-
-      final visibleTrackIds = tracks.map((t) => t.id).toSet();
-
-      final obsoleteLayerIds = existingLayers.where((layerId) {
-        if (!layerId.startsWith("layer_") &&
-            !layerId.startsWith("layer_wp_") &&
-            !layerId.startsWith("layer_glow_")) {
-          return false;
-        }
-
-        final idString = layerId
-            .replaceFirst("layer_glow_white_", "")
-            .replaceFirst("layer_glow_yellow_", "")
-            .replaceFirst("layer_wp_", "")
-            .replaceFirst("layer_", "");
-
-        final id = int.tryParse(idString);
-
-        return id != null && !visibleTrackIds.contains(id);
-      }).toList();
-
-      for (final layerId in obsoleteLayerIds) {
-        try {
-          await controller!.removeLayer(layerId);
-        } catch (_) {}
-      }
-
-      final obsoleteSourceIds = existingSources.where((sourceId) {
-        if (!sourceId.startsWith("source_") &&
-            !sourceId.startsWith("source_wp_")) {
-          return false;
-        }
-
-        final idString = sourceId
-            .replaceFirst("source_wp_", "")
-            .replaceFirst("source_", "");
-
-        final id = int.tryParse(idString);
-
-        return id != null && !visibleTrackIds.contains(id);
-      }).toList();
-
-      for (final sourceId in obsoleteSourceIds) {
-        try {
-          await controller!.removeSource(sourceId);
-        } catch (_) {}
-      }
-
-      // ============================================================
-      // 2) PINTAR TRACKS ACTUALS
-      // ============================================================
 
       final List<TrackModel> tracksToPaint = [];
 
       for (final track in tracks) {
-        if (track.points.isEmpty) continue;
+        if (track.points.isEmpty) {
+          continue;
+        }
 
         final sourceId = "source_${track.id}";
         final waypointSourceId = "source_wp_${track.id}";
@@ -555,7 +508,9 @@ mixin MapRenderingMixin {
             .map((p) => [p.longitude!, p.latitude!])
             .toList();
 
-        if (coords.isEmpty) continue;
+        if (coords.isEmpty) {
+          continue;
+        }
 
         tracksToPaint.add(track);
 
@@ -586,107 +541,143 @@ mixin MapRenderingMixin {
               .toList(),
         };
 
-        if (existingSources.contains(sourceId)) {
+        // ============================================================
+        // SOURCES
+        // ============================================================
+
+        if (existingSourceSet.contains(sourceId)) {
           await controller!.setGeoJsonSource(sourceId, trackGeojson);
         } else {
-          await controller!.addSource(
-            sourceId,
-            GeojsonSourceProperties(data: trackGeojson),
-          );
-
-          existingSources.add(sourceId);
-        }
-
-        if (existingSources.contains(waypointSourceId)) {
-          await controller!.setGeoJsonSource(waypointSourceId, waypointGeojson);
-        } else {
-          await controller!.addSource(
-            waypointSourceId,
-            GeojsonSourceProperties(data: waypointGeojson),
-          );
-
-          existingSources.add(waypointSourceId);
-        }
-      }
-
-      // ============================================================
-      // 3) RECREAR ORDRE DE CAPES
-      // ============================================================
-
-      final currentLayerIds = (await controller!.getLayerIds())
-          .cast<String>()
-          .toSet();
-
-      String? insertionAnchorLayerId = _overlayAnchorLayerId(currentLayerIds);
-
-      for (final track in tracksToPaint) {
-        final layerId = "layer_${track.id}";
-        final waypointLayerId = "layer_wp_${track.id}";
-        final glowWhite = "layer_glow_white_${track.id}";
-        final glowYellow = "layer_glow_yellow_${track.id}";
-
-        for (final id in [waypointLayerId, layerId, glowYellow, glowWhite]) {
-          if (currentLayerIds.contains(id)) {
-            try {
-              await controller!.removeLayer(id);
-            } catch (_) {}
+          try {
+            await controller!.addSource(
+              sourceId,
+              GeojsonSourceProperties(data: trackGeojson),
+            );
+            existingSourceSet.add(sourceId);
+          } catch (_) {
+            await controller!.setGeoJsonSource(sourceId, trackGeojson);
           }
         }
 
-        final active = track.id == activeTrackId;
+        if (existingSourceSet.contains(waypointSourceId)) {
+          await controller!.setGeoJsonSource(waypointSourceId, waypointGeojson);
+        } else {
+          try {
+            await controller!.addSource(
+              waypointSourceId,
+              GeojsonSourceProperties(data: waypointGeojson),
+            );
+            existingSourceSet.add(waypointSourceId);
+          } catch (_) {
+            await controller!.setGeoJsonSource(
+              waypointSourceId,
+              waypointGeojson,
+            );
+          }
+        }
+      }
 
-        final showGlow = active && track.isVisible;
+      // Reordenem sempre les capes de tracks perquè segueixin exactament l'ordre del sidebar.
+      for (final track in tracksToPaint) {
+        final layerId = "layer_${track.id}";
+        final glowWhiteLayerId = "layer_glow_white_${track.id}";
+        final glowYellowLayerId = "layer_glow_yellow_${track.id}";
+        final waypointLayerId = "layer_wp_${track.id}";
 
+        final List<String> layersToRemove = [
+          waypointLayerId,
+          layerId,
+          glowYellowLayerId,
+          glowWhiteLayerId,
+        ];
+
+        for (final id in layersToRemove) {
+          if (currentLayerSet.contains(id)) {
+            try {
+              await controller!.removeLayer(id);
+            } catch (_) {}
+            currentLayerSet.remove(id);
+          }
+        }
+      }
+
+      String? insertionAnchorLayerId = _overlayAnchorLayerId(currentLayerSet);
+
+      for (final track in tracksToPaint) {
+        final sourceId = "source_${track.id}";
+        final layerId = "layer_${track.id}";
+        final glowWhiteLayerId = "layer_glow_white_${track.id}";
+        final glowYellowLayerId = "layer_glow_yellow_${track.id}";
+        final waypointSourceId = "source_wp_${track.id}";
+        final waypointLayerId = "layer_wp_${track.id}";
+
+        final bool isActiveTrack = track.id == activeTrackId;
+        final bool shouldShowGlow = isActiveTrack && track.isVisible;
+
+        // De dalt a baix per track: waypoints, línia base, glow groc, glow blanc.
         await controller!.addCircleLayer(
-          "source_wp_${track.id}",
+          waypointSourceId,
           waypointLayerId,
           CircleLayerProperties(
-            circleColor: active ? "#FFEB3B" : "#FFFFFF",
-            circleRadius: 6,
+            circleColor: isActiveTrack ? "#FFEB3B" : "#FFFFFF",
+            circleRadius: 6.0,
             circleStrokeColor: track.hexColor,
-            circleStrokeWidth: 2,
-            circleOpacity: track.isVisible ? 1 : 0,
+            circleStrokeWidth: 2.0,
+            circleOpacity: track.isVisible ? 1.0 : 0.0,
+            circleStrokeOpacity: track.isVisible ? 1.0 : 0.0,
           ),
           belowLayerId: insertionAnchorLayerId,
         );
-
         insertionAnchorLayerId = waypointLayerId;
+        currentLayerSet.add(waypointLayerId);
 
         await controller!.addLineLayer(
-          "source_${track.id}",
+          sourceId,
           layerId,
           LineLayerProperties(
             lineColor: track.hexColor,
             lineWidth: 3.5,
-            lineOpacity: track.isVisible ? 1 : 0,
+            lineOpacity: track.isVisible ? 1.0 : 0.0,
           ),
           belowLayerId: insertionAnchorLayerId,
         );
-
         insertionAnchorLayerId = layerId;
+        currentLayerSet.add(layerId);
 
-        if (showGlow) {
+        if (shouldShowGlow) {
           await controller!.addLineLayer(
-            "source_${track.id}",
-            glowYellow,
-            const LineLayerProperties(lineColor: "#FFEB3B", lineWidth: 6),
+            sourceId,
+            glowYellowLayerId,
+            const LineLayerProperties(
+              lineColor: "#FFEB3B",
+              lineWidth: 6.0,
+              lineJoin: "round",
+              lineCap: "round",
+              lineOpacity: 1.0,
+            ),
             belowLayerId: insertionAnchorLayerId,
           );
-
-          insertionAnchorLayerId = glowYellow;
+          insertionAnchorLayerId = glowYellowLayerId;
+          currentLayerSet.add(glowYellowLayerId);
 
           await controller!.addLineLayer(
-            "source_${track.id}",
-            glowWhite,
-            const LineLayerProperties(lineColor: "#FFFFFF", lineWidth: 8.5),
+            sourceId,
+            glowWhiteLayerId,
+            const LineLayerProperties(
+              lineColor: "#FFFFFF",
+              lineWidth: 8.5,
+              lineJoin: "round",
+              lineCap: "round",
+              lineOpacity: 1.0,
+            ),
             belowLayerId: insertionAnchorLayerId,
           );
-
-          insertionAnchorLayerId = glowWhite;
+          insertionAnchorLayerId = glowWhiteLayerId;
+          currentLayerSet.add(glowWhiteLayerId);
         }
       }
     } catch (e) {
-      debugPrint("paintTracks ERROR: $e");
+      debugPrint("🟥 paintTracks ERROR CONTROLAT: $e");
     } finally {
       _paintingTracks = false;
     }

@@ -1023,28 +1023,44 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
   Future<void> _focusTrack(int? trackId, List<TrackModel> tracks) async {
     if (_controller == null || trackId == null || tracks.isEmpty) return;
+
     final track = tracks.firstWhere(
       (t) => t.id == trackId,
       orElse: () => tracks.first,
     );
+
     if (track.points.isEmpty) return;
 
-    double sumLat = 0, sumLng = 0;
-    int validPoints = 0;
+    double minLat = double.infinity;
+    double maxLat = -double.infinity;
+    double minLng = double.infinity;
+    double maxLng = -double.infinity;
+
     for (final p in track.points) {
-      if (p.latitude != null && p.longitude != null) {
-        sumLat += p.latitude!;
-        sumLng += p.longitude!;
-        validPoints++;
-      }
+      if (p.latitude == null || p.longitude == null) continue;
+
+      minLat = math.min(minLat, p.latitude!);
+      maxLat = math.max(maxLat, p.latitude!);
+      minLng = math.min(minLng, p.longitude!);
+      maxLng = math.max(maxLng, p.longitude!);
     }
-    if (validPoints > 0) {
-      await _controller!.animateCamera(
-        CameraUpdate.newLatLng(
-          LatLng(sumLat / validPoints, sumLng / validPoints),
-        ),
-      );
-    }
+
+    if (!minLat.isFinite) return;
+
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+
+    await _controller!.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        bounds,
+        left: 50,
+        top: 50,
+        right: 50,
+        bottom: 50,
+      ),
+    );
   }
 
   Future<void> _importGpxFiles(BuildContext context, WidgetRef ref) async {
