@@ -1187,6 +1187,31 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     state = state.copyWith(chartNeedleIndex: idx);
   }
 
+  void startChartRangeSelection({required int startIdx, required int endIdx}) {
+    if (state.selectedTrackId == null) return;
+
+    final activeTrack = state.tracks.firstWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    final int totalPoints = activeTrack.points.length;
+    if (totalPoints <= 0) return;
+
+    final int clampedStart = startIdx.clamp(0, totalPoints - 1);
+    final int clampedEnd = endIdx.clamp(0, totalPoints - 1);
+    final int s = clampedStart < clampedEnd ? clampedStart : clampedEnd;
+    final int e = clampedStart < clampedEnd ? clampedEnd : clampedStart;
+
+    state = state.copyWith(
+      activeTool: 'range_chart',
+      selectionStartIndex: s,
+      selectionEndIndex: e,
+      chartRangeStartIndex: s,
+      chartRangeEndIndex: e,
+      isSelectingRange: false,
+      chartNeedleIndex: null,
+    );
+  }
+
   // 🧠 REPARACIÓ FINAL AL PROVIDER (GPX_EDITOR_NOTIFIER)
   void startChartRangeSelectionWithPercent() {
     if (state.selectedTrackId == null) return;
@@ -1200,16 +1225,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final int startIdx = (totalPoints * 0.25).floor().clamp(0, totalPoints - 1);
     final int endIdx = (totalPoints * 0.75).floor().clamp(0, totalPoints - 1);
 
-    state = state.copyWith(
-      activeTool:
-          'range_chart', // 🌟 CLAU: Creem l'eina virtual 'range_chart' exclusiva de la gràfica
-      selectionStartIndex: startIdx,
-      selectionEndIndex: endIdx,
-      chartRangeStartIndex: startIdx,
-      chartRangeEndIndex: endIdx,
-      isSelectingRange: false, // El gràfic neix ja amb el rang congelat i llest
-      chartNeedleIndex: null,
-    );
+    startChartRangeSelection(startIdx: startIdx, endIdx: endIdx);
   }
 
   /// 🌟 3) ACTUALITZACIÓ D'UNA AGULLA INDIVIDUAL DEL RANG (Mentre l'usuari arrossega els handles)

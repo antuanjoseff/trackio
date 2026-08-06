@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:latlong2/latlong.dart' as geo;
@@ -22,6 +23,8 @@ class ElevationChartWidget extends ConsumerStatefulWidget {
 
 class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   List<TrackPointModel> _validPoints = [];
+  List<int> _validPointTrackIndices = [];
+  Map<int, int> _trackToChartIndex = {};
   List<FlSpot> _spots = [];
   List<FlSpot> _speedSpots = [];
   List<double> _distances = [];
@@ -35,6 +38,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
   int _draggingHandle = -1;
   bool _hideBlueNeedle = false;
+  int _ignorePanDownUntilMs = 0;
+  double? _lastRangeActivationDx;
   final GlobalKey _startTooltipKey = GlobalKey();
   final GlobalKey _endTooltipKey = GlobalKey();
 
@@ -50,7 +55,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   void didUpdateWidget(covariant ElevationChartWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.track.id != widget.track.id ||
-        oldWidget.track.points.length != widget.track.points.length) {
+        oldWidget.track.points.length != widget.track.points.length ||
+        oldWidget.track.points != widget.track.points) {
       _precomputeChartData();
     }
   }
@@ -64,12 +70,23 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   }
 
   void _precomputeChartData() {
-    _validPoints = widget.track.points
-        .where(
-          (p) =>
-              p.elevation != null && p.latitude != null && p.longitude != null,
-        )
-        .toList();
+    final List<TrackPointModel> validPoints = [];
+    final List<int> validTrackIndices = [];
+
+    for (int i = 0; i < widget.track.points.length; i++) {
+      final p = widget.track.points[i];
+      if (p.elevation != null && p.latitude != null && p.longitude != null) {
+        validPoints.add(p);
+        validTrackIndices.add(i);
+      }
+    }
+
+    _validPoints = validPoints;
+    _validPointTrackIndices = validTrackIndices;
+    _trackToChartIndex = {
+      for (int i = 0; i < _validPointTrackIndices.length; i++)
+        _validPointTrackIndices[i]: i,
+    };
 
     if (_validPoints.isEmpty) {
       setState(() {
@@ -129,7 +146,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         if (pPrev.timestamp != null && pCurr.timestamp != null) {
           final seconds = pCurr.timestamp!
               .difference(pPrev.timestamp!)
-              .inSeconds;
+              .inSeconds
+              .abs();
           if (seconds > 0) {
             final double meters = localDistances[i] - localDistances[i - 1];
             speedKmh = (meters / 1000) / (seconds / 3600);
@@ -157,6 +175,46 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       _minAlt = finalMinAlt;
       _maxAlt = finalMaxAlt;
     });
+  }
+
+  int _chartToTrackIndex(int chartIdx) {
+    if (_validPointTrackIndices.isEmpty) return 0;
+    final safeChartIdx = chartIdx.clamp(0, _validPointTrackIndices.length - 1);
+    return _validPointTrackIndices[safeChartIdx];
+  }
+
+  int? _trackToNearestChartIndex(int? trackIdx) {
+    if (trackIdx == null || _validPointTrackIndices.isEmpty) return null;
+
+    final exact = _trackToChartIndex[trackIdx];
+    if (exact != null) return exact;
+
+    int low = 0;
+    int high = _validPointTrackIndices.length - 1;
+
+    while (low <= high) {
+      final mid = (low + high) >> 1;
+      final value = _validPointTrackIndices[mid];
+
+      if (value == trackIdx) {
+        return mid;
+      } else if (value < trackIdx) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    if (low >= _validPointTrackIndices.length) {
+      return _validPointTrackIndices.length - 1;
+    }
+    if (high < 0) {
+      return 0;
+    }
+
+    final lowDiff = (_validPointTrackIndices[low] - trackIdx).abs();
+    final highDiff = (_validPointTrackIndices[high] - trackIdx).abs();
+    return lowDiff < highDiff ? low : high;
   }
 
   int _metersToIndex(double meters) {
@@ -242,7 +300,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     final pCurr = _validPoints[index];
     if (pPrev.timestamp == null || pCurr.timestamp == null) return null;
 
-    final seconds = pCurr.timestamp!.difference(pPrev.timestamp!).inSeconds;
+    final seconds = pCurr.timestamp!
+        .difference(pPrev.timestamp!)
+        .inSeconds
+        .abs();
     if (seconds <= 0) return 0.0;
 
     const geo.Distance distanceCalculator = geo.Distance();
@@ -270,12 +331,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     }
 
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
-    final start = ref.watch(
+    final startTrackIdx = ref.watch(
       gpxEditorProvider.select((s) => s.selectionStartIndex),
     );
-    final end = ref.watch(gpxEditorProvider.select((s) => s.selectionEndIndex));
-    // 🌟 SUBSTITEIX LA TEVA LÍNIA ACTUAL PER AQUESTA:
-    final snappedIdx = ref.watch(
+    final endTrackIdx = ref.watch(
+      gpxEditorProvider.select((s) => s.selectionEndIndex),
+    );
+    final snappedTrackIdx = ref.watch(
       gpxEditorProvider.select(
         (s) => s.chartNeedleIndex ?? s.snappedPointIndex,
       ),
@@ -285,15 +347,17 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       gpxEditorProvider.select((s) => s.showSpeedInChart),
     );
 
+    final int? snappedIdx = _trackToNearestChartIndex(snappedTrackIdx);
+    final int? startPointsIndex = _trackToNearestChartIndex(startTrackIdx);
+
+    final int? effectiveEndTrackIdx = (endTrackIdx == null || endTrackIdx == -1)
+        ? (snappedTrackIdx ?? startTrackIdx)
+        : endTrackIdx;
+
+    final int? endPointsIndex = _trackToNearestChartIndex(effectiveEndTrackIdx);
+
     final bool isRangeModeActive =
         activeTool == 'range_map' || activeTool == 'range_chart';
-    final int? startPointsIndex = start;
-
-    final int? endPointsIndex = (end == null || end == -1)
-        ? ((snappedIdx != null && startPointsIndex != null)
-              ? snappedIdx
-              : start)
-        : end;
 
     final double maxDistance = _distances.isNotEmpty ? _distances.last : 0.0;
 
@@ -398,6 +462,57 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
           final bool showRangeArea =
               isRangeModeActive && startPointsIndex != null;
 
+          void startRangeSelectionAtDx(
+            double dx, {
+            bool fromDoubleTap = false,
+          }) {
+            final chartIdx = _metersToIndex(dxToMeters(dx));
+            final trackIdx = _chartToTrackIndex(chartIdx);
+
+            final int rangeStartChartIdx = (_validPoints.length * 0.25)
+                .floor()
+                .clamp(0, _validPoints.length - 1);
+            final int rangeEndChartIdx = (_validPoints.length * 0.75)
+                .floor()
+                .clamp(0, _validPoints.length - 1);
+
+            if (kIsWeb && fromDoubleTap) {
+              _ignorePanDownUntilMs =
+                  DateTime.now().millisecondsSinceEpoch + 220;
+              _lastRangeActivationDx = dx;
+            }
+
+            setState(() {
+              _hideBlueNeedle = true;
+              _draggingHandle = -1;
+            });
+
+            ref
+                .read(gpxEditorProvider.notifier)
+                .updateSnappedPoint(widget.track.points[trackIdx], trackIdx);
+
+            ref
+                .read(gpxEditorProvider.notifier)
+                .startChartRangeSelection(
+                  startIdx: _chartToTrackIndex(rangeStartChartIdx),
+                  endIdx: _chartToTrackIndex(rangeEndChartIdx),
+                );
+          }
+
+          void finalizeRangeSelectionIfNeeded() {
+            final currentState = ref.read(gpxEditorProvider);
+
+            if (currentState.selectionStartIndex != null &&
+                currentState.selectionEndIndex != null) {
+              ref
+                  .read(gpxEditorProvider.notifier)
+                  .finalizeChartRangeSelection(
+                    currentState.selectionStartIndex!,
+                    currentState.selectionEndIndex!,
+                  );
+            }
+          }
+
           return SizedBox(
             height: currentChartHeight,
             child: Stack(
@@ -497,8 +612,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 // ==========================================================
                 CustomPaint(
                   painter: SelectionPainter(
-                    needleX: _hideBlueNeedle ? null : graphX,
-                    snappedIdx: _hideBlueNeedle ? null : snappedIdx,
+                    needleX: (_hideBlueNeedle || isRangeModeActive)
+                        ? null
+                        : graphX,
+                    snappedIdx: (_hideBlueNeedle || isRangeModeActive)
+                        ? null
+                        : snappedIdx,
                     startX: startXRealPixel,
                     endX: endXRealPixel,
                     startPointsIndex: startPointsIndex,
@@ -520,30 +639,76 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 GestureDetector(
                   behavior: HitTestBehavior.translucent,
 
+                  onDoubleTapDown: kIsWeb
+                      ? (details) {
+                          startRangeSelectionAtDx(
+                            details.localPosition.dx,
+                            fromDoubleTap: true,
+                          );
+                        }
+                      : null,
+
                   onPanDown: (details) {
                     final double x = details.localPosition.dx;
+                    final double handleHitRadius = kIsWeb ? 34.0 : 24.0;
+                    final double needleHitRadius = kIsWeb ? 30.0 : 24.0;
+
+                    final int nowMs = DateTime.now().millisecondsSinceEpoch;
+                    if (kIsWeb && nowMs < _ignorePanDownUntilMs) {
+                      final double activationDx = _lastRangeActivationDx ?? x;
+                      if ((x - activationDx).abs() <= 18) {
+                        return;
+                      }
+                    }
 
                     final bool touchedStart =
                         startXRealPixel != null &&
-                        (x - startXRealPixel).abs() < 24;
+                        (x - startXRealPixel).abs() < handleHitRadius;
 
                     final bool touchedEnd =
-                        endXRealPixel != null && (x - endXRealPixel).abs() < 24;
+                        endXRealPixel != null &&
+                        (x - endXRealPixel).abs() < handleHitRadius;
 
                     final bool touchedBlueNeedle =
-                        graphX != null && (x - graphX).abs() < 24;
+                        graphX != null && (x - graphX).abs() < needleHitRadius;
 
-                    if (isRangeModeActive && touchedStart) {
-                      setState(() {
-                        _draggingHandle = 1;
-                      });
-                      return;
-                    }
+                    if (isRangeModeActive) {
+                      if (touchedStart) {
+                        setState(() {
+                          _draggingHandle = 1;
+                        });
+                        return;
+                      }
 
-                    if (isRangeModeActive && touchedEnd) {
+                      if (touchedEnd) {
+                        setState(() {
+                          _draggingHandle = 2;
+                        });
+                        return;
+                      }
+
+                      // Fora de les agulles de tram: sortim del mode range i
+                      // passem directament a l'agulla única.
+                      final chartIdx = _metersToIndex(dxToMeters(x));
+                      final trackIdx = _chartToTrackIndex(chartIdx);
+
                       setState(() {
-                        _draggingHandle = 2;
+                        _hideBlueNeedle = false;
+                        _draggingHandle = 3;
                       });
+
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .clearChartSelection();
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateChartNeedle(trackIdx);
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateSnappedPoint(
+                            widget.track.points[trackIdx],
+                            trackIdx,
+                          );
                       return;
                     }
 
@@ -556,7 +721,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     }
 
                     final meters = dxToMeters(x);
-                    final idx = _metersToIndex(meters);
+                    final chartIdx = _metersToIndex(meters);
+                    final trackIdx = _chartToTrackIndex(chartIdx);
 
                     setState(() {
                       _hideBlueNeedle = false;
@@ -565,18 +731,24 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                     ref.read(gpxEditorProvider.notifier).clearChartSelection();
 
-                    ref.read(gpxEditorProvider.notifier).updateChartNeedle(idx);
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .updateChartNeedle(trackIdx);
 
                     ref
                         .read(gpxEditorProvider.notifier)
-                        .updateSnappedPoint(_validPoints[idx], idx);
+                        .updateSnappedPoint(
+                          widget.track.points[trackIdx],
+                          trackIdx,
+                        );
                   },
 
                   onPanUpdate: (details) {
                     if (_draggingHandle == -1) return;
 
                     final double x = details.localPosition.dx;
-                    final int idx = _metersToIndex(dxToMeters(x));
+                    final int chartIdx = _metersToIndex(dxToMeters(x));
+                    final int trackIdx = _chartToTrackIndex(chartIdx);
 
                     final int now = DateTime.now().millisecondsSinceEpoch;
 
@@ -585,12 +757,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                       _lastUpdateTimestamp = now;
 
-                      if (endPointsIndex != null && idx > endPointsIndex) {
+                      if (endPointsIndex != null && chartIdx > endPointsIndex) {
                         ref
                             .read(gpxEditorProvider.notifier)
                             .updateIndividualRangeHandle(
-                              newStartIdx: endPointsIndex,
-                              newEndIdx: idx,
+                              newStartIdx: _chartToTrackIndex(endPointsIndex),
+                              newEndIdx: trackIdx,
                             );
 
                         setState(() {
@@ -602,18 +774,19 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                       ref
                           .read(gpxEditorProvider.notifier)
-                          .updateIndividualRangeHandle(newStartIdx: idx);
+                          .updateIndividualRangeHandle(newStartIdx: trackIdx);
                     } else if (_draggingHandle == 2) {
                       if (now - _lastUpdateTimestamp < 20) return;
 
                       _lastUpdateTimestamp = now;
 
-                      if (startPointsIndex != null && idx < startPointsIndex) {
+                      if (startPointsIndex != null &&
+                          chartIdx < startPointsIndex) {
                         ref
                             .read(gpxEditorProvider.notifier)
                             .updateIndividualRangeHandle(
-                              newStartIdx: idx,
-                              newEndIdx: startPointsIndex,
+                              newStartIdx: trackIdx,
+                              newEndIdx: _chartToTrackIndex(startPointsIndex),
                             );
 
                         setState(() {
@@ -625,7 +798,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                       ref
                           .read(gpxEditorProvider.notifier)
-                          .updateIndividualRangeHandle(newEndIdx: idx);
+                          .updateIndividualRangeHandle(newEndIdx: trackIdx);
                     } else if (_draggingHandle == 3) {
                       if (now - _lastUpdateTimestamp < 25) return;
 
@@ -633,11 +806,14 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
                       ref
                           .read(gpxEditorProvider.notifier)
-                          .updateChartNeedle(idx);
+                          .updateChartNeedle(trackIdx);
 
                       ref
                           .read(gpxEditorProvider.notifier)
-                          .updateSnappedPoint(_validPoints[idx], idx);
+                          .updateSnappedPoint(
+                            widget.track.points[trackIdx],
+                            trackIdx,
+                          );
                     }
                   },
 
@@ -667,49 +843,29 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     });
                   },
 
-                  onLongPressStart: (details) {
-                    final idx = _metersToIndex(
-                      dxToMeters(details.localPosition.dx),
-                    );
+                  onLongPressStart: kIsWeb
+                      ? null
+                      : (details) {
+                          startRangeSelectionAtDx(details.localPosition.dx);
+                        },
 
-                    setState(() {
-                      _hideBlueNeedle = true;
-                    });
-
-                    ref.read(gpxEditorProvider.notifier).updateChartNeedle(idx);
-
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .updateSnappedPoint(_validPoints[idx], idx);
-
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .startChartRangeSelectionWithPercent();
-                  },
-
-                  onLongPressMoveUpdate: (details) {
-                    final idx = _metersToIndex(
-                      dxToMeters(details.localPosition.dx),
-                    );
-
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .updateIndividualRangeHandle(newEndIdx: idx);
-                  },
-
-                  onLongPressEnd: (_) {
-                    final currentState = ref.read(gpxEditorProvider);
-
-                    if (currentState.selectionStartIndex != null &&
-                        currentState.selectionEndIndex != null) {
-                      ref
-                          .read(gpxEditorProvider.notifier)
-                          .finalizeChartRangeSelection(
-                            currentState.selectionStartIndex!,
-                            currentState.selectionEndIndex!,
+                  onLongPressMoveUpdate: kIsWeb
+                      ? null
+                      : (details) {
+                          final idx = _metersToIndex(
+                            dxToMeters(details.localPosition.dx),
                           );
-                    }
-                  },
+
+                          ref
+                              .read(gpxEditorProvider.notifier)
+                              .updateIndividualRangeHandle(newEndIdx: idx);
+                        },
+
+                  onLongPressEnd: kIsWeb
+                      ? null
+                      : (_) {
+                          finalizeRangeSelectionIfNeeded();
+                        },
                 ),
 
                 // ==========================================================
@@ -724,13 +880,16 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       Positioned(
                         bottom: 2,
                         left: startTooltipLeft,
-                        child: Container(
-                          key: _startTooltipKey,
-                          child: _buildFlutterTooltip(
-                            "${(_distances[startPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
-                            _getRealSpeedKmh(startPointsIndex),
-                            AppColors.starTrekGold,
-                            showSpeed,
+                        child: IgnorePointer(
+                          ignoring: true,
+                          child: Container(
+                            key: _startTooltipKey,
+                            child: _buildFlutterTooltip(
+                              "${(_distances[startPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
+                              _getRealSpeedKmh(startPointsIndex),
+                              AppColors.starTrekGold,
+                              showSpeed,
+                            ),
                           ),
                         ),
                       ),
@@ -738,13 +897,16 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       Positioned(
                         bottom: 2,
                         left: endTooltipLeft,
-                        child: Container(
-                          key: _endTooltipKey,
-                          child: _buildFlutterTooltip(
-                            "${(_distances[endPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
-                            _getRealSpeedKmh(endPointsIndex),
-                            AppColors.starTrekRed,
-                            showSpeed,
+                        child: IgnorePointer(
+                          ignoring: true,
+                          child: Container(
+                            key: _endTooltipKey,
+                            child: _buildFlutterTooltip(
+                              "${(_distances[endPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
+                              _getRealSpeedKmh(endPointsIndex),
+                              AppColors.starTrekRed,
+                              showSpeed,
+                            ),
                           ),
                         ),
                       ),
@@ -752,7 +914,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   ),
 
                 // Tooltip agulla blava
-                if (!_hideBlueNeedle && snappedIdx != null && graphX != null)
+                if (!isRangeModeActive &&
+                    !_hideBlueNeedle &&
+                    snappedIdx != null &&
+                    graphX != null)
                   Positioned(
                     bottom: 2,
                     left: (graphX - 65).clamp(
@@ -760,11 +925,14 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       (chartWidth + paddingLeft + paddingRight) - 130,
                     ),
 
-                    child: _buildFlutterTooltip(
-                      "${(_distances[snappedIdx] / 1000).toStringAsFixed(2)} km | ${_validPoints[snappedIdx].elevation?.toStringAsFixed(0)} m",
-                      _getRealSpeedKmh(snappedIdx),
-                      AppColors.starTrekGold,
-                      showSpeed,
+                    child: IgnorePointer(
+                      ignoring: true,
+                      child: _buildFlutterTooltip(
+                        "${(_distances[snappedIdx] / 1000).toStringAsFixed(2)} km | ${_validPoints[snappedIdx].elevation?.toStringAsFixed(0)} m",
+                        _getRealSpeedKmh(snappedIdx),
+                        AppColors.starTrekGold,
+                        showSpeed,
+                      ),
                     ),
                   ),
               ],
