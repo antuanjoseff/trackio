@@ -641,8 +641,8 @@ mixin MapRenderingMixin {
           "source_wp_${track.id}",
           waypointLayerId,
           CircleLayerProperties(
-            circleColor: active ? "#FFEB3B" : "#FFFFFF",
-            circleRadius: 6,
+            circleColor: active ? "#FFFFFF" : "#FFFFFF",
+            circleRadius: active ? 7 : 6,
             circleStrokeColor: track.hexColor,
             circleStrokeWidth: 2,
             circleOpacity: track.isVisible ? 1 : 0,
@@ -657,8 +657,10 @@ mixin MapRenderingMixin {
           layerId,
           LineLayerProperties(
             lineColor: track.hexColor,
-            lineWidth: 3.5,
+            lineWidth: active ? 5.5 : 3.5,
             lineOpacity: track.isVisible ? 1 : 0,
+            lineCap: "round",
+            lineJoin: "round",
           ),
           belowLayerId: insertionAnchorLayerId,
         );
@@ -668,17 +670,14 @@ mixin MapRenderingMixin {
         if (showGlow) {
           await controller!.addLineLayer(
             "source_${track.id}",
-            glowYellow,
-            const LineLayerProperties(lineColor: "#FFEB3B", lineWidth: 6),
-            belowLayerId: insertionAnchorLayerId,
-          );
-
-          insertionAnchorLayerId = glowYellow;
-
-          await controller!.addLineLayer(
-            "source_${track.id}",
             glowWhite,
-            const LineLayerProperties(lineColor: "#FFFFFF", lineWidth: 8.5),
+            const LineLayerProperties(
+              lineColor: "#000000",
+              lineWidth: 9.5,
+              lineOpacity: 0.85,
+              lineCap: "round",
+              lineJoin: "round",
+            ),
             belowLayerId: insertionAnchorLayerId,
           );
 
