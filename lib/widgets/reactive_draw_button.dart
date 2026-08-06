@@ -54,7 +54,7 @@ class ReactiveDrawButton extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(30),
             ),
-            color: AppColors.starTrekGold.withOpacity(0.96),
+            color: Theme.of(context).appBarTheme.backgroundColor,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -210,7 +210,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                   else
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.starTrekRed,
+                        backgroundColor: AppColors.onSuccess,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),

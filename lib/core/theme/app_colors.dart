@@ -8,6 +8,10 @@ class AppColors {
   static const Color starTrekBlue = Color(0xFF5E81AC); // Blau acer
   static const Color starTrekPurple = Color(0xFF7B6D8D); // Lila apagat
 
+  // Colors semàntics
+  static const Color starTrekGreen = Color(0xFF4F8A5B); // Èxit
+  static const Color onSuccess = Color.fromARGB(255, 84, 190, 81);
+
   static const Color lightBackground = Color(0xFFF4F4F2);
   static const Color darkBackground = Color(0xFF151A22);
 
@@ -18,6 +22,7 @@ class AppColors {
 
   static const ColorScheme lightColorScheme = ColorScheme(
     brightness: Brightness.light,
+
     primary: starTrekRed,
     onPrimary: Colors.white,
 
@@ -38,6 +43,7 @@ class AppColors {
 
   static const ColorScheme darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
+
     primary: starTrekGold,
     onPrimary: Colors.black,
 

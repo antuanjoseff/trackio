@@ -18,6 +18,7 @@ import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/screens/main_editor_layout.dart';
 import 'package:trackio/widgets/reactive_draw_button.dart';
+import 'package:trackio/widgets/reactive_geometry_edit_toolbar.dart';
 import 'package:trackio/widgets/static_editor_map_widget.dart';
 import 'package:trackio/mixins/map_rendering_mixin.dart';
 import 'package:trackio/widgets/reactive_editor_buttons.dart';
