@@ -105,6 +105,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 _buildCompactBtn(
+                                  context,
                                   isActive: false,
                                   icon: const Icon(
                                     Icons.menu_rounded,
@@ -116,6 +117,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 6),
                                 _buildCompactBtn(
+                                  context,
                                   icon: const Icon(
                                     Icons.upload,
                                     color: AppColors.starTrekRed,
@@ -125,6 +127,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 6),
                                 _buildCompactBtn(
+                                  context,
                                   isActive: liveShowChart,
                                   icon: Icon(
                                     liveShowChart
@@ -175,6 +178,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               children: [
                                 if (showMobileGeometryTools) ...[
                                   _buildCompactBtn(
+                                    context,
                                     isActive: geometryMode == 'add',
                                     icon: Icon(
                                       Icons.add_circle,
@@ -187,6 +191,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 6),
                                   _buildCompactBtn(
+                                    context,
                                     isActive: geometryMode == 'delete',
                                     icon: Icon(
                                       Icons.remove_circle,
@@ -201,6 +206,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 6),
                                   _buildCompactBtn(
+                                    context,
                                     isActive: geometryMode == 'move',
                                     icon: Icon(
                                       Icons.open_with,
@@ -213,6 +219,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 6),
                                   _buildCompactBtn(
+                                    context,
                                     icon: Icon(
                                       Icons.undo,
                                       color: canUndoGeometry
@@ -228,6 +235,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 6),
                                   _buildCompactBtn(
+                                    context,
                                     icon: const Icon(
                                       Icons.close_rounded,
                                       color: AppColors.starTrekRed,
@@ -240,6 +248,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                 ] else ...[
                                   // 1. INVERTIR DIRECCIÓ
                                   _buildCompactBtn(
+                                    context,
                                     icon: TrackioLargeIcon(
                                       child: TrackioIcons.reverseDirection(
                                         color: isDisabled
@@ -255,6 +264,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   const SizedBox(height: 6),
                                   // 2. TALLAR (SPLIT)
                                   _buildCompactBtn(
+                                    context,
                                     isActive: liveActiveTool == 'split',
                                     icon: TrackioLargeIcon(
                                       child: TrackioIcons.cutGpx(
@@ -279,6 +289,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   const SizedBox(height: 6),
                                   // 3. UNIR (MERGE)
                                   _buildCompactBtn(
+                                    context,
                                     isActive: liveActiveTool == 'merge',
                                     icon: TrackioLargeIcon(
                                       child: TrackioIcons.joinGpx(
@@ -303,6 +314,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   const SizedBox(height: 6),
                                   // 4. SELECCIONAR TRAM (RANGE)
                                   _buildCompactBtn(
+                                    context,
                                     isActive: liveActiveTool == 'range_map',
                                     icon: TrackioLargeIcon(
                                       child: TrackRangeSelection(
@@ -328,6 +340,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
 
                                   // 5. AFEGIR WAYPOINT
                                   _buildCompactBtn(
+                                    context,
                                     isActive: liveActiveTool == 'add_waypoint',
                                     icon: TrackioLargeIcon(
                                       child: TrackioIcons.addWaypoint(
@@ -353,6 +366,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
 
                                   // 6. DIBUIXAR DE ZERO
                                   _buildCompactBtn(
+                                    context,
                                     isActive: liveActiveTool == 'draw',
                                     icon: TrackioLargeIcon(
                                       child: Icon(
@@ -375,6 +389,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
 
                                   // 7. EDITAR GEOMETRIA
                                   _buildCompactBtn(
+                                    context,
                                     isActive: liveActiveTool == 'edit_geometry',
                                     icon: Icon(
                                       Icons.hub_rounded,
@@ -472,34 +487,18 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                 left: liveShowSidebar ? 344 : 12,
                 child: SafeArea(
                   top: true,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 6,
+                  child: _buildCompactBtn(
+                    context,
+                    isActive: liveShowSidebar,
+                    icon: Icon(
+                      liveShowSidebar
+                          ? Icons.view_sidebar
+                          : Icons.view_sidebar_outlined,
+                      color: AppColors.starTrekRed,
                     ),
-                    decoration: BoxDecoration(
-                      color: AppColors.starTrekGold.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.12),
-                          blurRadius: 8,
-                          offset: const Offset(2, 2),
-                        ),
-                      ],
-                    ),
-                    child: _buildCompactBtn(
-                      isActive: liveShowSidebar,
-                      icon: Icon(
-                        liveShowSidebar
-                            ? Icons.view_sidebar
-                            : Icons.view_sidebar_outlined,
-                        color: AppColors.starTrekRed,
-                      ),
-                      tooltip: "Menú",
-                      onPressed: () =>
-                          ref.read(gpxEditorProvider.notifier).toggleSidebar(),
-                    ),
+                    tooltip: "Menú",
+                    onPressed: () =>
+                        ref.read(gpxEditorProvider.notifier).toggleSidebar(),
                   ),
                 ),
               ),
@@ -518,7 +517,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
   }
 
   // 📐 BOTONS D'ALTA DENSITAT ESTRUCUTURALS
-  Widget _buildCompactBtn({
+  Widget _buildCompactBtn(
+    BuildContext context, {
     required Widget icon,
     required String tooltip,
     required VoidCallback? onPressed,
@@ -529,7 +529,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
       height: 38,
       decoration: BoxDecoration(
         color: isActive
-            ? AppColors.starTrekRed.withOpacity(0.16)
+            ? Theme.of(context).appBarTheme.backgroundColor
             : Colors.transparent,
         shape: BoxShape.circle,
       ),
