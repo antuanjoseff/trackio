@@ -260,11 +260,16 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       final bool drawingChanged =
           previous?.drawingPoints != next.drawingPoints ||
           previous?.drawingLivePoint != next.drawingLivePoint;
+      final bool rangeChanged =
+          previous?.chartRangeStartIndex != next.chartRangeStartIndex ||
+          previous?.chartRangeEndIndex != next.chartRangeEndIndex ||
+          previous?.selectionStartIndex != next.selectionStartIndex ||
+          previous?.selectionEndIndex != next.selectionEndIndex;
 
-      if (toolChanged || snappedChanged || drawingChanged) {
+      if (toolChanged || snappedChanged || drawingChanged || rangeChanged) {
         paintLiveOverlays(next);
       }
-      if (toolChanged) {
+      if (toolChanged || rangeChanged) {
         unawaited(_updateGeometryNodesOverlay());
       }
     });
@@ -378,6 +383,14 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
             final state = ref.read(gpxEditorProvider);
             final notifier = ref.read(gpxEditorProvider.notifier);
+
+            // 🛡️ Si el gràfic està obert en mode rang, qualsevol clic net al mapa el tanca de cop
+            if (state.chartSelectionMode == 'range') {
+              notifier.clearChartSelection();
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              return; // Aturem la intercepció creuada aquí!
+            }
+
             final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
             final activeTool = state.activeTool;
 

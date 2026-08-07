@@ -1,5 +1,6 @@
 // 🌟 EL NOU PROVIDER TRADICIONAL (KeepAlive per defecte, no es reinicia mai sol)
 import 'dart:async'; // Necessari per al StreamSubscription del sensor
+import 'package:flutter/foundation.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/models/track_model.dart';
@@ -103,6 +104,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       isSelectingRange: false,
       forceHideReticle: false,
       isMapIdle: false,
+      chartSelectionMode: 'simple',
     );
   }
 
@@ -129,6 +131,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       isSelectingRange: false,
       forceHideReticle: false,
       isMapIdle: false,
+      chartSelectionMode: 'simple',
     );
   }
 
@@ -1023,6 +1026,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       forceHideReticle: true,
       isSelectingRange: false,
       isMapIdle: false,
+      chartSelectionMode: 'simple',
     );
   }
 
@@ -1184,11 +1188,19 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   /// 🌟 1) Actualitza l’agulla blava (hover / drag de posició)
   void updateChartNeedle(int idx) {
-    state = state.copyWith(chartNeedleIndex: idx);
+    debugPrint(
+      '[chart-notifier] updateChartNeedle idx=$idx activeTool=${state.activeTool}',
+    );
+    state = state.copyWith(chartNeedleIndex: idx, chartSelectionMode: 'simple');
   }
 
   void startChartRangeSelection({required int startIdx, required int endIdx}) {
-    if (state.selectedTrackId == null) return;
+    if (state.selectedTrackId == null) {
+      debugPrint(
+        '[chart-notifier] startChartRangeSelection aborted: no selected track',
+      );
+      return;
+    }
 
     final activeTrack = state.tracks.firstWhere(
       (t) => t.id == state.selectedTrackId,
@@ -1201,6 +1213,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final int s = clampedStart < clampedEnd ? clampedStart : clampedEnd;
     final int e = clampedStart < clampedEnd ? clampedEnd : clampedStart;
 
+    debugPrint('[chart-notifier] startChartRangeSelection s=$s e=$e');
+
     state = state.copyWith(
       activeTool: 'range_chart',
       selectionStartIndex: s,
@@ -1209,6 +1223,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       chartRangeEndIndex: e,
       isSelectingRange: false,
       chartNeedleIndex: null,
+      chartSelectionMode: 'range',
     );
   }
 
@@ -1230,25 +1245,68 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   /// 🌟 3) ACTUALITZACIÓ D'UNA AGULLA INDIVIDUAL DEL RANG (Mentre l'usuari arrossega els handles)
   void updateIndividualRangeHandle({int? newStartIdx, int? newEndIdx}) {
-    if (state.selectedTrackId == null) return;
+    if (state.selectedTrackId == null) {
+      debugPrint(
+        '[chart-notifier] updateIndividualRangeHandle aborted: no selected track',
+      );
+      return;
+    }
 
     final activeTrack = state.tracks.firstWhere(
       (t) => t.id == state.selectedTrackId,
     );
 
-    // Determinem quin node real s'està movent en aquest instant de l'arrossegament
-    final int targetIdx = newStartIdx ?? newEndIdx ?? 0;
+    final int? currentStart =
+        state.chartRangeStartIndex ?? state.selectionStartIndex;
+    final int? currentEnd = state.chartRangeEndIndex ?? state.selectionEndIndex;
+
+    int? nextStart = newStartIdx ?? currentStart;
+    int? nextEnd = newEndIdx ?? currentEnd;
+
+    if (newStartIdx != null && newEndIdx != null) {
+      if (nextStart != null && nextEnd != null && nextStart > nextEnd) {
+        final int tmp = nextStart;
+        nextStart = nextEnd;
+        nextEnd = tmp;
+      }
+    } else if (newStartIdx != null && newEndIdx == null && currentEnd != null) {
+      if (nextStart != null && nextStart > currentEnd) {
+        nextStart = currentEnd;
+        nextEnd = newStartIdx;
+      } else {
+        nextEnd = currentEnd;
+      }
+    } else if (newEndIdx != null &&
+        newStartIdx == null &&
+        currentStart != null) {
+      if (nextEnd != null && nextEnd < currentStart) {
+        nextStart = newEndIdx;
+        nextEnd = currentStart;
+      } else {
+        nextStart = currentStart;
+      }
+    } else if (nextStart != null && nextEnd != null && nextStart > nextEnd) {
+      final int tmp = nextStart;
+      nextStart = nextEnd;
+      nextEnd = tmp;
+    }
+
+    final int targetIdx = nextStart ?? nextEnd ?? 0;
+    debugPrint(
+      '[chart-notifier] updateIndividualRangeHandle start=$newStartIdx end=$newEndIdx target=$targetIdx',
+    );
     TrackPointModel? currentSnappedPoint;
     if (targetIdx >= 0 && targetIdx < activeTrack.points.length) {
       currentSnappedPoint = activeTrack.points[targetIdx];
     }
 
     state = state.copyWith(
-      selectionStartIndex: newStartIdx ?? state.selectionStartIndex,
-      chartRangeStartIndex: newStartIdx ?? state.chartRangeStartIndex,
-      selectionEndIndex: newEndIdx ?? state.selectionEndIndex,
-      chartRangeEndIndex: newEndIdx ?? state.chartRangeEndIndex,
+      selectionStartIndex: nextStart,
+      chartRangeStartIndex: nextStart,
+      selectionEndIndex: nextEnd,
+      chartRangeEndIndex: nextEnd,
       isSelectingRange: true,
+      chartSelectionMode: 'range',
 
       // 🔒 REPARACIÓ: Sincronitzem el punt fixat de geolocalització i el seu índex
       // perquè el map_rendering_mixin rebi el canvi en el mateix frame de la GPU
@@ -1262,30 +1320,40 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final int s = start < end ? start : end;
     final int e = start < end ? end : start;
 
+    debugPrint('[chart-notifier] finalizeChartRangeSelection s=$s e=$e');
+
     state = state.copyWith(
       selectionStartIndex: s,
       selectionEndIndex: e,
       chartRangeStartIndex: s,
       chartRangeEndIndex: e,
       isSelectingRange: false,
+      chartSelectionMode: 'range',
     );
   }
 
   /// 🌟 5) Esborrar completament el rang i els seus indicadors fixos
   void clearChartSelection() {
+    debugPrint(
+      '[chart-notifier] clearChartSelection activeTool=${state.activeTool}',
+    );
     state = state.copyWith(
       selectionStartIndex: null,
       selectionEndIndex: null,
       chartRangeStartIndex: null,
       chartRangeEndIndex: null,
       isSelectingRange: false,
-      activeTool: 'none', // Restablim l'eina automàticament
+      activeTool: 'none',
+      chartSelectionMode: 'simple',
     );
   }
 
   /// 🌟 6) Esborrar l’agulla blava mòbil del dit
   void clearChartNeedle() {
-    state = state.copyWith(chartNeedleIndex: null);
+    state = state.copyWith(
+      chartNeedleIndex: null,
+      chartSelectionMode: 'simple',
+    );
   }
 
   /// 📐 CREAR UN NOU TRACK COPIAT A PARTIR DEL RANG ACTUAL ACUTALITZAT

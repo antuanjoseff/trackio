@@ -117,17 +117,18 @@ class SelectionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant SelectionPainter oldDelegate) {
-    return needleX != oldDelegate.needleX ||
-        startX != oldDelegate.startX ||
-        endX != oldDelegate.endX ||
-        snappedIdx != oldDelegate.snappedIdx ||
-        startPointsIndex != oldDelegate.startPointsIndex ||
-        endPointsIndex != oldDelegate.endPointsIndex ||
-        maxDistance != oldDelegate.maxDistance ||
-        chartHeight != oldDelegate.chartHeight ||
-        minY != oldDelegate.minY ||
-        maxY != oldDelegate.maxY ||
-        totalTrackPoints !=
-            oldDelegate.totalTrackPoints; // 🌟 Afegit al control de repintat
+    return true;
+    // return needleX != oldDelegate.needleX ||
+    //     startX != oldDelegate.startX ||
+    //     endX != oldDelegate.endX ||
+    //     snappedIdx != oldDelegate.snappedIdx ||
+    //     startPointsIndex != oldDelegate.startPointsIndex ||
+    //     endPointsIndex != oldDelegate.endPointsIndex ||
+    //     maxDistance != oldDelegate.maxDistance ||
+    //     chartHeight != oldDelegate.chartHeight ||
+    //     minY != oldDelegate.minY ||
+    //     maxY != oldDelegate.maxY ||
+    //     totalTrackPoints !=
+    //         oldDelegate.totalTrackPoints;
   }
 }

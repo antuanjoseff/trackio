@@ -7,6 +7,9 @@ class AppColors {
   static const Color starTrekGold = Color(0xFFC8A46B); // Bronze elegant
   static const Color starTrekBlue = Color(0xFF5E81AC); // Blau acer
   static const Color starTrekPurple = Color(0xFF7B6D8D); // Lila apagat
+  static const Color starTrekSpeedLine = Color(
+    0xFF4DA3D9,
+  ); // Blau cian per la línia de velocitat
 
   // Colors semàntics
   static const Color starTrekGreen = Color(0xFF4F8A5B); // Èxit

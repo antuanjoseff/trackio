@@ -1,18 +1,20 @@
-Els fitxers clau que jo tocaria són aquests:
+La detecció està concentrada en el gest del gràfic; et puc indicar exactament la secció del codi on es comprova si el drag està sobre una agulla i on es decideix quina agulla mou.
 
-elevation_chart_widget.dart
-Aquí hi ha gairebé tota la lògica del problema: gestos del gràfic, detecció de drag, activació de mode tram, canvi entre una agulla i dues agulles, i render dels tooltips.
+Sí. El punt exacte és aquest bloc a elevation_chart_widget.dart:
 
-gpx_editor_notifier.dart
-Aquí es decideix l’estat real: startChartRangeSelectionWithPercent, updateIndividualRangeHandle, finalizeChartRangeSelection, clearChartSelection, updateChartNeedle. Si el mode tram no canvia bé, el problema sovint és aquí.
+A l’event de pan start:
 
-gpx_editor_state.dart
-Si cal afegir o ajustar camps d’estat per distingir millor mode consulta / mode tram / agulla activa, aquest és el model base.
+onPanStart
+dins d’aquest mètode es fa:
+touchedStart
+touchedEnd
+i es comprova si el drag comença sobre una agulla amb:
+startXRealPixel != null && (x - startXRealPixel).abs() < handleHitRadius
+endXRealPixel != null && (x - endXRealPixel).abs() < handleHitRadius
+I després, a l’event de pan update:
 
-selection_painter.dart
-Només si el problema és visual: dibuix de les agulles, posició, o si sembla que hi ha 3 agulles quan l’estat diu una altra cosa.
-
-main_editor_screen.dart
-Si la interacció de web es canalitza abans d’arribar al widget del gràfic, o si hi ha alguna lògica de ratolí / doble click / overlay que interfereix.
-
-Si ho vols explicar a una altra IA, jo li diria que el nucli del bug és a elevation_chart_widget.dart i gpx_editor_notifier.dart, i que la resta són secundaris.
+onPanUpdate
+hi ha el codi que decideix què mou:
+si _draggingHandle == 1 → mou l’agulla d’inici
+si _draggingHandle == 2 → mou l’agulla final
+si _draggingHandle == 3 → és el mode simple/drag general

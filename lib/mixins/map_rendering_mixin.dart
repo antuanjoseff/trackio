@@ -191,8 +191,18 @@ mixin MapRenderingMixin {
 
     // ------------------ RANGE_MAP UNIFICAT I DINÀMIC ------------------
     if (state.activeTool == 'range_map' || state.activeTool == 'range_chart') {
-      final int? startPointToPaint = state.chartRangeStartIndex;
-      final int? endPointToPaint = state.chartRangeEndIndex;
+      final int? rawStart =
+          state.chartRangeStartIndex ?? state.selectionStartIndex;
+      final int? rawEnd = state.chartRangeEndIndex ?? state.selectionEndIndex;
+
+      final int? startPointToPaint =
+          rawStart != null && rawEnd != null && rawStart > rawEnd
+          ? rawEnd
+          : rawStart;
+      final int? endPointToPaint =
+          rawStart != null && rawEnd != null && rawStart > rawEnd
+          ? rawStart
+          : rawEnd;
 
       // 🟢 1. Pintar cercle verd (Inici del Rang)
       if (startPointToPaint != null &&

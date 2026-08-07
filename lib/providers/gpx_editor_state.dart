@@ -42,6 +42,7 @@ class GpxEditorState {
   final int? chartNeedleIndex;
   final int? chartRangeStartIndex;
   final int? chartRangeEndIndex;
+  final String chartSelectionMode;
 
   GpxEditorState({
     required this.tracks,
@@ -72,6 +73,7 @@ class GpxEditorState {
     this.chartNeedleIndex,
     this.chartRangeStartIndex,
     this.chartRangeEndIndex,
+    this.chartSelectionMode = 'simple',
   });
 
   factory GpxEditorState.initial() {
@@ -108,6 +110,7 @@ class GpxEditorState {
     Object? chartNeedleIndex = _noChange,
     Object? chartRangeStartIndex = _noChange,
     Object? chartRangeEndIndex = _noChange,
+    Object? chartSelectionMode = _noChange,
   }) {
     final int? nextSelectionEndIndex = identical(selectionEndIndex, _noChange)
         ? this.selectionEndIndex
@@ -174,6 +177,9 @@ class GpxEditorState {
       chartRangeEndIndex: identical(chartRangeEndIndex, _noChange)
           ? this.chartRangeEndIndex
           : chartRangeEndIndex as int?,
+      chartSelectionMode: identical(chartSelectionMode, _noChange)
+          ? this.chartSelectionMode
+          : chartSelectionMode as String,
     );
   }
 }

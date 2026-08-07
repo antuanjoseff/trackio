@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:latlong2/latlong.dart' as geo;
@@ -9,54 +8,8 @@ import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 
+import 'package:trackio/screens/painters/selection_painter.dart';
 import 'package:trackio/screens/painters/range_area_painter.dart';
-
-class _HandleMarkerPainter extends CustomPainter {
-  const _HandleMarkerPainter({
-    required this.color,
-    required this.markerY,
-    required this.chartHeight,
-    required this.lineWidth,
-    required this.circleRadius,
-  });
-
-  final Color color;
-  final double markerY;
-  final double chartHeight;
-  final double lineWidth;
-  final double circleRadius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final lineX = size.width / 2;
-
-    final linePaint = Paint()
-      ..color = color.withValues(alpha: 0.95)
-      ..strokeWidth = lineWidth
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawLine(Offset(lineX, 0), Offset(lineX, chartHeight), linePaint);
-
-    final circlePaint = Paint()..color = color;
-    final circleBorderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    final circleCenter = Offset(lineX, markerY);
-    canvas.drawCircle(circleCenter, circleRadius, circlePaint);
-    canvas.drawCircle(circleCenter, circleRadius, circleBorderPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _HandleMarkerPainter oldDelegate) {
-    return oldDelegate.color != color ||
-        oldDelegate.markerY != markerY ||
-        oldDelegate.chartHeight != chartHeight ||
-        oldDelegate.lineWidth != lineWidth ||
-        oldDelegate.circleRadius != circleRadius;
-  }
-}
 
 class ElevationChartWidget extends ConsumerStatefulWidget {
   final TrackModel track;
@@ -78,6 +31,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   List<double> _filteredAltitudes = [];
   double _minAlt = 0.0;
   double _maxAlt = 0.0;
+  int _lastUpdateTimestamp = 0;
 
   static const double minSpeedTarget = 0.0;
   static const double maxSpeedTarget = 40.0;
@@ -86,12 +40,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   bool _hideBlueNeedle = false;
   int _ignorePanDownUntilMs = 0;
   double? _lastRangeActivationDx;
-  int? _displayStartTrackIdx;
-  int? _displayEndTrackIdx;
-  int? _displayNeedleTrackIdx;
-  double? _displayStartX;
-  double? _displayEndX;
-  double? _displayNeedleX;
   final GlobalKey _startTooltipKey = GlobalKey();
   final GlobalKey _endTooltipKey = GlobalKey();
 
@@ -296,54 +244,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     );
   }
 
-  double _getHandleYForIndex(int? chartIndex, {required double chartHeight}) {
-    if (chartIndex == null || _filteredAltitudes.isEmpty) {
-      return chartHeight - 22.0;
-    }
-
-    final int safeIndex = chartIndex.clamp(0, _filteredAltitudes.length - 1);
-    final double realAltitude = _filteredAltitudes[safeIndex];
-    final double topOffset = 0.0;
-    final double bottomOffset = 22.0;
-    final double usableChartHeight = chartHeight - topOffset - bottomOffset;
-    final double yRange = (_maxAlt - _minAlt) == 0 ? 1.0 : (_maxAlt - _minAlt);
-    final double rel = (realAltitude - _minAlt) / yRange;
-
-    return topOffset + (usableChartHeight * (1.0 - rel.clamp(0.0, 1.0)));
-  }
-
-  Widget _buildHandleMarker({
-    required double x,
-    required double chartHeight,
-    required Color color,
-    required double? y,
-  }) {
-    if (x.isNaN || x.isInfinite) return const SizedBox.shrink();
-
-    final double markerY = y ?? chartHeight - 22.0;
-
-    return Positioned(
-      left: x - 10.0,
-      top: 0,
-      bottom: 0,
-      child: IgnorePointer(
-        child: SizedBox(
-          width: 20,
-          height: chartHeight,
-          child: CustomPaint(
-            painter: _HandleMarkerPainter(
-              color: color,
-              markerY: markerY,
-              chartHeight: chartHeight,
-              lineWidth: 4,
-              circleRadius: 7.5,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildFlutterTooltip(
     String mainText,
     double? speedKmh,
@@ -418,11 +318,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateTooltipSize();
     });
-
     if (_validPoints.isEmpty) {
       return Center(
         child: Text(
@@ -432,39 +330,33 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       );
     }
 
-    // Llegim l'estat global de Riverpod de forma atòmica
     final activeTool = ref.watch(gpxEditorProvider.select((s) => s.activeTool));
     final chartSelectionMode = ref.watch(
       gpxEditorProvider.select((s) => s.chartSelectionMode),
     );
     final startTrackIdx = ref.watch(
-      gpxEditorProvider.select((s) => s.chartRangeStartIndex),
+      gpxEditorProvider.select((s) => s.selectionStartIndex),
     );
     final endTrackIdx = ref.watch(
-      gpxEditorProvider.select((s) => s.chartRangeEndIndex),
+      gpxEditorProvider.select((s) => s.selectionEndIndex),
     );
     final snappedTrackIdx = ref.watch(
       gpxEditorProvider.select(
         (s) => s.chartNeedleIndex ?? s.snappedPointIndex,
       ),
     );
+
     final showSpeed = ref.watch(
       gpxEditorProvider.select((s) => s.showSpeedInChart),
     );
 
-    // Conversió d'índexs globals a índexs filtrats del gràfic
-    final int? snappedIdx = _trackToNearestChartIndex(
-      _displayNeedleTrackIdx ?? snappedTrackIdx,
-    );
-    final int? effectiveStartTrackIdx = _displayStartTrackIdx ?? startTrackIdx;
-    final int? startPointsIndex = _trackToNearestChartIndex(
-      effectiveStartTrackIdx,
-    );
-    final int? effectiveEndTrackIdx =
-        _displayEndTrackIdx ??
-        ((endTrackIdx == null || endTrackIdx == -1)
-            ? (snappedTrackIdx ?? startTrackIdx)
-            : endTrackIdx);
+    final int? snappedIdx = _trackToNearestChartIndex(snappedTrackIdx);
+    final int? startPointsIndex = _trackToNearestChartIndex(startTrackIdx);
+
+    final int? effectiveEndTrackIdx = (endTrackIdx == null || endTrackIdx == -1)
+        ? (snappedTrackIdx ?? startTrackIdx)
+        : endTrackIdx;
+
     final int? endPointsIndex = _trackToNearestChartIndex(effectiveEndTrackIdx);
 
     final bool isRangeModeActive =
@@ -473,16 +365,12 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         activeTool == 'range_chart';
 
     final double maxDistance = _distances.isNotEmpty ? _distances.last : 0.0;
-    final overlayKey = ValueKey<String>(
-      'chart-overlay-${_displayStartX?.toStringAsFixed(2) ?? 'null'}-${_displayEndX?.toStringAsFixed(2) ?? 'null'}-${_displayNeedleX?.toStringAsFixed(2) ?? 'null'}',
-    );
 
     return SafeArea(
       top: false,
       bottom: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // El padding fix d'alineació exacte del LineChart
           const double paddingLeft = 12.0;
           const double paddingRight = 24.0;
 
@@ -490,7 +378,6 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
               constraints.maxWidth - paddingLeft - paddingRight;
           final double currentChartHeight = constraints.maxHeight;
 
-          // Fòrmules de transformació matemàtica píxels <-> metres
           double dxToMeters(double dx) {
             final double adjustedDx = (dx - paddingLeft).clamp(0.0, chartWidth);
             if (chartWidth <= 0 || maxDistance <= 0) return 0.0;
@@ -519,58 +406,74 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
               ? _distances[endPointsIndex]
               : null;
 
-          final double? graphX =
-              _displayNeedleX ?? (needleX != null ? mapX(needleX) : null);
-          final double? startXRealPixel =
-              _displayStartX ??
-              (startXForPainters != null ? mapX(startXForPainters) : null);
-          final double? endXRealPixel =
-              _displayEndX ??
-              (endXForPainters != null ? mapX(endXForPainters) : null);
+          final double? graphX = needleX != null ? mapX(needleX) : null;
+          final double? startXRealPixel = startXForPainters != null
+              ? mapX(startXForPainters)
+              : null;
+          final double? endXRealPixel = endXForPainters != null
+              ? mapX(endXForPainters)
+              : null;
 
           final double tooltipWidth = _tooltipWidth > 0 ? _tooltipWidth : 130.0;
-          const double tooltipMinLeft = 4.0;
+
+          final double tooltipMinLeft = 4.0;
           final double tooltipMaxLeft =
               (chartWidth + paddingLeft + paddingRight) - tooltipWidth;
 
           double? startTooltipLeft;
           double? endTooltipLeft;
 
-          // Càlcul de col·lisió i posicionament lateral dels tooltips de tram
           if (startXRealPixel != null && endXRealPixel != null) {
             final bool startIsLeft = startXRealPixel <= endXRealPixel;
+
             final double xLeft = startIsLeft ? startXRealPixel : endXRealPixel;
+
             final double xRight = startIsLeft ? endXRealPixel : startXRealPixel;
+
             final double distance = xRight - xLeft;
 
             double leftBox;
             double rightBox;
 
+            // ==========================================================
+            // ESTADO 1:
+            // Separadas -> siempre centradas en la aguja
+            // ==========================================================
             if (distance >= tooltipWidth) {
               leftBox = xLeft - tooltipWidth / 2;
               rightBox = xRight - tooltipWidth / 2;
-            } else {
+            }
+            // ==========================================================
+            // ESTADO 2:
+            // Colisión real -> anclaje rígido
+            // ==========================================================
+            else {
               final double midPoint = (xLeft + xRight) / 2;
+
               leftBox = midPoint - tooltipWidth;
               rightBox = midPoint;
             }
 
-            startTooltipLeft = (startIsLeft ? leftBox : rightBox).clamp(
-              tooltipMinLeft,
-              tooltipMaxLeft,
-            );
-            endTooltipLeft = (startIsLeft ? rightBox : leftBox).clamp(
-              tooltipMinLeft,
-              tooltipMaxLeft,
-            );
+            // Clamp final
+            leftBox = leftBox.clamp(tooltipMinLeft, tooltipMaxLeft);
+
+            rightBox = rightBox.clamp(tooltipMinLeft, tooltipMaxLeft);
+
+            startTooltipLeft = startIsLeft ? leftBox : rightBox;
+
+            endTooltipLeft = startIsLeft ? rightBox : leftBox;
           }
 
           final bool showRangeArea =
               isRangeModeActive && startPointsIndex != null;
+
           void startRangeSelectionAtDx(
             double dx, {
             bool fromDoubleTap = false,
           }) {
+            debugPrint(
+              '[chart-widget] startRangeSelectionAtDx dx=$dx fromDoubleTap=$fromDoubleTap',
+            );
             final chartIdx = _metersToIndex(dxToMeters(dx));
             final trackIdx = _chartToTrackIndex(chartIdx);
 
@@ -595,6 +498,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             ref
                 .read(gpxEditorProvider.notifier)
                 .updateSnappedPoint(widget.track.points[trackIdx], trackIdx);
+
             ref
                 .read(gpxEditorProvider.notifier)
                 .startChartRangeSelection(
@@ -605,6 +509,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
           void finalizeRangeSelectionIfNeeded() {
             final currentState = ref.read(gpxEditorProvider);
+
             if (currentState.selectionStartIndex != null &&
                 currentState.selectionEndIndex != null) {
               ref
@@ -622,29 +527,27 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
               clipBehavior: Clip.none,
               children: [
                 // ==========================================================
-                // CAPA 1: ZONA OMBREJADA DEL TRAM (RangeAreaPainter)
+                // 1. SUPERFÍCIE DEL TRAM SELECCIONAT
                 // ==========================================================
                 if (showRangeArea && endPointsIndex != null)
                   Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: RangeAreaPainter(
-                          startX: startXRealPixel,
-                          endX: endXRealPixel,
-                          chartHeight: currentChartHeight,
-                          maxDistance: maxDistance,
-                          spots: _spots,
-                          minY: _minAlt,
-                          maxY: _maxAlt,
-                          startIdx: startPointsIndex,
-                          endIdx: endPointsIndex,
-                        ),
+                    child: CustomPaint(
+                      painter: RangeAreaPainter(
+                        startX: startXRealPixel,
+                        endX: endXRealPixel,
+                        chartHeight: currentChartHeight,
+                        maxDistance: maxDistance,
+                        spots: _spots,
+                        minY: _minAlt,
+                        maxY: _maxAlt,
+                        startIdx: startPointsIndex,
+                        endIdx: endPointsIndex,
                       ),
                     ),
                   ),
 
                 // ==========================================================
-                // CAPA 2: GRÀFIC D'ELEVACIÓ (fl_chart passiu embolicat)
+                // 2. GRÀFIC D'ELEVACIÓ
                 // ==========================================================
                 Positioned.fill(
                   child: Padding(
@@ -655,8 +558,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       bottom: 22,
                     ),
                     child: IgnorePointer(
-                      ignoring:
-                          true, // 🌟 Evita que fl_chart interfereixi amb els gestos de Flutter
+                      ignoring: true,
                       child: LineChart(
                         LineChartData(
                           lineTouchData: const LineTouchData(enabled: false),
@@ -667,7 +569,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                           minY: _minAlt,
                           maxY: _maxAlt,
                           clipData: const FlClipData.all(),
-                          titlesData: const FlTitlesData(
+
+                          titlesData: FlTitlesData(
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(showTitles: false),
                             ),
@@ -681,6 +584,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               sideTitles: SideTitles(showTitles: false),
                             ),
                           ),
+
                           lineBarsData: [
                             LineChartBarData(
                               spots: _spots,
@@ -691,14 +595,15 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               barWidth: 2.5,
                               dotData: const FlDotData(show: false),
                             ),
+
                             if (showSpeed && _speedSpots.isNotEmpty)
                               LineChartBarData(
                                 spots: _speedSpots,
                                 isCurved: true,
                                 curveSmoothness: 0.4,
                                 preventCurveOverShooting: true,
-                                color: AppColors.starTrekSpeedLine.withValues(
-                                  alpha: 0.9,
+                                color: AppColors.starTrekGold.withValues(
+                                  alpha: 0.6,
                                 ),
                                 barWidth: 1.3,
                                 dotData: const FlDotData(show: false),
@@ -711,359 +616,284 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                 ),
 
                 // ==========================================================
-                // CAPA 3: AGULLES VERTICALS RENDERITZADES COM A WIDGETS
+                // 3. LÍNIES VERTICALS / AGULLES
                 // ==========================================================
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: RepaintBoundary(
-                      key: overlayKey,
-                      child: Stack(
-                        children: [
-                          if (isRangeModeActive &&
-                              startXRealPixel != null &&
-                              startPointsIndex != null)
-                            _buildHandleMarker(
-                              x: startXRealPixel,
-                              chartHeight: currentChartHeight,
-                              color: AppColors.starTrekGreen,
-                              y: _getHandleYForIndex(
-                                startPointsIndex,
-                                chartHeight: currentChartHeight,
-                              ),
-                            ),
-                          if (isRangeModeActive &&
-                              endXRealPixel != null &&
-                              endPointsIndex != null)
-                            _buildHandleMarker(
-                              x: endXRealPixel,
-                              chartHeight: currentChartHeight,
-                              color: AppColors.starTrekRed,
-                              y: _getHandleYForIndex(
-                                endPointsIndex,
-                                chartHeight: currentChartHeight,
-                              ),
-                            ),
-                          if (!isRangeModeActive &&
-                              !_hideBlueNeedle &&
-                              graphX != null &&
-                              snappedIdx != null)
-                            _buildHandleMarker(
-                              x: graphX,
-                              chartHeight: currentChartHeight,
-                              color: AppColors.starTrekGold,
-                              y: _getHandleYForIndex(
-                                snappedIdx,
-                                chartHeight: currentChartHeight,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                CustomPaint(
+                  painter: SelectionPainter(
+                    needleX: (_hideBlueNeedle || isRangeModeActive)
+                        ? null
+                        : graphX,
+                    snappedIdx: (_hideBlueNeedle || isRangeModeActive)
+                        ? null
+                        : snappedIdx,
+                    startX: startXRealPixel,
+                    endX: endXRealPixel,
+                    startPointsIndex: startPointsIndex,
+                    endPointsIndex: endPointsIndex,
+                    chartHeight: currentChartHeight,
+                    maxDistance: maxDistance,
+                    altitudes: _filteredAltitudes.isNotEmpty
+                        ? _filteredAltitudes
+                        : _spots.map((s) => s.y).toList(),
+                    minY: _minAlt,
+                    maxY: _maxAlt,
+                    totalTrackPoints: _validPoints.length,
                   ),
                 ),
+
                 // ==========================================================
-                // CAPA 4: EL DETECTOR DE GESTOS MESTRE (Governa tot l'eix X)
+                // 4. GESTOS
                 // ==========================================================
-                Positioned.fill(
-                  child: GestureDetector(
-                    // Opaque captura absolutament tots els clics als espais buits
-                    behavior: HitTestBehavior.opaque,
+                GestureDetector(
+                  behavior: HitTestBehavior.translucent,
 
-                    onDoubleTapDown: kIsWeb
-                        ? (details) {
-                            startRangeSelectionAtDx(
-                              details.localPosition.dx,
-                              fromDoubleTap: true,
-                            );
-                          }
-                        : null,
+                  onDoubleTapDown: kIsWeb
+                      ? (details) {
+                          startRangeSelectionAtDx(
+                            details.localPosition.dx,
+                            fromDoubleTap: true,
+                          );
+                        }
+                      : null,
 
-                    onPanStart: (details) {
-                      final double x = details.localPosition.dx;
-                      final double handleHitRadius = kIsWeb ? 34.0 : 24.0;
-                      debugPrint(
-                        '[chart-widget] onPanStart x=$x isRangeModeActive=$isRangeModeActive',
-                      );
+                  onPanDown: (details) {
+                    final double x = details.localPosition.dx;
+                    final double handleHitRadius = kIsWeb ? 34.0 : 24.0;
+                    final double needleHitRadius = kIsWeb ? 30.0 : 24.0;
 
-                      final int nowMs = DateTime.now().millisecondsSinceEpoch;
-                      if (kIsWeb && nowMs < _ignorePanDownUntilMs) {
-                        final double activationDx = _lastRangeActivationDx ?? x;
-                        if ((x - activationDx).abs() <= 18) return;
+                    final int nowMs = DateTime.now().millisecondsSinceEpoch;
+                    if (kIsWeb && nowMs < _ignorePanDownUntilMs) {
+                      final double activationDx = _lastRangeActivationDx ?? x;
+                      if ((x - activationDx).abs() <= 18) {
+                        return;
                       }
+                    }
 
-                      final bool touchedStart =
-                          startXRealPixel != null &&
-                          (x - startXRealPixel).abs() < handleHitRadius;
+                    final bool touchedStart =
+                        startXRealPixel != null &&
+                        (x - startXRealPixel).abs() < handleHitRadius;
 
-                      final bool touchedEnd =
-                          endXRealPixel != null &&
-                          (x - endXRealPixel).abs() < handleHitRadius;
+                    final bool touchedEnd =
+                        endXRealPixel != null &&
+                        (x - endXRealPixel).abs() < handleHitRadius;
 
-                      debugPrint(
-                        '[chart-widget] onPanStart touchedStart=$touchedStart touchedEnd=$touchedEnd',
-                      );
-                      debugPrint(
-                        '[chart-widget] isRangeModeActive=$isRangeModeActive',
-                      );
+                    final bool touchedBlueNeedle =
+                        graphX != null && (x - graphX).abs() < needleHitRadius;
 
-                      if (isRangeModeActive) {
-                        if (touchedStart) {
-                          debugPrint(
-                            '[chart-widget] handle START touched at x=$x',
-                          );
-                          setState(() {
-                            _draggingHandle = 1; // START
-                            _hideBlueNeedle = true;
-                            _displayStartTrackIdx = startTrackIdx;
-                            _displayEndTrackIdx = endTrackIdx;
-                            _displayNeedleTrackIdx = snappedTrackIdx;
-                            _displayStartX = startXRealPixel;
-                            _displayEndX = endXRealPixel;
-                            _displayNeedleX = graphX;
-                          });
-                          SchedulerBinding.instance.scheduleFrame();
-                          return;
-                        }
+                    debugPrint(
+                      '[chart-widget] onPanDown x=$x isRangeModeActive=$isRangeModeActive touchedStart=$touchedStart touchedEnd=$touchedEnd touchedBlueNeedle=$touchedBlueNeedle',
+                    );
 
-                        if (touchedEnd) {
-                          debugPrint(
-                            '[chart-widget] handle END touched at x=$x',
-                          );
-                          setState(() {
-                            _draggingHandle = 2; // END
-                            _hideBlueNeedle = true;
-                            _displayStartTrackIdx = startTrackIdx;
-                            _displayEndTrackIdx = endTrackIdx;
-                            _displayNeedleTrackIdx = snappedTrackIdx;
-                            _displayStartX = startXRealPixel;
-                            _displayEndX = endXRealPixel;
-                            _displayNeedleX = graphX;
-                          });
-                          SchedulerBinding.instance.scheduleFrame();
-                          return;
-                        }
-
-                        // Si fas drag fora de les agulles, netegem el rang a l'acte
-                        final chartIdx = _metersToIndex(dxToMeters(x));
-                        final int dragTrackIdx = _chartToTrackIndex(chartIdx);
+                    if (isRangeModeActive) {
+                      if (touchedStart) {
+                        debugPrint('[chart-widget] dragging start handle');
                         setState(() {
-                          _draggingHandle = 3; // SIMPLE
-                          _hideBlueNeedle = false;
-                          _displayStartTrackIdx = startTrackIdx;
-                          _displayEndTrackIdx = endTrackIdx;
-                          _displayNeedleTrackIdx = dragTrackIdx;
-                          _displayStartX = startXRealPixel;
-                          _displayEndX = endXRealPixel;
-                          _displayNeedleX = x;
+                          _draggingHandle = 1;
                         });
-                        SchedulerBinding.instance.scheduleFrame();
-
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .clearChartSelection();
-
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .updateChartNeedle(dragTrackIdx);
                         return;
                       }
 
-                      // Mode consulta simple per defecte
+                      if (touchedEnd) {
+                        debugPrint('[chart-widget] dragging end handle');
+                        setState(() {
+                          _draggingHandle = 2;
+                        });
+                        return;
+                      }
+
+                      // Fora de les agulles de tram: sortim del mode range i
+                      // passem directament a l'agulla única.
+                      debugPrint(
+                        '[chart-widget] leaving range mode from outside-handle tap',
+                      );
                       final chartIdx = _metersToIndex(dxToMeters(x));
-                      final int dragTrackIdx = _chartToTrackIndex(chartIdx);
+                      final trackIdx = _chartToTrackIndex(chartIdx);
+
                       setState(() {
-                        _draggingHandle = 3; // SIMPLE
                         _hideBlueNeedle = false;
-                        _displayStartTrackIdx = startTrackIdx;
-                        _displayEndTrackIdx = endTrackIdx;
-                        _displayNeedleTrackIdx = dragTrackIdx;
-                        _displayStartX = startXRealPixel;
-                        _displayEndX = endXRealPixel;
-                        _displayNeedleX = x;
+                        _draggingHandle = 3;
                       });
-                      SchedulerBinding.instance.scheduleFrame();
 
                       ref
                           .read(gpxEditorProvider.notifier)
-                          .updateChartNeedle(dragTrackIdx);
-                    },
+                          .clearChartSelection();
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateChartNeedle(trackIdx);
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateSnappedPoint(
+                            widget.track.points[trackIdx],
+                            trackIdx,
+                          );
+                      return;
+                    }
 
-                    onPanUpdate: (details) {
-                      if (_draggingHandle == -1) return;
+                    if (touchedBlueNeedle) {
+                      setState(() {
+                        _hideBlueNeedle = false;
+                        _draggingHandle = 3;
+                      });
+                      return;
+                    }
 
-                      final double x = details.localPosition.dx;
-                      debugPrint(
-                        '[chart-widget] onPanUpdate handle=$_draggingHandle x=$x',
-                      );
-                      final int chartIdx = _metersToIndex(dxToMeters(x));
-                      final int trackIdx = _chartToTrackIndex(chartIdx);
+                    final meters = dxToMeters(x);
+                    final chartIdx = _metersToIndex(meters);
+                    final trackIdx = _chartToTrackIndex(chartIdx);
 
-                      if (_draggingHandle == 3) {
-                        // Agulla blava simple: es mou de forma directa a cada canvi
+                    setState(() {
+                      _hideBlueNeedle = false;
+                      _draggingHandle = 3;
+                    });
+
+                    ref.read(gpxEditorProvider.notifier).clearChartSelection();
+
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .updateChartNeedle(trackIdx);
+
+                    ref
+                        .read(gpxEditorProvider.notifier)
+                        .updateSnappedPoint(
+                          widget.track.points[trackIdx],
+                          trackIdx,
+                        );
+                  },
+
+                  onPanUpdate: (details) {
+                    if (_draggingHandle == -1) return;
+
+                    debugPrint(
+                      '[chart-widget] onPanUpdate draggingHandle=$_draggingHandle',
+                    );
+
+                    final double x = details.localPosition.dx;
+                    final int chartIdx = _metersToIndex(dxToMeters(x));
+                    final int trackIdx = _chartToTrackIndex(chartIdx);
+
+                    final int now = DateTime.now().millisecondsSinceEpoch;
+
+                    if (_draggingHandle == 1) {
+                      if (now - _lastUpdateTimestamp < 20) return;
+
+                      _lastUpdateTimestamp = now;
+
+                      if (endPointsIndex != null && chartIdx > endPointsIndex) {
                         ref
                             .read(gpxEditorProvider.notifier)
-                            .updateChartNeedle(trackIdx);
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .updateSnappedPoint(
-                              widget.track.points[trackIdx],
-                              trackIdx,
+                            .updateIndividualRangeHandle(
+                              newStartIdx: _chartToTrackIndex(endPointsIndex),
+                              newEndIdx: trackIdx,
                             );
+
                         setState(() {
-                          _displayNeedleTrackIdx = trackIdx;
-                          _displayNeedleX = x;
+                          _draggingHandle = 2;
                         });
-                        SchedulerBinding.instance.scheduleFrame();
-                      } else if (_draggingHandle == 1) {
-                        final int currentStartTrackIdx =
-                            _displayStartTrackIdx ??
-                            ref.read(gpxEditorProvider).chartRangeStartIndex ??
-                            startTrackIdx ??
-                            0;
-                        final int currentEndTrackIdx =
-                            _displayEndTrackIdx ??
-                            ref.read(gpxEditorProvider).chartRangeEndIndex ??
-                            endTrackIdx ??
-                            (widget.track.points.length - 1);
 
-                        debugPrint(
-                          '[chart-widget] dragging START -> trackIdx=$trackIdx currentStart=$currentStartTrackIdx currentEnd=$currentEndTrackIdx',
-                        );
-
-                        if (trackIdx <= currentEndTrackIdx) {
-                          ref
-                              .read(gpxEditorProvider.notifier)
-                              .updateIndividualRangeHandle(
-                                newStartIdx: trackIdx,
-                                newEndIdx: currentEndTrackIdx,
-                              );
-                          setState(() {
-                            _displayStartTrackIdx = trackIdx;
-                            _displayStartX = x;
-                          });
-                        } else {
-                          ref
-                              .read(gpxEditorProvider.notifier)
-                              .updateIndividualRangeHandle(
-                                newStartIdx: currentEndTrackIdx,
-                                newEndIdx: trackIdx,
-                              );
-                          setState(() {
-                            _draggingHandle = 2;
-                            _displayStartTrackIdx = currentEndTrackIdx;
-                            _displayEndTrackIdx = trackIdx;
-                            _displayStartX = endXRealPixel;
-                            _displayEndX = x;
-                          });
-                        }
-                        SchedulerBinding.instance.scheduleFrame();
-                      } else if (_draggingHandle == 2) {
-                        final int currentStartTrackIdx =
-                            _displayStartTrackIdx ??
-                            ref.read(gpxEditorProvider).chartRangeStartIndex ??
-                            startTrackIdx ??
-                            0;
-                        final int currentEndTrackIdx =
-                            _displayEndTrackIdx ??
-                            ref.read(gpxEditorProvider).chartRangeEndIndex ??
-                            endTrackIdx ??
-                            (widget.track.points.length - 1);
-
-                        debugPrint(
-                          '[chart-widget] dragging END -> trackIdx=$trackIdx currentStart=$currentStartTrackIdx currentEnd=$currentEndTrackIdx',
-                        );
-
-                        if (trackIdx >= currentStartTrackIdx) {
-                          ref
-                              .read(gpxEditorProvider.notifier)
-                              .updateIndividualRangeHandle(
-                                newStartIdx: currentStartTrackIdx,
-                                newEndIdx: trackIdx,
-                              );
-                          setState(() {
-                            _displayEndTrackIdx = trackIdx;
-                            _displayEndX = x;
-                          });
-                        } else {
-                          ref
-                              .read(gpxEditorProvider.notifier)
-                              .updateIndividualRangeHandle(
-                                newStartIdx: trackIdx,
-                                newEndIdx: currentStartTrackIdx,
-                              );
-                          setState(() {
-                            _draggingHandle = 1;
-                            _displayStartTrackIdx = trackIdx;
-                            _displayEndTrackIdx = currentStartTrackIdx;
-                            _displayStartX = x;
-                            _displayEndX = startXRealPixel;
-                          });
-                        }
-                        SchedulerBinding.instance.scheduleFrame();
+                        return;
                       }
-                    },
 
-                    onPanEnd: (_) {
-                      debugPrint(
-                        '[chart-widget] onPanEnd handle=$_draggingHandle',
-                      );
-                      if (_draggingHandle == 1 || _draggingHandle == 2) {
-                        finalizeRangeSelectionIfNeeded();
-                      }
-                      setState(() {
-                        _draggingHandle = -1;
-                        _hideBlueNeedle = false;
-                        _displayStartTrackIdx = startTrackIdx;
-                        _displayEndTrackIdx = endTrackIdx;
-                        _displayNeedleTrackIdx = snappedTrackIdx;
-                        _displayStartX = null;
-                        _displayEndX = null;
-                        _displayNeedleX = null;
-                      });
-                    },
-                    onPanCancel: () {
-                      setState(() {
-                        _draggingHandle = -1;
-                        _hideBlueNeedle = false;
-                        _displayStartTrackIdx = startTrackIdx;
-                        _displayEndTrackIdx = endTrackIdx;
-                        _displayNeedleTrackIdx = snappedTrackIdx;
-                        _displayStartX = null;
-                        _displayEndX = null;
-                        _displayNeedleX = null;
-                      });
-                    },
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateIndividualRangeHandle(newStartIdx: trackIdx);
+                    } else if (_draggingHandle == 2) {
+                      if (now - _lastUpdateTimestamp < 20) return;
 
-                    onLongPressStart: kIsWeb
-                        ? null
-                        : (details) {
-                            startRangeSelectionAtDx(details.localPosition.dx);
-                          },
+                      _lastUpdateTimestamp = now;
 
-                    onLongPressMoveUpdate: kIsWeb
-                        ? null
-                        : (details) {
-                            final idx = _metersToIndex(
-                              dxToMeters(details.localPosition.dx),
+                      if (startPointsIndex != null &&
+                          chartIdx < startPointsIndex) {
+                        ref
+                            .read(gpxEditorProvider.notifier)
+                            .updateIndividualRangeHandle(
+                              newStartIdx: trackIdx,
+                              newEndIdx: _chartToTrackIndex(startPointsIndex),
                             );
-                            ref
-                                .read(gpxEditorProvider.notifier)
-                                .updateIndividualRangeHandle(
-                                  newEndIdx: _chartToTrackIndex(idx),
-                                );
-                          },
 
-                    onLongPressEnd: kIsWeb
-                        ? null
-                        : (_) {
-                            finalizeRangeSelectionIfNeeded();
-                          },
-                    // El giny fill del detector és només un full buit transparent
-                    child: Container(color: Colors.transparent),
-                  ),
+                        setState(() {
+                          _draggingHandle = 1;
+                        });
+
+                        return;
+                      }
+
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateIndividualRangeHandle(newEndIdx: trackIdx);
+                    } else if (_draggingHandle == 3) {
+                      if (now - _lastUpdateTimestamp < 25) return;
+
+                      _lastUpdateTimestamp = now;
+
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateChartNeedle(trackIdx);
+
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .updateSnappedPoint(
+                            widget.track.points[trackIdx],
+                            trackIdx,
+                          );
+                    }
+                  },
+
+                  onPanEnd: (_) {
+                    debugPrint(
+                      '[chart-widget] onPanEnd draggingHandle=$_draggingHandle',
+                    );
+                    if (_draggingHandle == 1 || _draggingHandle == 2) {
+                      final currentState = ref.read(gpxEditorProvider);
+
+                      if (currentState.selectionStartIndex != null &&
+                          currentState.selectionEndIndex != null) {
+                        ref
+                            .read(gpxEditorProvider.notifier)
+                            .finalizeChartRangeSelection(
+                              currentState.selectionStartIndex!,
+                              currentState.selectionEndIndex!,
+                            );
+                      }
+                    }
+
+                    setState(() {
+                      _draggingHandle = -1;
+                    });
+                  },
+
+                  onPanCancel: () {
+                    setState(() {
+                      _draggingHandle = -1;
+                    });
+                  },
+
+                  onLongPressStart: kIsWeb
+                      ? null
+                      : (details) {
+                          startRangeSelectionAtDx(details.localPosition.dx);
+                        },
+
+                  onLongPressMoveUpdate: kIsWeb
+                      ? null
+                      : (details) {
+                          final idx = _metersToIndex(
+                            dxToMeters(details.localPosition.dx),
+                          );
+
+                          ref
+                              .read(gpxEditorProvider.notifier)
+                              .updateIndividualRangeHandle(newEndIdx: idx);
+                        },
+
+                  onLongPressEnd: kIsWeb
+                      ? null
+                      : (_) {
+                          finalizeRangeSelectionIfNeeded();
+                        },
                 ),
+
                 // ==========================================================
-                // CAPA 5: ELS TEUS TOOLTIPS FLOTANTS DE DADES INTACTES
+                // 5. TOOLTIPS
                 // ==========================================================
                 if (showRangeArea &&
                     endPointsIndex != null &&
@@ -1107,7 +937,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     ],
                   ),
 
-                // Tooltip agulla blava (Consulta simple)
+                // Tooltip agulla blava
                 if (!isRangeModeActive &&
                     !_hideBlueNeedle &&
                     snappedIdx != null &&
@@ -1118,6 +948,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       4.0,
                       (chartWidth + paddingLeft + paddingRight) - 130,
                     ),
+
                     child: IgnorePointer(
                       ignoring: true,
                       child: _buildFlutterTooltip(
