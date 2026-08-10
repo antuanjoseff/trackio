@@ -8,6 +8,8 @@ class TrackRangeSelection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isPhone = MediaQuery.sizeOf(context).shortestSide < 600;
+
     // Espai total del widget ajustat a les proporcions
     final double widgetWidth = size * 2.5;
     final double widgetHeight = size * 1.6;
@@ -15,6 +17,9 @@ class TrackRangeSelection extends StatelessWidget {
     // Definim la base exacta on descansen les icones i la línia
     final double lineThickness = size * 0.05;
     final double lineBottomPosition = size * 0.4;
+    final double markerSizeFactor = isPhone ? 0.62 : 0.7;
+    final double markerInsetFactor = isPhone ? 0.45 : 0.65;
+    final double lineInsetFactor = isPhone ? 0.62 : 0.7;
 
     return SizedBox(
       width: widgetWidth,
@@ -23,8 +28,8 @@ class TrackRangeSelection extends StatelessWidget {
         children: [
           // 1. LÍNIA HORITZONTAL MÉS CURTA
           Positioned(
-            left: size * 0.7,
-            right: size * 0.7,
+            left: size * lineInsetFactor,
+            right: size * lineInsetFactor,
             bottom: lineBottomPosition,
             child: Container(
               height: lineThickness,
@@ -36,19 +41,27 @@ class TrackRangeSelection extends StatelessWidget {
           ),
           // 2. ICONA ESQUERRA (Just a sobre de la línia)
           Positioned(
-            left: size * 0.65,
+            left: size * markerInsetFactor,
             bottom:
                 lineBottomPosition +
                 lineThickness, // Altura exacta sobre el text de la línia
-            child: Icon(Icons.location_on, size: size * 0.7, color: color),
+            child: Icon(
+              Icons.location_on,
+              size: size * markerSizeFactor,
+              color: color,
+            ),
           ),
           // 3. ICONA DRETA (Just a sobre de la línia)
           Positioned(
-            right: size * 0.66,
+            right: size * markerInsetFactor,
             bottom:
                 lineBottomPosition +
                 lineThickness, // Altura exacta sobre el text de la línia
-            child: Icon(Icons.location_on, size: size * 0.7, color: color),
+            child: Icon(
+              Icons.location_on,
+              size: size * markerSizeFactor,
+              color: color,
+            ),
           ),
         ],
       ),

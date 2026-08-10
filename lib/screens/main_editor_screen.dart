@@ -38,6 +38,10 @@ class MainEditorScreen extends ConsumerStatefulWidget {
 
 class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     with MapRenderingMixin {
+  static const MethodChannel _fileOpenIntentChannel = MethodChannel(
+    'trackio/file_open_intents',
+  );
+
   int _backPressCounter = 0;
   DateTime? _lastBackPressTime;
 
@@ -47,6 +51,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isDraggingMap = false;
   bool _isSidebarReordering = false;
   bool _isWebGeometryNodeDragging = false;
+  bool _isImportingExternalFile = false;
   String? _activeRangeMapHandle;
   late final AppLifecycleListener _lifecycleListener;
   final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
@@ -63,8 +68,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     // ⚡ CONFIGURACIÓ PROTEGIDA: Completament neta [INDEX]
     _lifecycleListener = AppLifecycleListener(
+      onResume: _consumePendingExternalGpxPath,
       onDetach: kIsWeb ? null : _clearAllTracksOnExit,
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_consumePendingExternalGpxPath());
+    });
   }
 
   void _clearAllTracksOnExit() {
@@ -1185,25 +1195,70 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         }
       }
 
-      if (parsed.isEmpty) {
-        return;
-      }
-
-      ref.read(gpxEditorProvider.notifier).addImportedTracks(parsed);
-      await _paintTracksWrapper(ref.read(gpxEditorProvider).tracks);
-
-      // 🌟 REPARACIÓ / FIT TO GPX: El teu mètode _focusTrack ja s'encarrega d'analitzar
-      // tots els punts del track seleccionat i moure la càmera amb bounding box.
-      // Forcem l'espera asíncrona immediata per centrar la pantalla de cop.
-      await _focusTrack(
-        ref.read(gpxEditorProvider).selectedTrackId,
-        ref.read(gpxEditorProvider).tracks,
-      );
+      await _applyImportedTracks(parsed);
     } catch (e) {
       debugPrint("Error analitzant el fitxer a l'APK mòbil o Web: $e");
     } finally {
       if (mounted) setState(() => _isReverseAnimating = false);
     }
+  }
+
+  Future<void> _consumePendingExternalGpxPath() async {
+    if (!mounted || kIsWeb || _isImportingExternalFile) return;
+
+    try {
+      final String? pendingPath = await _fileOpenIntentChannel
+          .invokeMethod<String>('consumePendingGpxPath');
+      if (pendingPath == null || pendingPath.isEmpty) return;
+
+      await _importGpxFromExternalPath(pendingPath);
+    } catch (e) {
+      debugPrint("Error recuperant GPX extern des del SO: $e");
+    }
+  }
+
+  Future<void> _importGpxFromExternalPath(String path) async {
+    if (_isImportingExternalFile) return;
+
+    final lowerPath = path.toLowerCase();
+    if (!lowerPath.endsWith('.gpx')) return;
+
+    _isImportingExternalFile = true;
+    if (mounted) {
+      setState(() => _isReverseAnimating = true);
+    }
+
+    try {
+      final content = await File(path).readAsString();
+      if (content.trim().isEmpty) return;
+
+      final String fileName = path.split(Platform.pathSeparator).last;
+      final TrackModel parsed = await compute(
+        _parseGpxOnBackgroundIsolate,
+        {'content': content, 'fileName': fileName},
+      );
+
+      await _applyImportedTracks([parsed]);
+    } catch (e) {
+      debugPrint("Error important GPX extern des del SO: $e");
+    } finally {
+      _isImportingExternalFile = false;
+      if (mounted) {
+        setState(() => _isReverseAnimating = false);
+      }
+    }
+  }
+
+  Future<void> _applyImportedTracks(List<TrackModel> parsed) async {
+    if (parsed.isEmpty) return;
+
+    ref.read(gpxEditorProvider.notifier).addImportedTracks(parsed);
+    await _paintTracksWrapper(ref.read(gpxEditorProvider).tracks);
+
+    await _focusTrack(
+      ref.read(gpxEditorProvider).selectedTrackId,
+      ref.read(gpxEditorProvider).tracks,
+    );
   }
 
   Future<void> _reverseSelectedTrackWithAnimation(WidgetRef ref) async {

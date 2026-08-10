@@ -129,15 +129,17 @@ class MainEditorLayout extends ConsumerWidget {
                   titleSpacing: 12,
                   centerTitle: false,
                   leading: isMobile
-                      ? Center(
-                          child: IconButton(
-                            tooltip: t.importTracks,
-                            icon: const Icon(
-                              Icons.upload,
-                              color: AppColors.starTrekRed,
-                              size: 20,
+                      ? Builder(
+                          builder: (ctx) => Center(
+                            child: IconButton(
+                              tooltip: "Sidebar",
+                              icon: const Icon(
+                                Icons.menu_rounded,
+                                color: AppColors.starTrekRed,
+                                size: 20,
+                              ),
+                              onPressed: () => Scaffold.of(ctx).openDrawer(),
                             ),
-                            onPressed: onImportPressed,
                           ),
                         )
                       : null,
