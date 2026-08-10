@@ -14,6 +14,12 @@ class TrackStatsCalculator {
 
     const geo.Distance distanceCalculator = geo.Distance();
     final int len = points.length;
+    final List<double> smoothedElevations = _smoothElevations(
+      points
+          .where((p) => p.elevation != null)
+          .map((p) => p.elevation!)
+          .toList(),
+    );
 
     // 1. Cálculo de Distancia acumulada, Desniveles y Cotas extremas
     for (int i = 0; i < len; i++) {
@@ -36,15 +42,22 @@ class TrackStatsCalculator {
             geo.LatLng(p.latitude!, p.longitude!),
           );
         }
+      }
+    }
 
-        if (p.elevation != null && prev.elevation != null) {
-          double diff = p.elevation! - prev.elevation!;
-          if (diff > 0) {
-            gain += diff;
-          } else if (diff < 0) {
-            loss += diff.abs();
-          }
+    if (smoothedElevations.length >= 2) {
+      double lastValid = smoothedElevations.first;
+      for (int i = 1; i < smoothedElevations.length; i++) {
+        final double diff = smoothedElevations[i] - lastValid;
+        if (diff.abs() < 3.5) {
+          continue;
         }
+        if (diff > 0) {
+          gain += diff;
+        } else {
+          loss += diff.abs();
+        }
+        lastValid = smoothedElevations[i];
       }
     }
 
@@ -88,6 +101,29 @@ class TrackStatsCalculator {
       'maxAlt': maxAlt,
       'minAlt': minAlt,
     };
+  }
+
+  static List<double> _smoothElevations(
+    List<double> elevations, {
+    int windowSize = 5,
+  }) {
+    if (elevations.length < 2) {
+      return List<double>.from(elevations);
+    }
+
+    final List<double> smoothed = <double>[];
+    for (int i = 0; i < elevations.length; i++) {
+      final int start = i - windowSize + 1;
+      final int safeStart = start < 0 ? 0 : start;
+      final int end = i + 1;
+      double sum = 0.0;
+      for (int j = safeStart; j < end; j++) {
+        sum += elevations[j];
+      }
+      smoothed.add(sum / (end - safeStart));
+    }
+
+    return smoothed;
   }
 
   static Map<String, dynamic> _emptyResult() {

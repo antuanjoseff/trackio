@@ -91,7 +91,11 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.starTrekGold.withOpacity(0.95),
+                              color:
+                                  Theme.of(
+                                    context,
+                                  ).appBarTheme.backgroundColor ??
+                                  AppColors.lightSurface,
                               borderRadius: BorderRadius.circular(24),
                               boxShadow: [
                                 BoxShadow(
@@ -163,7 +167,11 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.starTrekGold.withOpacity(0.95),
+                              color:
+                                  Theme.of(
+                                    context,
+                                  ).appBarTheme.backgroundColor ??
+                                  AppColors.lightSurface,
                               borderRadius: BorderRadius.circular(24),
                               boxShadow: [
                                 BoxShadow(

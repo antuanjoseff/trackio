@@ -782,6 +782,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     state = state.copyWith(
       tracks: [...state.tracks, ...fixed],
       selectedTrackId: fixed.first.id,
+      showSidebar: true,
     );
   }
 
@@ -1216,7 +1217,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     debugPrint('[chart-notifier] startChartRangeSelection s=$s e=$e');
 
     state = state.copyWith(
-      activeTool: 'range_chart',
+      activeTool: 'range_map',
       selectionStartIndex: s,
       selectionEndIndex: e,
       chartRangeStartIndex: s,
@@ -1560,21 +1561,16 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     state = state.copyWith(drawingLivePoint: provisionalPoint);
   }
 
-  /// 📐 MURE LA RETÍCULA DE RANG EN VIU (Mentre l'usuari arrossega el mapa a l'APK)
-  void updateRangeSelectionLiveFromReticle(
+  int? getNearestTrackPointIndexForCoordinates(
     double centerLat,
     double centerLng,
     double currentZoom,
   ) {
-    if (state.tracks.isEmpty ||
-        state.selectedTrackId == null ||
-        state.activeTool != 'range_map')
-      return;
+    if (state.tracks.isEmpty || state.selectedTrackId == null) return null;
 
     final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
-    if (track.points.isEmpty) return;
+    if (track.points.isEmpty) return null;
 
-    // 1. Càlcul de proximitat estàndard
     double bestDistance = double.infinity;
     int bestIndex = -1;
 
@@ -1600,43 +1596,219 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
         : (currentZoom < 15 ? 60.0 : 25.0);
 
     if (bestIndex >= 0 && bestDistance < maxDistance * maxDistance) {
-      // FASE 1: No s'ha escollit cap punt inicial (El cercle verd/agulla verda segueix la retícula)
-      if (state.selectionStartIndex == null) {
-        state = state.copyWith(
-          chartRangeStartIndex: bestIndex, // Movem l'agulla verda
-          chartRangeEndIndex: null, // L'agulla vermella no existeix encara
-          snappedPointIndex: bestIndex,
-        );
-      }
-      // FASE 2: Ja tenim el punt inicial fixat (El cercle vermell/agulla vermella segueix la retícula)
-      else if (state.selectionStartIndex != null && state.isSelectingRange) {
-        final int start = state.selectionStartIndex!;
+      return bestIndex;
+    }
+    return null;
+  }
 
-        // 🌟 REPARACIÓ EXCLUSIVITAT DE COLORS:
-        // Si el nou punt està per darrere de l'inicial, invertim els rols en viu a la pantalla
-        int visualStart = start < bestIndex ? start : bestIndex;
-        int visualEnd = start < bestIndex ? bestIndex : start;
+  /// 📐 MURE LA RETÍCULA DE RANG EN VIU (Mentre l'usuari arrossega el mapa a l'APK)
+  void updateRangeSelectionLiveFromReticle(
+    double centerLat,
+    double centerLng,
+    double currentZoom,
+  ) {
+    if (state.tracks.isEmpty ||
+        state.selectedTrackId == null ||
+        state.activeTool != 'range_map')
+      return;
 
-        state = state.copyWith(
-          // Forcem a que els pintors del mapa i gràfic rebin el tram efímer ordenat
-          selectionEndIndex: visualEnd,
-          chartRangeStartIndex: visualStart,
-          chartRangeEndIndex: visualEnd,
-          snappedPointIndex: bestIndex,
-        );
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
+    if (track.points.isEmpty) return;
+
+    final int? bestIndex = getNearestTrackPointIndexForCoordinates(
+      centerLat,
+      centerLng,
+      currentZoom,
+    );
+    if (bestIndex == null) return;
+
+    final TrackPointModel? snappedPoint =
+        bestIndex >= 0 && bestIndex < track.points.length
+        ? track.points[bestIndex]
+        : null;
+
+    if (state.selectionStartIndex == null) {
+      state = state.copyWith(
+        selectionStartIndex: bestIndex,
+        selectionEndIndex: null,
+        chartRangeStartIndex: bestIndex,
+        chartRangeEndIndex: null,
+        snappedPointIndex: bestIndex,
+        snappedPoint: snappedPoint,
+        chartSelectionMode: 'range',
+      );
+    } else if (state.selectionStartIndex != null && state.isSelectingRange) {
+      final int start = state.selectionStartIndex!;
+      int visualStart = start < bestIndex ? start : bestIndex;
+      int visualEnd = start < bestIndex ? bestIndex : start;
+
+      state = state.copyWith(
+        selectionStartIndex: start,
+        selectionEndIndex: visualEnd,
+        chartRangeStartIndex: visualStart,
+        chartRangeEndIndex: visualEnd,
+        snappedPointIndex: bestIndex,
+        snappedPoint: snappedPoint,
+        chartSelectionMode: 'range',
+      );
+    }
+  }
+
+  void updateRangeSelectionHandleFromMap(
+    double centerLat,
+    double centerLng,
+    double currentZoom, {
+    required bool isStartHandle,
+  }) {
+    if (state.tracks.isEmpty ||
+        state.selectedTrackId == null ||
+        state.activeTool != 'range_map') {
+      return;
+    }
+
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
+    final int? bestIndex = getNearestTrackPointIndexForCoordinates(
+      centerLat,
+      centerLng,
+      currentZoom,
+    );
+    if (bestIndex == null) return;
+
+    final int? currentStart = state.selectionStartIndex;
+    final int? currentEnd = state.selectionEndIndex;
+    if (currentStart == null || currentEnd == null || currentEnd == -1) {
+      return;
+    }
+
+    // Manté fix el handle oposat i limita el handle actiu per evitar swaps.
+    // Això evita que, en creuar-se, semblin moure's els dos extrems alhora.
+    final int nextStart;
+    final int nextEnd;
+    if (isStartHandle) {
+      nextStart = bestIndex.clamp(0, currentEnd);
+      nextEnd = currentEnd;
+    } else {
+      nextStart = currentStart;
+      nextEnd = bestIndex.clamp(currentStart, track.points.length - 1);
+    }
+
+    final TrackPointModel? snappedPoint =
+        bestIndex >= 0 && bestIndex < track.points.length
+        ? track.points[bestIndex]
+        : null;
+
+    state = state.copyWith(
+      selectionStartIndex: nextStart,
+      chartRangeStartIndex: nextStart,
+      selectionEndIndex: nextEnd,
+      chartRangeEndIndex: nextEnd,
+      snappedPointIndex: bestIndex,
+      snappedPoint: snappedPoint,
+      isSelectingRange: false,
+      chartSelectionMode: 'range',
+      forceHideReticle: false,
+    );
+  }
+
+  void handleRangeMapSelectionTap(
+    double centerLat,
+    double centerLng,
+    double currentZoom,
+  ) {
+    if (state.tracks.isEmpty ||
+        state.selectedTrackId == null ||
+        state.activeTool != 'range_map') {
+      return;
+    }
+
+    final track = state.tracks.firstWhere((t) => t.id == state.selectedTrackId);
+    final int? snappedIndex = getNearestTrackPointIndexForCoordinates(
+      centerLat,
+      centerLng,
+      currentZoom,
+    );
+    if (snappedIndex == null) return;
+
+    final TrackPointModel? snappedPoint =
+        snappedIndex >= 0 && snappedIndex < track.points.length
+        ? track.points[snappedIndex]
+        : null;
+
+    if (state.selectionStartIndex != null &&
+        state.selectionEndIndex != null &&
+        !state.isSelectingRange) {
+      final bool clickedExistingEndpoint =
+          snappedIndex == state.selectionStartIndex ||
+          snappedIndex == state.selectionEndIndex;
+
+      if (!clickedExistingEndpoint) {
+        resetRangeSelectionForNewStart();
+        fixRangeStartIndexAt(index: snappedIndex, point: snappedPoint);
+        return;
       }
     }
+
+    if (state.selectionStartIndex == null) {
+      fixRangeStartIndexAt(index: snappedIndex, point: snappedPoint);
+      return;
+    }
+
+    if (state.selectionStartIndex != null &&
+        (state.selectionEndIndex == null ||
+            state.selectionEndIndex == -1 ||
+            state.isSelectingRange)) {
+      fixRangeEndIndexAt(index: snappedIndex, point: snappedPoint);
+    }
+  }
+
+  void resetRangeSelectionForNewStart() {
+    state = state.copyWith(
+      selectionStartIndex: null,
+      selectionEndIndex: null,
+      chartRangeStartIndex: null,
+      chartRangeEndIndex: null,
+      isSelectingRange: false,
+      forceHideReticle: false,
+    );
+  }
+
+  void fixRangeStartIndexAt({required int index, TrackPointModel? point}) {
+    state = state.copyWith(
+      selectionStartIndex: index,
+      chartRangeStartIndex: index,
+      snappedPointIndex: index,
+      snappedPoint: point,
+      isSelectingRange: true,
+      chartSelectionMode: 'range',
+      forceHideReticle: false,
+    );
   }
 
   /// 🟢 FIXAR EL PUNT INICIAL (Es crida en prémer el botó flotant per primer cop)
   void fixRangeStartIndex() {
     if (state.snappedPointIndex == null) return;
-    final int currentIndex = state.snappedPointIndex!;
+    fixRangeStartIndexAt(
+      index: state.snappedPointIndex!,
+      point: state.snappedPoint,
+    );
+  }
+
+  void fixRangeEndIndexAt({required int index, TrackPointModel? point}) {
+    if (state.selectionStartIndex == null) return;
+
+    final int start = state.selectionStartIndex!;
+    final int realStart = start < index ? start : index;
+    final int realEnd = start < index ? index : start;
 
     state = state.copyWith(
-      selectionStartIndex: currentIndex,
-      chartRangeStartIndex: currentIndex,
-      isSelectingRange: true, // Activem l'espera del segon punt
+      selectionStartIndex: realStart,
+      chartRangeStartIndex: realStart,
+      selectionEndIndex: realEnd,
+      chartRangeEndIndex: realEnd,
+      snappedPointIndex: index,
+      snappedPoint: point,
+      isSelectingRange: false,
+      chartSelectionMode: 'range',
       forceHideReticle: false,
     );
   }
@@ -1646,20 +1818,9 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     if (state.selectionStartIndex == null || state.snappedPointIndex == null)
       return;
 
-    final int start = state.selectionStartIndex!;
-    final int current = state.snappedPointIndex!;
-
-    // Assegurem que l'inici sempre sigui menor que el final per a la consistència del segment
-    final int realStart = start < current ? start : current;
-    final int realEnd = start < current ? current : start;
-
-    state = state.copyWith(
-      selectionStartIndex: realStart,
-      chartRangeStartIndex: realStart,
-      selectionEndIndex: realEnd,
-      chartRangeEndIndex: realEnd,
-      isSelectingRange: false, // Tanquem el tram de selecció
-      forceHideReticle: false,
+    fixRangeEndIndexAt(
+      index: state.snappedPointIndex!,
+      point: state.snappedPoint,
     );
   }
 

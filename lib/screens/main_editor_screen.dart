@@ -47,6 +47,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isDraggingMap = false;
   bool _isSidebarReordering = false;
   bool _isWebGeometryNodeDragging = false;
+  String? _activeRangeMapHandle;
   late final AppLifecycleListener _lifecycleListener;
   final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
@@ -204,13 +205,18 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final bool isGeometryMoveMode =
         editorState.activeTool == 'edit_geometry' &&
         editorState.geometryEditMode == 'move';
+    final bool isDraggingRangeHandle =
+        activeTool == 'range_map' && _activeRangeMapHandle != null;
     final MouseCursor mapCursor =
         hasMouse &&
             (activeTool == 'add_waypoint' ||
                 isGeometryAddMode ||
                 isGeometryDeleteMode ||
-                isGeometryMoveMode)
-        ? SystemMouseCursors.precise
+                isGeometryMoveMode ||
+                isDraggingRangeHandle)
+        ? (isDraggingRangeHandle
+              ? SystemMouseCursors.grabbing
+              : SystemMouseCursors.precise)
         : MouseCursor.defer;
 
     final bool showReticle =
@@ -279,7 +285,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         StaticEditorMapWidget(
           key: _staticMapKey,
           cursor: mapCursor,
-          panEnabled: !_isSidebarReordering && !_isWebGeometryNodeDragging,
+          panEnabled:
+              !_isSidebarReordering &&
+              !_isWebGeometryNodeDragging &&
+              _activeRangeMapHandle == null,
           onMapCreated: (c) {
             _controller = c;
           },
@@ -304,8 +313,45 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           },
           onMousePrimaryDownMap: (coordinates) {
             final state = ref.read(gpxEditorProvider);
-            if (!hasMouse ||
-                state.activeTool != 'edit_geometry' ||
+            if (!hasMouse) return;
+
+            if (state.activeTool == 'range_map' &&
+                state.selectionStartIndex != null &&
+                state.selectionEndIndex != null &&
+                !state.isSelectingRange) {
+              final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
+              final notifier = ref.read(gpxEditorProvider.notifier);
+              final clickedIndex = notifier
+                  .getNearestTrackPointIndexForCoordinates(
+                    coordinates.latitude,
+                    coordinates.longitude,
+                    zoom,
+                  );
+
+              if (clickedIndex == state.selectionStartIndex) {
+                if (mounted) {
+                  setState(() {
+                    _activeRangeMapHandle = 'start';
+                  });
+                }
+                notifier.setMapIdle(false);
+                paintLiveOverlays(ref.read(gpxEditorProvider));
+                return;
+              }
+
+              if (clickedIndex == state.selectionEndIndex) {
+                if (mounted) {
+                  setState(() {
+                    _activeRangeMapHandle = 'end';
+                  });
+                }
+                notifier.setMapIdle(false);
+                paintLiveOverlays(ref.read(gpxEditorProvider));
+                return;
+              }
+            }
+
+            if (state.activeTool != 'edit_geometry' ||
                 state.geometryEditMode != 'move') {
               return;
             }
@@ -336,8 +382,24 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           },
           onMousePrimaryDragMap: (coordinates) {
             final state = ref.read(gpxEditorProvider);
-            if (!hasMouse ||
-                !_isWebGeometryNodeDragging ||
+            if (!hasMouse) return;
+
+            if (state.activeTool == 'range_map' &&
+                _activeRangeMapHandle != null) {
+              final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
+              final notifier = ref.read(gpxEditorProvider.notifier);
+              notifier.updateRangeSelectionHandleFromMap(
+                coordinates.latitude,
+                coordinates.longitude,
+                zoom,
+                isStartHandle: _activeRangeMapHandle == 'start',
+              );
+              notifier.setMapIdle(false);
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              return;
+            }
+
+            if (!_isWebGeometryNodeDragging ||
                 state.activeTool != 'edit_geometry' ||
                 state.geometryEditMode != 'move' ||
                 state.geometryMoveNodeIndex == null) {
@@ -357,6 +419,18 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           },
           onMousePrimaryUpMap: () {
             final state = ref.read(gpxEditorProvider);
+            if (state.activeTool == 'range_map' &&
+                _activeRangeMapHandle != null) {
+              if (mounted) {
+                setState(() {
+                  _activeRangeMapHandle = null;
+                });
+              }
+              ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+              paintLiveOverlays(ref.read(gpxEditorProvider));
+              return;
+            }
+
             if (!hasMouse ||
                 !_isWebGeometryNodeDragging ||
                 state.activeTool != 'edit_geometry' ||
@@ -384,8 +458,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             final state = ref.read(gpxEditorProvider);
             final notifier = ref.read(gpxEditorProvider.notifier);
 
-            // 🛡️ Si el gràfic està obert en mode rang, qualsevol clic net al mapa el tanca de cop
-            if (state.chartSelectionMode == 'range') {
+            // 🛡️ Si el gràfic està en mode rang però no estem editant el tram amb el mapa,
+            // el clic net el tanca. Quan l'eina de rang del mapa està activa, el clic
+            // s'ha de reutilitzar per fixar el primer o segon punt del tram.
+            if (state.chartSelectionMode == 'range' &&
+                state.activeTool != 'range_map') {
               notifier.clearChartSelection();
               paintLiveOverlays(ref.read(gpxEditorProvider));
               return; // Aturem la intercepció creuada aquí!
@@ -443,29 +520,14 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
             // 📐 MÒDUL SELECCIÓ (RANGE_MAP) REPARAT EXCLUSIVAMENT PER A RATOLÍ EN WEB:
             if (activeTool == 'range_map') {
-              // 🔒 FILTRE DE SEGURETAT: Si no té ratolí (mòbil), hereta el comportament actual intacte
               if (!hasMouse) return;
 
-              // 🌐 LÒGICA EXCLUSIVA WEB (Si l'usuari interacciona amb ratolí):
-
-              // CLIC 1: Si no hi havia inici fixat, clavam el punt inicial (Cercle Verd)
-              if (state.selectionStartIndex == null) {
-                notifier.fixRangeStartIndex();
-                paintLiveOverlays(ref.read(gpxEditorProvider));
-                return;
-              }
-
-              // CLIC 2: Si ja teníem inici però el final encara està buit o a -1, clavam el final (Cercle Vermell)
-              // ⚡ FIX DE SEGURETAT: Eliminem '&& state.isSelectingRange' per evitar pèrdua de sincronia pel ratolí
-              if (state.selectionStartIndex != null &&
-                  (state.selectionEndIndex == null ||
-                      state.selectionEndIndex == -1)) {
-                notifier.fixRangeEndIndex();
-
-                // 🏆 FINAL DE TRAM: Els dos punts estan clavats, el tram ja arts seleccionat!
-                paintLiveOverlays(ref.read(gpxEditorProvider));
-                return;
-              }
+              notifier.handleRangeMapSelectionTap(
+                coordinates.latitude,
+                coordinates.longitude,
+                zoom,
+              );
+              paintLiveOverlays(ref.read(gpxEditorProvider));
               return;
             }
 

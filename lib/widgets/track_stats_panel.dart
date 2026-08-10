@@ -37,14 +37,18 @@ class TrackStatsPanel extends ConsumerWidget {
         end != -1 &&
         !editorState.isSelectingRange;
 
-    // Detectamos de forma idéntica si procesamos el track completo o el tramo efímero/fijo
+    final int? effectiveEndIndex = (end != null && end != -1)
+        ? end
+        : snappedIdx;
+
+    // Detectamos si estamos procesando el track completo o un tramo efímero/fijo
     if (editorState.activeTool == 'range_map') {
-      if (rangeIsFixed) {
-        pointsToProcess = track.points.sublist(start, end + 1);
+      if (rangeIsFixed && start != null && effectiveEndIndex != null) {
+        pointsToProcess = track.points.sublist(start, effectiveEndIndex + 1);
         isSegment = true;
       } else if (start != null &&
-          editorState.isSelectingRange &&
-          snappedIdx != null) {
+          snappedIdx != null &&
+          (editorState.isSelectingRange || end == null || end == -1)) {
         int lo = start < snappedIdx ? start : snappedIdx;
         int hi = start < snappedIdx ? snappedIdx : start;
         pointsToProcess = track.points.sublist(lo, hi + 1);

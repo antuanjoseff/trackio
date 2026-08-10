@@ -452,19 +452,30 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       gpxEditorProvider.select((s) => s.showSpeedInChart),
     );
 
+    // Només usem el preview local mentre l'usuari arrossega dins del gràfic.
+    // Si el moviment ve del mapa, el gràfic ha de seguir l'estat global.
+    final bool useLocalDragPreview = _draggingHandle != -1;
+
     // Conversió d'índexs globals a índexs filtrats del gràfic
     final int? snappedIdx = _trackToNearestChartIndex(
-      _displayNeedleTrackIdx ?? snappedTrackIdx,
+      useLocalDragPreview
+          ? (_displayNeedleTrackIdx ?? snappedTrackIdx)
+          : snappedTrackIdx,
     );
-    final int? effectiveStartTrackIdx = _displayStartTrackIdx ?? startTrackIdx;
+    final int? effectiveStartTrackIdx = useLocalDragPreview
+        ? (_displayStartTrackIdx ?? startTrackIdx)
+        : startTrackIdx;
     final int? startPointsIndex = _trackToNearestChartIndex(
       effectiveStartTrackIdx,
     );
-    final int? effectiveEndTrackIdx =
-        _displayEndTrackIdx ??
-        ((endTrackIdx == null || endTrackIdx == -1)
-            ? (snappedTrackIdx ?? startTrackIdx)
-            : endTrackIdx);
+    final int? effectiveEndTrackIdx = useLocalDragPreview
+        ? (_displayEndTrackIdx ??
+              ((endTrackIdx == null || endTrackIdx == -1)
+                  ? (snappedTrackIdx ?? startTrackIdx)
+                  : endTrackIdx))
+        : ((endTrackIdx == null || endTrackIdx == -1)
+              ? (snappedTrackIdx ?? startTrackIdx)
+              : endTrackIdx);
     final int? endPointsIndex = _trackToNearestChartIndex(effectiveEndTrackIdx);
 
     final bool isRangeModeActive =
@@ -519,14 +530,19 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
               ? _distances[endPointsIndex]
               : null;
 
-          final double? graphX =
-              _displayNeedleX ?? (needleX != null ? mapX(needleX) : null);
-          final double? startXRealPixel =
-              _displayStartX ??
-              (startXForPainters != null ? mapX(startXForPainters) : null);
-          final double? endXRealPixel =
-              _displayEndX ??
-              (endXForPainters != null ? mapX(endXForPainters) : null);
+          final double? graphX = useLocalDragPreview
+              ? (_displayNeedleX ?? (needleX != null ? mapX(needleX) : null))
+              : (needleX != null ? mapX(needleX) : null);
+          final double? startXRealPixel = useLocalDragPreview
+              ? (_displayStartX ??
+                    (startXForPainters != null
+                        ? mapX(startXForPainters)
+                        : null))
+              : (startXForPainters != null ? mapX(startXForPainters) : null);
+          final double? endXRealPixel = useLocalDragPreview
+              ? (_displayEndX ??
+                    (endXForPainters != null ? mapX(endXForPainters) : null))
+              : (endXForPainters != null ? mapX(endXForPainters) : null);
 
           final double tooltipWidth = _tooltipWidth > 0 ? _tooltipWidth : 130.0;
           const double tooltipMinLeft = 4.0;
@@ -687,7 +703,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               isCurved: true,
                               curveSmoothness: 0.4,
                               preventCurveOverShooting: true,
-                              color: AppColors.starTrekRed,
+                              color: AppColors.pureRed,
                               barWidth: 2.5,
                               dotData: const FlDotData(show: false),
                             ),
@@ -737,7 +753,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             _buildHandleMarker(
                               x: endXRealPixel,
                               chartHeight: currentChartHeight,
-                              color: AppColors.starTrekRed,
+                              color: AppColors.pureRed,
                               y: _getHandleYForIndex(
                                 endPointsIndex,
                                 chartHeight: currentChartHeight,
@@ -1013,9 +1029,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       setState(() {
                         _draggingHandle = -1;
                         _hideBlueNeedle = false;
-                        _displayStartTrackIdx = startTrackIdx;
-                        _displayEndTrackIdx = endTrackIdx;
-                        _displayNeedleTrackIdx = snappedTrackIdx;
+                        _displayStartTrackIdx = null;
+                        _displayEndTrackIdx = null;
+                        _displayNeedleTrackIdx = null;
                         _displayStartX = null;
                         _displayEndX = null;
                         _displayNeedleX = null;
@@ -1025,9 +1041,9 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       setState(() {
                         _draggingHandle = -1;
                         _hideBlueNeedle = false;
-                        _displayStartTrackIdx = startTrackIdx;
-                        _displayEndTrackIdx = endTrackIdx;
-                        _displayNeedleTrackIdx = snappedTrackIdx;
+                        _displayStartTrackIdx = null;
+                        _displayEndTrackIdx = null;
+                        _displayNeedleTrackIdx = null;
                         _displayStartX = null;
                         _displayEndX = null;
                         _displayNeedleX = null;
@@ -1081,7 +1097,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             child: _buildFlutterTooltip(
                               "${(_distances[startPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
                               _getRealSpeedKmh(startPointsIndex),
-                              AppColors.starTrekGold,
+                              AppColors.starTrekGreen,
                               showSpeed,
                             ),
                           ),
@@ -1098,7 +1114,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             child: _buildFlutterTooltip(
                               "${(_distances[endPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
                               _getRealSpeedKmh(endPointsIndex),
-                              AppColors.starTrekRed,
+                              AppColors.pureRed,
                               showSpeed,
                             ),
                           ),

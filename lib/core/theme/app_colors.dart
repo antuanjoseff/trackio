@@ -14,6 +14,7 @@ class AppColors {
   // Colors semàntics
   static const Color starTrekGreen = Color(0xFF4F8A5B); // Èxit
   static const Color onSuccess = Color.fromARGB(255, 84, 190, 81);
+  static const Color pureRed = Color.fromARGB(255, 255, 0, 0);
 
   static const Color lightBackground = Color(0xFFF4F4F2);
   static const Color darkBackground = Color(0xFF151A22);

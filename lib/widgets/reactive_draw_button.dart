@@ -4,7 +4,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/dialogs.dart';
+import 'package:trackio/core/utils/track_stats_calculator.dart';
 import 'package:trackio/l10n/app_localizations.dart';
+import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/screens/main_editor_screen.dart';
 
@@ -286,7 +288,9 @@ class ReactiveDrawButton extends ConsumerWidget {
     List points,
   ) {
     double totalMeters = 0.0;
-    double positiveElevation = 0.0;
+    final List<TrackPointModel> trackPoints = points.cast<TrackPointModel>();
+    final stats = TrackStatsCalculator.compute(trackPoints);
+
     for (int i = 0; i < points.length - 1; i++) {
       final p1 = points[i];
       final p2 = points[i + 1];
@@ -300,16 +304,12 @@ class ReactiveDrawButton extends ConsumerWidget {
           p2.latitude!,
           p2.longitude!,
         );
-        if (p1.elevation != null && p2.elevation != null) {
-          final double diff = p2.elevation! - p1.elevation!;
-          if (diff > 0) positiveElevation += diff;
-        }
       }
     }
     final double distanceKm = totalMeters / 1000;
     return (
       distanceText: "${distanceKm.toStringAsFixed(2)} km",
-      elevationText: "${positiveElevation.toStringAsFixed(0)} m",
+      elevationText: "${(stats['gain'] as double).toStringAsFixed(0)} m",
     );
   }
 

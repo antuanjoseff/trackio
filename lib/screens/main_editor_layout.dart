@@ -125,17 +125,22 @@ class MainEditorLayout extends ConsumerWidget {
           appBar: (isMobile && isLandscape)
               ? null
               : AppBar(
-                  leading: Center(
-                    child: IconButton(
-                      tooltip: t.importTracks,
-                      icon: const Icon(
-                        Icons.upload,
-                        color: AppColors.starTrekRed,
-                        size: 20,
-                      ),
-                      onPressed: onImportPressed,
-                    ),
-                  ),
+                  automaticallyImplyLeading: false,
+                  titleSpacing: 12,
+                  centerTitle: false,
+                  leading: isMobile
+                      ? Center(
+                          child: IconButton(
+                            tooltip: t.importTracks,
+                            icon: const Icon(
+                              Icons.upload,
+                              color: AppColors.starTrekRed,
+                              size: 20,
+                            ),
+                            onPressed: onImportPressed,
+                          ),
+                        )
+                      : null,
                   title: Text(t.appTitle),
                   actions: [
                     // 🌐 ACCIONS FILTRADES: Si som a la Web (!isMobile) pintem totes les eines horitzontals
@@ -352,6 +357,18 @@ class MainEditorLayout extends ConsumerWidget {
                       onPressed: () => ref
                           .read(gpxEditorProvider.notifier)
                           .toggleElevationChart(),
+                    ),
+
+                    const VerticalDivider(indent: 12, endIndent: 12, width: 16),
+
+                    IconButton(
+                      tooltip: t.importTracks,
+                      icon: const Icon(
+                        Icons.upload,
+                        color: AppColors.starTrekRed,
+                        size: 20,
+                      ),
+                      onPressed: onImportPressed,
                     ),
 
                     const SizedBox(width: 8),

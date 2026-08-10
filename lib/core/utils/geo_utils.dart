@@ -35,6 +35,13 @@ class GeoCalculations {
     double distance = 0.0;
     double gain = 0.0;
 
+    final List<double> smoothedElevations = _smoothElevations(
+      points
+          .where((p) => p.elevation != null)
+          .map((p) => p.elevation!)
+          .toList(),
+    );
+
     for (int i = 0; i < points.length - 1; i++) {
       final p1 = points[i];
       final p2 = points[i + 1];
@@ -49,13 +56,46 @@ class GeoCalculations {
           p2.latitude!,
           p2.longitude!,
         );
-
-        if (p1.elevation != null && p2.elevation != null) {
-          final double diff = p2.elevation! - p1.elevation!;
-          if (diff > 0) gain += diff; // Només sumem els trams de pujada
-        }
       }
     }
+
+    if (smoothedElevations.length >= 2) {
+      double lastValid = smoothedElevations.first;
+      for (int i = 1; i < smoothedElevations.length; i++) {
+        final double diff = smoothedElevations[i] - lastValid;
+        if (diff.abs() < 3.5) {
+          continue;
+        }
+        if (diff > 0) {
+          gain += diff;
+        }
+        lastValid = smoothedElevations[i];
+      }
+    }
+
     return (distance, gain);
+  }
+
+  static List<double> _smoothElevations(
+    List<double> elevations, {
+    int windowSize = 5,
+  }) {
+    if (elevations.length < 2) {
+      return List<double>.from(elevations);
+    }
+
+    final List<double> smoothed = <double>[];
+    for (int i = 0; i < elevations.length; i++) {
+      final int start = i - windowSize + 1;
+      final int safeStart = start < 0 ? 0 : start;
+      final int end = i + 1;
+      double sum = 0.0;
+      for (int j = safeStart; j < end; j++) {
+        sum += elevations[j];
+      }
+      smoothed.add(sum / (end - safeStart));
+    }
+
+    return smoothed;
   }
 }

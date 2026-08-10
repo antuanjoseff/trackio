@@ -100,7 +100,7 @@ class SelectionPainter extends CustomPainter {
         canvas,
         endX!,
         endPointsIndex!,
-        AppColors.starTrekRed,
+        AppColors.pureRed, // 🔴 Vermell pur per a la línia de final de rang
       );
     }
 

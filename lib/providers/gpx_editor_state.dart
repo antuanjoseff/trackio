@@ -77,7 +77,11 @@ class GpxEditorState {
   });
 
   factory GpxEditorState.initial() {
-    return GpxEditorState(tracks: [], loadingTrackIds: const []);
+    return GpxEditorState(
+      tracks: [],
+      loadingTrackIds: const [],
+      showSidebar: false,
+    );
   }
 
   GpxEditorState copyWith({
