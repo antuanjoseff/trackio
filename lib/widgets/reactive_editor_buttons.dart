@@ -90,7 +90,7 @@ class ReactiveRangeButton extends ConsumerWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: isSelectingRange
               ? AppColors.starTrekRed
-              : AppColors.starTrekGold,
+              : AppColors.starTrekGreen,
           foregroundColor: Colors.white,
         ),
         onPressed: () {
@@ -196,6 +196,10 @@ class ReactiveWaypointButton extends ConsumerWidget {
                 .findAncestorStateOfType<MainEditorScreenState>();
             if (screenState == null) return;
 
+            final reticleCoords = await screenState
+                .captureVisibleReticleLatLng();
+            if (reticleCoords == null) return;
+
             final state = ref.read(gpxEditorProvider);
             final track = state.tracks.firstWhere(
               (t) => t.id == state.selectedTrackId,
@@ -209,21 +213,12 @@ class ReactiveWaypointButton extends ConsumerWidget {
             );
             if (name == null || name.isEmpty) return;
 
+            await screenState.addWaypointAtVisibleReticle(
+              name: name,
+              comment: "",
+              target: reticleCoords,
+            );
             final messenger = ScaffoldMessenger.of(context);
-            ref
-                .read(gpxEditorProvider.notifier)
-                .addWaypointToSelectedTrack(name: name, comment: "");
-
-            // 🌟 Dins de widgets/reactive_editor_buttons.dart -> ReactiveWaypointButton:
-            if (context.mounted) {
-              final updated = ref.read(gpxEditorProvider);
-
-              // 🔄 CORREGIT: Li passem la llista de tracks I TAMBÉ el selectedTrackId
-              await screenState.paintTracks(
-                updated.tracks,
-                updated.selectedTrackId,
-              );
-            }
 
             messenger.showSnackBar(
               SnackBar(

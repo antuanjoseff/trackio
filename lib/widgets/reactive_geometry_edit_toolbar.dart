@@ -21,14 +21,7 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
     final canUndoGeometry = ref.watch(
       gpxEditorProvider.select((s) => s.geometryCanUndo),
     );
-    final bool isSmallScreen = MediaQuery.of(context).size.width <= 800;
-    final bool isMobileApp =
-        Theme.of(context).platform == TargetPlatform.android ||
-        Theme.of(context).platform == TargetPlatform.iOS;
-
-    if (activeTool != 'edit_geometry' ||
-        !hasSelectedTrack ||
-        (isSmallScreen && isMobileApp)) {
+    if (activeTool != 'edit_geometry' || !hasSelectedTrack) {
       return const SizedBox.shrink();
     }
 

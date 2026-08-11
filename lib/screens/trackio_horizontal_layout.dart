@@ -55,15 +55,17 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     final liveShowSidebar = ref.watch(
       gpxEditorProvider.select((s) => s.showSidebar),
     );
-
+    final bool isMobileApp =
+        Theme.of(context).platform == TargetPlatform.android ||
+        Theme.of(context).platform == TargetPlatform.iOS;
     final bool isDisabled = selectedTrackId == null;
     final bool isMobile = MediaQuery.of(context).size.width <= 800;
-    final bool showMobileGeometryTools =
-        liveActiveTool == 'edit_geometry' && !isDisabled;
-
+    final bool hideMainToolbar = liveActiveTool == 'edit_geometry';
     // =========================================================================
     // 📱 1. INTERFÍCIE NATIVA PER A MÒBILS (Es manté el Row rígit de sempre)
     // =========================================================================
+    final bool showMobileGeometryTools =
+        liveActiveTool == 'edit_geometry' && !isDisabled && !isMobileApp;
     if (isMobile) {
       return Column(
         children: [
@@ -85,26 +87,8 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                           bottom: false,
                           left: true,
                           right: false,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  Theme.of(
-                                    context,
-                                  ).appBarTheme.backgroundColor ??
-                                  AppColors.lightSurface,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.12),
-                                  blurRadius: 8,
-                                  offset: const Offset(2, 2),
-                                ),
-                              ],
-                            ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -161,264 +145,264 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                           bottom: false,
                           left: false,
                           right: true,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  Theme.of(
-                                    context,
-                                  ).appBarTheme.backgroundColor ??
-                                  AppColors.lightSurface,
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.12),
-                                  blurRadius: 8,
-                                  offset: const Offset(-2, 2),
-                                ),
-                              ],
-                            ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (showMobileGeometryTools) ...[
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: geometryMode == 'add',
-                                    icon: Icon(
-                                      Icons.add_circle,
-                                      color: AppColors.starTrekRed,
-                                    ),
-                                    tooltip: t.addNode,
-                                    onPressed: () => ref
-                                        .read(gpxEditorProvider.notifier)
-                                        .setGeometryEditMode('add'),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: geometryMode == 'delete',
-                                    icon: Icon(
-                                      Icons.remove_circle,
-                                      color: geometryMode == 'delete'
-                                          ? Colors.red.shade700
-                                          : Colors.red,
-                                    ),
-                                    tooltip: t.deleteNode,
-                                    onPressed: () => ref
-                                        .read(gpxEditorProvider.notifier)
-                                        .setGeometryEditMode('delete'),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: geometryMode == 'move',
-                                    icon: Icon(
-                                      Icons.open_with,
-                                      color: AppColors.starTrekRed,
-                                    ),
-                                    tooltip: t.moveNode,
-                                    onPressed: () => ref
-                                        .read(gpxEditorProvider.notifier)
-                                        .setGeometryEditMode('move'),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildCompactBtn(
-                                    context,
-                                    icon: Icon(
-                                      Icons.undo,
-                                      color: canUndoGeometry
-                                          ? AppColors.starTrekRed
-                                          : Colors.grey.shade400,
-                                    ),
-                                    tooltip: t.undoGeometryEdit,
-                                    onPressed: canUndoGeometry
-                                        ? () => ref
-                                              .read(gpxEditorProvider.notifier)
-                                              .undoLastGeometryEdit()
-                                        : null,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildCompactBtn(
-                                    context,
-                                    icon: const Icon(
-                                      Icons.close_rounded,
-                                      color: AppColors.starTrekRed,
-                                    ),
-                                    tooltip: t.cancel,
-                                    onPressed: () => ref
-                                        .read(gpxEditorProvider.notifier)
-                                        .setActiveTool('none'),
-                                  ),
-                                ] else ...[
-                                  // 1. INVERTIR DIRECCIÓ
-                                  _buildCompactBtn(
-                                    context,
-                                    icon: TrackioLargeIcon(
-                                      child: TrackioIcons.reverseDirection(
-                                        color: isDisabled
-                                            ? Colors.grey.shade400
-                                            : AppColors.starTrekRed,
+                                if (!hideMainToolbar) ...[
+                                  if (showMobileGeometryTools) ...[
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive: geometryMode == 'add',
+                                      icon: Icon(
+                                        Icons.add_circle,
+                                        color: AppColors.starTrekRed,
                                       ),
+                                      tooltip: t.addNode,
+                                      onPressed: () => ref
+                                          .read(gpxEditorProvider.notifier)
+                                          .setGeometryEditMode('add'),
                                     ),
-                                    tooltip: t.toolInverse,
-                                    onPressed: isDisabled
-                                        ? null
-                                        : () => onReverseTrack(ref),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  // 2. TALLAR (SPLIT)
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: liveActiveTool == 'split',
-                                    icon: TrackioLargeIcon(
-                                      child: TrackioIcons.cutGpx(
-                                        color: isDisabled
-                                            ? Colors.grey.shade400
-                                            : (liveActiveTool == 'split'
-                                                  ? AppColors.starTrekRed
-                                                  : AppColors.starTrekRed),
+                                    const SizedBox(height: 6),
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive: geometryMode == 'delete',
+                                      icon: Icon(
+                                        Icons.remove_circle,
+                                        color: geometryMode == 'delete'
+                                            ? Colors.red.shade700
+                                            : Colors.red,
                                       ),
+                                      tooltip: t.deleteNode,
+                                      onPressed: () => ref
+                                          .read(gpxEditorProvider.notifier)
+                                          .setGeometryEditMode('delete'),
                                     ),
-                                    tooltip: t.toolSplit,
-                                    onPressed: isDisabled
-                                        ? null
-                                        : () => ref
-                                              .read(gpxEditorProvider.notifier)
-                                              .setActiveTool(
-                                                liveActiveTool == 'split'
-                                                    ? 'none'
-                                                    : 'split',
-                                              ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  // 3. UNIR (MERGE)
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: liveActiveTool == 'merge',
-                                    icon: TrackioLargeIcon(
-                                      child: TrackioIcons.joinGpx(
-                                        color: isDisabled
-                                            ? Colors.grey.shade400
-                                            : (liveActiveTool == 'merge'
-                                                  ? AppColors.starTrekRed
-                                                  : AppColors.starTrekRed),
+                                    const SizedBox(height: 6),
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive: geometryMode == 'move',
+                                      icon: Icon(
+                                        Icons.open_with,
+                                        color: AppColors.starTrekRed,
                                       ),
+                                      tooltip: t.moveNode,
+                                      onPressed: () => ref
+                                          .read(gpxEditorProvider.notifier)
+                                          .setGeometryEditMode('move'),
                                     ),
-                                    tooltip: t.toolMerge,
-                                    onPressed: isDisabled
-                                        ? null
-                                        : () => ref
-                                              .read(gpxEditorProvider.notifier)
-                                              .setActiveTool(
-                                                liveActiveTool == 'merge'
-                                                    ? 'none'
-                                                    : 'merge',
-                                              ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  // 4. SELECCIONAR TRAM (RANGE)
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: liveActiveTool == 'range_map',
-                                    icon: TrackioLargeIcon(
-                                      child: TrackRangeSelection(
-                                        color: isDisabled
-                                            ? Colors.grey.shade400
-                                            : (liveActiveTool == 'range_map'
-                                                  ? AppColors.starTrekRed
-                                                  : AppColors.starTrekRed),
-                                      ),
-                                    ),
-                                    tooltip: t.selectRange,
-                                    onPressed: isDisabled
-                                        ? null
-                                        : () => ref
-                                              .read(gpxEditorProvider.notifier)
-                                              .setActiveTool(
-                                                liveActiveTool == 'range_map'
-                                                    ? 'none'
-                                                    : 'range_map',
-                                              ),
-                                  ),
-                                  const SizedBox(height: 6),
-
-                                  // 5. AFEGIR WAYPOINT
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: liveActiveTool == 'add_waypoint',
-                                    icon: TrackioLargeIcon(
-                                      child: TrackioIcons.addWaypoint(
-                                        color: isDisabled
-                                            ? Colors.grey.shade400
-                                            : (liveActiveTool == 'add_waypoint'
-                                                  ? AppColors.starTrekRed
-                                                  : AppColors.starTrekRed),
-                                      ),
-                                    ),
-                                    tooltip: t.addWaypoint,
-                                    onPressed: isDisabled
-                                        ? null
-                                        : () => ref
-                                              .read(gpxEditorProvider.notifier)
-                                              .setActiveTool(
-                                                liveActiveTool == 'add_waypoint'
-                                                    ? 'none'
-                                                    : 'add_waypoint',
-                                              ),
-                                  ),
-                                  const SizedBox(height: 6),
-
-                                  // 6. DIBUIXAR DE ZERO
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: liveActiveTool == 'draw',
-                                    icon: TrackioLargeIcon(
-                                      child: Icon(
-                                        Icons.gesture_rounded,
-                                        color: liveActiveTool == 'draw'
+                                    const SizedBox(height: 6),
+                                    _buildCompactBtn(
+                                      context,
+                                      icon: Icon(
+                                        Icons.undo,
+                                        color: canUndoGeometry
                                             ? AppColors.starTrekRed
-                                            : AppColors.starTrekRed,
+                                            : Colors.grey.shade400,
                                       ),
+                                      tooltip: t.undoGeometryEdit,
+                                      onPressed: canUndoGeometry
+                                          ? () => ref
+                                                .read(
+                                                  gpxEditorProvider.notifier,
+                                                )
+                                                .undoLastGeometryEdit()
+                                          : null,
                                     ),
-                                    tooltip: t.toolDraw,
-                                    onPressed: () => ref
-                                        .read(gpxEditorProvider.notifier)
-                                        .setActiveTool(
-                                          liveActiveTool == 'draw'
-                                              ? 'none'
-                                              : 'draw',
+                                    const SizedBox(height: 6),
+                                    _buildCompactBtn(
+                                      context,
+                                      icon: const Icon(
+                                        Icons.close_rounded,
+                                        color: AppColors.starTrekRed,
+                                      ),
+                                      tooltip: t.cancel,
+                                      onPressed: () => ref
+                                          .read(gpxEditorProvider.notifier)
+                                          .setActiveTool('none'),
+                                    ),
+                                  ] else ...[
+                                    // 1. INVERTIR DIRECCIÓ
+                                    _buildCompactBtn(
+                                      context,
+                                      icon: TrackioLargeIcon(
+                                        child: TrackioIcons.reverseDirection(
+                                          color: isDisabled
+                                              ? Colors.grey.shade400
+                                              : AppColors.starTrekRed,
                                         ),
-                                  ),
-                                  const SizedBox(height: 6),
-
-                                  // 7. EDITAR GEOMETRIA
-                                  _buildCompactBtn(
-                                    context,
-                                    isActive: liveActiveTool == 'edit_geometry',
-                                    icon: Icon(
-                                      Icons.hub_rounded,
-                                      color: isDisabled
-                                          ? Colors.grey.shade400
-                                          : (liveActiveTool == 'edit_geometry'
-                                                ? AppColors.starTrekRed
-                                                : AppColors.starTrekRed),
+                                      ),
+                                      tooltip: t.toolInverse,
+                                      onPressed: isDisabled
+                                          ? null
+                                          : () => onReverseTrack(ref),
                                     ),
-                                    tooltip: t.toolEditGeometry,
-                                    onPressed: isDisabled
-                                        ? null
-                                        : () => ref
-                                              .read(gpxEditorProvider.notifier)
-                                              .setActiveTool(
-                                                liveActiveTool ==
-                                                        'edit_geometry'
-                                                    ? 'none'
-                                                    : 'edit_geometry',
-                                              ),
-                                  ),
+                                    const SizedBox(height: 6),
+                                    // 2. TALLAR (SPLIT)
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive: liveActiveTool == 'split',
+                                      icon: TrackioLargeIcon(
+                                        child: TrackioIcons.cutGpx(
+                                          color: isDisabled
+                                              ? Colors.grey.shade400
+                                              : (liveActiveTool == 'split'
+                                                    ? AppColors.starTrekRed
+                                                    : AppColors.starTrekRed),
+                                        ),
+                                      ),
+                                      tooltip: t.toolSplit,
+                                      onPressed: isDisabled
+                                          ? null
+                                          : () => ref
+                                                .read(
+                                                  gpxEditorProvider.notifier,
+                                                )
+                                                .setActiveTool(
+                                                  liveActiveTool == 'split'
+                                                      ? 'none'
+                                                      : 'split',
+                                                ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    // 3. UNIR (MERGE)
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive: liveActiveTool == 'merge',
+                                      icon: TrackioLargeIcon(
+                                        child: TrackioIcons.joinGpx(
+                                          color: isDisabled
+                                              ? Colors.grey.shade400
+                                              : (liveActiveTool == 'merge'
+                                                    ? AppColors.starTrekRed
+                                                    : AppColors.starTrekRed),
+                                        ),
+                                      ),
+                                      tooltip: t.toolMerge,
+                                      onPressed: isDisabled
+                                          ? null
+                                          : () => ref
+                                                .read(
+                                                  gpxEditorProvider.notifier,
+                                                )
+                                                .setActiveTool(
+                                                  liveActiveTool == 'merge'
+                                                      ? 'none'
+                                                      : 'merge',
+                                                ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    // 4. SELECCIONAR TRAM (RANGE)
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive: liveActiveTool == 'range_map',
+                                      icon: TrackioLargeIcon(
+                                        child: TrackRangeSelection(
+                                          color: isDisabled
+                                              ? Colors.grey.shade400
+                                              : (liveActiveTool == 'range_map'
+                                                    ? AppColors.starTrekRed
+                                                    : AppColors.starTrekRed),
+                                        ),
+                                      ),
+                                      tooltip: t.selectRange,
+                                      onPressed: isDisabled
+                                          ? null
+                                          : () => ref
+                                                .read(
+                                                  gpxEditorProvider.notifier,
+                                                )
+                                                .setActiveTool(
+                                                  liveActiveTool == 'range_map'
+                                                      ? 'none'
+                                                      : 'range_map',
+                                                ),
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // 5. AFEGIR WAYPOINT
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive:
+                                          liveActiveTool == 'add_waypoint',
+                                      icon: TrackioLargeIcon(
+                                        child: TrackioIcons.addWaypoint(
+                                          color: isDisabled
+                                              ? Colors.grey.shade400
+                                              : (liveActiveTool ==
+                                                        'add_waypoint'
+                                                    ? AppColors.starTrekRed
+                                                    : AppColors.starTrekRed),
+                                        ),
+                                      ),
+                                      tooltip: t.addWaypoint,
+                                      onPressed: isDisabled
+                                          ? null
+                                          : () => ref
+                                                .read(
+                                                  gpxEditorProvider.notifier,
+                                                )
+                                                .setActiveTool(
+                                                  liveActiveTool ==
+                                                          'add_waypoint'
+                                                      ? 'none'
+                                                      : 'add_waypoint',
+                                                ),
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // 6. DIBUIXAR DE ZERO
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive: liveActiveTool == 'draw',
+                                      icon: TrackioLargeIcon(
+                                        child: Icon(
+                                          Icons.gesture_rounded,
+                                          color: liveActiveTool == 'draw'
+                                              ? AppColors.starTrekRed
+                                              : AppColors.starTrekRed,
+                                        ),
+                                      ),
+                                      tooltip: t.toolDraw,
+                                      onPressed: () => ref
+                                          .read(gpxEditorProvider.notifier)
+                                          .setActiveTool(
+                                            liveActiveTool == 'draw'
+                                                ? 'none'
+                                                : 'draw',
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // 7. EDITAR GEOMETRIA
+                                    _buildCompactBtn(
+                                      context,
+                                      isActive:
+                                          liveActiveTool == 'edit_geometry',
+                                      icon: Icon(
+                                        Icons.hub_rounded,
+                                        color: isDisabled
+                                            ? Colors.grey.shade400
+                                            : (liveActiveTool == 'edit_geometry'
+                                                  ? AppColors.starTrekRed
+                                                  : AppColors.starTrekRed),
+                                      ),
+                                      tooltip: t.toolEditGeometry,
+                                      onPressed: isDisabled
+                                          ? null
+                                          : () => ref
+                                                .read(
+                                                  gpxEditorProvider.notifier,
+                                                )
+                                                .setActiveTool(
+                                                  liveActiveTool ==
+                                                          'edit_geometry'
+                                                      ? 'none'
+                                                      : 'edit_geometry',
+                                                ),
+                                    ),
+                                  ],
                                 ],
                               ],
                             ),
@@ -532,22 +516,45 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     required VoidCallback? onPressed,
     bool isActive = false,
   }) {
+    final bool isDisabled = onPressed == null;
+    final Color baseSurface = Theme.of(context).colorScheme.surface;
+    final Widget effectiveIcon = isActive
+        ? ColorFiltered(
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            child: icon,
+          )
+        : icon;
+
     return Container(
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: isActive
-            ? Theme.of(context).appBarTheme.backgroundColor
-            : Colors.transparent,
+        color: isActive ? AppColors.starTrekRed : baseSurface.withOpacity(0.84),
         shape: BoxShape.circle,
+        border: Border.all(
+          color: isActive
+              ? AppColors.starTrekRed
+              : AppColors.starTrekRed.withOpacity(0.35),
+          width: isActive ? 1.6 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isActive ? 0.2 : 0.1),
+            blurRadius: isActive ? 8 : 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: IconButton(
-        tooltip: tooltip,
-        icon: icon,
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        iconSize: 20,
-        constraints: const BoxConstraints(),
+      child: Opacity(
+        opacity: isDisabled ? 0.45 : 1,
+        child: IconButton(
+          tooltip: tooltip,
+          icon: effectiveIcon,
+          onPressed: onPressed,
+          padding: EdgeInsets.zero,
+          iconSize: 20,
+          constraints: const BoxConstraints(),
+        ),
       ),
     );
   }

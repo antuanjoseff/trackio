@@ -1,42 +1,56 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // ===== Paleta Elegant (Star Trek Inspired) =====
+  // ===== Nova paleta Trackio =====
 
-  static const Color starTrekRed = Color(0xFF8E4A49); // Borgonya suau
-  static const Color starTrekGold = Color(0xFFC8A46B); // Bronze elegant
-  static const Color starTrekBlue = Color(0xFF5E81AC); // Blau acer
-  static const Color starTrekPurple = Color(0xFF7B6D8D); // Lila apagat
-  static const Color starTrekSpeedLine = Color(
-    0xFF4DA3D9,
-  ); // Blau cian per la línia de velocitat
+  // Base UI
+  static const Color techBlue = Color(0xFF0066FF);
+  static const Color accentOrange = Color(0xFFFF6B00);
+  static const Color cleanLightGray = Color(0xFFF8F9FA);
+  static const Color slateGray = Color(0xFF1E222B);
 
-  // Colors semàntics
-  static const Color starTrekGreen = Color(0xFF4F8A5B); // Èxit
-  static const Color onSuccess = Color.fromARGB(255, 84, 190, 81);
-  static const Color pureRed = Color.fromARGB(255, 255, 0, 0);
+  // Mapa i tracks
+  static const Color activeTrackCyan = Color(0xFF00F0FF);
+  static const Color secondaryTrackViolet = Color(0xFFD000FF);
+  static const Color nodeWhite = Color(0xFFFFFFFF);
+  static const Color nodeBorderBlack = Color(0xFF000000);
 
-  static const Color lightBackground = Color(0xFFF4F4F2);
-  static const Color darkBackground = Color(0xFF151A22);
+  // Gradient semàntic
+  static const Color slopeGreen = Color(0xFF10B981);
+  static const Color slopeYellow = Color(0xFFF59E0B);
+  static const Color effortRed = Color(0xFFEF4444);
+
+  // Compatibilitat amb codi existent
+  static const Color starTrekRed = techBlue;
+  static const Color starTrekGold = accentOrange;
+  static const Color starTrekBlue = activeTrackCyan;
+  static const Color starTrekPurple = secondaryTrackViolet;
+  static const Color starTrekSpeedLine = activeTrackCyan;
+  static const Color starTrekGreen = slopeGreen;
+  static const Color onSuccess = slopeGreen;
+  static const Color pureRed = effortRed;
+
+  static const Color lightBackground = cleanLightGray;
+  static const Color darkBackground = slateGray;
 
   static const Color lightSurface = Colors.white;
-  static const Color darkSurface = Color(0xFF1E2532);
+  static const Color darkSurface = Color(0xFF252B36);
 
   // ================= LIGHT =================
 
   static const ColorScheme lightColorScheme = ColorScheme(
     brightness: Brightness.light,
 
-    primary: starTrekRed,
+    primary: techBlue,
     onPrimary: Colors.white,
 
-    secondary: starTrekGold,
-    onSecondary: Colors.black,
+    secondary: accentOrange,
+    onSecondary: Colors.white,
 
-    tertiary: starTrekBlue,
-    onTertiary: Colors.white,
+    tertiary: activeTrackCyan,
+    onTertiary: Colors.black,
 
-    error: Color(0xFFB85050),
+    error: accentOrange,
     onError: Colors.white,
 
     surface: lightSurface,
@@ -48,17 +62,17 @@ class AppColors {
   static const ColorScheme darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
 
-    primary: starTrekGold,
-    onPrimary: Colors.black,
+    primary: techBlue,
+    onPrimary: Colors.white,
 
-    secondary: starTrekBlue,
+    secondary: accentOrange,
     onSecondary: Colors.white,
 
-    tertiary: starTrekPurple,
+    tertiary: secondaryTrackViolet,
     onTertiary: Colors.white,
 
-    error: Color(0xFFE57373),
-    onError: Colors.black,
+    error: accentOrange,
+    onError: Colors.white,
 
     surface: darkSurface,
     onSurface: Color(0xFFF2F2F2),
@@ -124,11 +138,11 @@ class AppColors {
       ),
 
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: starTrekBlue),
+        style: TextButton.styleFrom(foregroundColor: techBlue),
       ),
 
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: starTrekBlue,
+        backgroundColor: techBlue,
         foregroundColor: Colors.white,
         elevation: 2,
       ),
@@ -157,14 +171,14 @@ class AppColors {
 
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: starTrekBlue, width: 2),
+          borderSide: const BorderSide(color: techBlue, width: 2),
         ),
       ),
 
       // ================= NAVIGATION =================
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: isLight ? lightSurface : darkSurface,
-        indicatorColor: starTrekBlue.withOpacity(.12),
+        indicatorColor: techBlue.withOpacity(.12),
         labelTextStyle: WidgetStateProperty.all(
           const TextStyle(fontWeight: FontWeight.w600),
         ),
@@ -181,7 +195,7 @@ class AppColors {
         backgroundColor: isLight
             ? Colors.grey.shade200
             : const Color(0xFF2B3444),
-        selectedColor: starTrekBlue.withOpacity(.25),
+        selectedColor: techBlue.withOpacity(.25),
         disabledColor: Colors.grey.shade400,
         labelStyle: TextStyle(color: scheme.onSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
@@ -190,21 +204,18 @@ class AppColors {
       // ================= SWITCH =================
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? starTrekBlue
-              : Colors.grey,
+          (states) =>
+              states.contains(WidgetState.selected) ? techBlue : Colors.grey,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? starTrekBlue.withOpacity(.30)
+              ? techBlue.withOpacity(.30)
               : Colors.grey.withOpacity(.25),
         ),
       ),
 
       // ================= PROGRESS =================
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: starTrekBlue,
-      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: techBlue),
 
       // ================= SNACKBAR =================
       snackBarTheme: SnackBarThemeData(

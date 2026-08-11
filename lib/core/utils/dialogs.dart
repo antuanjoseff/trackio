@@ -177,6 +177,7 @@ Future<String?> askWaypointNameDialog(
     context: context,
     // 🔥 PROTECCIÓ ANDROID: Evita saltar al context de navegació superior
     useRootNavigator: false,
+    requestFocus: true,
     // 🔥 PROTECCIÓ GRÀFICA: Opacitat mínima utilitzant un valor enter d'Alpha (2 és gairebé transparent sobre 255)
     barrierColor: Colors.black.withAlpha(2),
     builder: (context) => AlertDialog(

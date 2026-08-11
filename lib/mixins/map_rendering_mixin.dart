@@ -195,14 +195,10 @@ mixin MapRenderingMixin {
           state.chartRangeStartIndex ?? state.selectionStartIndex;
       final int? rawEnd = state.chartRangeEndIndex ?? state.selectionEndIndex;
 
-      final int? startPointToPaint =
-          rawStart != null && rawEnd != null && rawStart > rawEnd
-          ? rawEnd
-          : rawStart;
-      final int? endPointToPaint =
-          rawStart != null && rawEnd != null && rawStart > rawEnd
-          ? rawStart
-          : rawEnd;
+      // Respectem l'ordre temporal de fixació:
+      // start = primer punt fixat (verd), end = segon punt fixat (vermell).
+      final int? startPointToPaint = rawStart;
+      final int? endPointToPaint = rawEnd;
 
       // 🟢 1. Pintar cercle verd (Inici del Rang)
       if (startPointToPaint != null &&
@@ -247,8 +243,12 @@ mixin MapRenderingMixin {
       }
 
       if (startPointToPaint != null && endPointToPaint != null) {
-        lo = startPointToPaint;
-        hi = endPointToPaint;
+        lo = startPointToPaint < endPointToPaint
+            ? startPointToPaint
+            : endPointToPaint;
+        hi = startPointToPaint < endPointToPaint
+            ? endPointToPaint
+            : startPointToPaint;
       } else {
         controller!.setGeoJsonSource("source_range", emptyCollection);
         return;

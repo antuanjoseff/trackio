@@ -1639,17 +1639,25 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       );
     } else if (state.selectionStartIndex != null && state.isSelectingRange) {
       final int start = state.selectionStartIndex!;
-      int visualStart = start < bestIndex ? start : bestIndex;
       int visualEnd = start < bestIndex ? bestIndex : start;
 
       state = state.copyWith(
         selectionStartIndex: start,
         selectionEndIndex: visualEnd,
-        chartRangeStartIndex: visualStart,
-        chartRangeEndIndex: visualEnd,
+        // Mantenim l'ordre temporal de fixació pels colors del mapa:
+        // primer punt (verd) = start, segon punt (vermell) = bestIndex.
+        chartRangeStartIndex: start,
+        chartRangeEndIndex: bestIndex,
         snappedPointIndex: bestIndex,
         snappedPoint: snappedPoint,
         chartSelectionMode: 'range',
+      );
+    } else {
+      // Amb el tram ja tancat, mantenim el preview del punt actual de retícula
+      // perquè el següent "Fixar Inici" comenci al punt realment visible.
+      state = state.copyWith(
+        snappedPointIndex: bestIndex,
+        snappedPoint: snappedPoint,
       );
     }
   }
@@ -1737,15 +1745,11 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     if (state.selectionStartIndex != null &&
         state.selectionEndIndex != null &&
         !state.isSelectingRange) {
-      final bool clickedExistingEndpoint =
-          snappedIndex == state.selectionStartIndex ||
-          snappedIndex == state.selectionEndIndex;
-
-      if (!clickedExistingEndpoint) {
-        resetRangeSelectionForNewStart();
-        fixRangeStartIndexAt(index: snappedIndex, point: snappedPoint);
-        return;
-      }
+      // Si el tram ja està tancat, qualsevol nou "fixar punt"
+      // reinicia el tram i aquest punt passa a ser el nou inici.
+      resetRangeSelectionForNewStart();
+      fixRangeStartIndexAt(index: snappedIndex, point: snappedPoint);
+      return;
     }
 
     if (state.selectionStartIndex == null) {
@@ -1775,7 +1779,9 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   void fixRangeStartIndexAt({required int index, TrackPointModel? point}) {
     state = state.copyWith(
       selectionStartIndex: index,
+      selectionEndIndex: null,
       chartRangeStartIndex: index,
+      chartRangeEndIndex: null,
       snappedPointIndex: index,
       snappedPoint: point,
       isSelectingRange: true,
@@ -1802,9 +1808,11 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
     state = state.copyWith(
       selectionStartIndex: realStart,
-      chartRangeStartIndex: realStart,
+      // Per càlculs interns mantenim el rang ordenat,
+      // però pels colors del mapa mantenim l'ordre temporal.
+      chartRangeStartIndex: start,
       selectionEndIndex: realEnd,
-      chartRangeEndIndex: realEnd,
+      chartRangeEndIndex: index,
       snappedPointIndex: index,
       snappedPoint: point,
       isSelectingRange: false,

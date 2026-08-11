@@ -48,11 +48,19 @@ class TrackioVerticalLayout extends ConsumerWidget {
       gpxEditorProvider.select((s) => s.geometryCanUndo),
     );
     final currentFullState = ref.watch(gpxEditorProvider);
+    final bool isMobileApp =
+        Theme.of(context).platform == TargetPlatform.android ||
+        Theme.of(context).platform == TargetPlatform.iOS;
 
     final bool isDisabled = selectedTrackId == null;
     final bool isMobile = MediaQuery.of(context).size.width <= 800;
+    final bool hideMainToolbar = liveActiveTool == 'edit_geometry';
+    // En app mòbil, l'eina de geometria es gestiona només amb la toolbar dedicada.
     final bool showMobileGeometryTools =
-        isMobile && liveActiveTool == 'edit_geometry' && !isDisabled;
+        isMobile &&
+        liveActiveTool == 'edit_geometry' &&
+        !isDisabled &&
+        !isMobileApp;
 
     return Column(
       children: [
@@ -116,29 +124,13 @@ class TrackioVerticalLayout extends ConsumerWidget {
                   ),
                 ),
 
-              if (isMobile)
+              if (isMobile && !hideMainToolbar)
                 Positioned(
                   top: 8,
                   left: 8,
                   right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).appBarTheme.backgroundColor ??
-                          AppColors.lightSurface,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.12),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -363,28 +355,12 @@ class TrackioVerticalLayout extends ConsumerWidget {
                     ),
                   ),
                 )
-              else
+              else if (!isMobile && !hideMainToolbar)
                 Positioned(
                   top: 16,
                   right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).appBarTheme.backgroundColor ??
-                          AppColors.lightSurface,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.12),
-                          blurRadius: 8,
-                          offset: const Offset(2, 2),
-                        ),
-                      ],
-                    ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -661,22 +637,45 @@ class TrackioVerticalLayout extends ConsumerWidget {
     required VoidCallback? onPressed,
     bool isActive = false,
   }) {
+    final bool isDisabled = onPressed == null;
+    final Color baseSurface = Theme.of(context).colorScheme.surface;
+    final Widget effectiveIcon = isActive
+        ? ColorFiltered(
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            child: icon,
+          )
+        : icon;
+
     return Container(
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: isActive
-            ? Theme.of(context).appBarTheme.backgroundColor
-            : Colors.transparent,
+        color: isActive ? AppColors.starTrekRed : baseSurface.withOpacity(0.84),
         shape: BoxShape.circle,
+        border: Border.all(
+          color: isActive
+              ? AppColors.starTrekRed
+              : AppColors.starTrekRed.withOpacity(0.35),
+          width: isActive ? 1.6 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isActive ? 0.2 : 0.1),
+            blurRadius: isActive ? 8 : 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: IconButton(
-        tooltip: tooltip,
-        icon: icon,
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        iconSize: 20,
+      child: Opacity(
+        opacity: isDisabled ? 0.45 : 1,
+        child: IconButton(
+          tooltip: tooltip,
+          icon: effectiveIcon,
+          onPressed: onPressed,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          iconSize: 20,
+        ),
       ),
     );
   }

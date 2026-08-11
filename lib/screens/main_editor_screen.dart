@@ -54,6 +54,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isImportingExternalFile = false;
   String? _activeRangeMapHandle;
   late final AppLifecycleListener _lifecycleListener;
+  late final FocusNode _keyboardFocusNode;
   final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
   static const Duration reverseAnimationDuration = Duration(seconds: 1);
 
@@ -66,6 +67,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   void initState() {
     super.initState();
 
+    _keyboardFocusNode = FocusNode(debugLabel: 'main_editor_keyboard_listener');
+
     // ⚡ CONFIGURACIÓ PROTEGIDA: Completament neta [INDEX]
     _lifecycleListener = AppLifecycleListener(
       onResume: _consumePendingExternalGpxPath,
@@ -74,6 +77,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_consumePendingExternalGpxPath());
+      if (mounted) {
+        _keyboardFocusNode.requestFocus();
+      }
     });
   }
 
@@ -101,6 +107,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   void dispose() {
     _throttleTimer?.cancel();
     _lifecycleListener.dispose(); // 🌟 NOU: Netegem el listener de memòria
+    _keyboardFocusNode.dispose();
     super.dispose();
   }
 
@@ -206,6 +213,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       gpxEditorProvider.select((s) => s.showSidebar),
     );
     final bool hasMouse = _hasMouseConnected;
+    final bool isMobileLayout = MediaQuery.of(context).size.width <= 800;
     final bool isGeometryAddMode =
         editorState.activeTool == 'edit_geometry' &&
         editorState.geometryEditMode == 'add';
@@ -530,7 +538,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
             // 📐 MÒDUL SELECCIÓ (RANGE_MAP) REPARAT EXCLUSIVAMENT PER A RATOLÍ EN WEB:
             if (activeTool == 'range_map') {
-              if (!hasMouse) return;
+              // En app mòbil, la selecció de tram va amb retícula + botó flotant.
+              // En web, permetem sempre el clic directe per evitar perdre el primer clic.
+              if (_isMobileApp) return;
 
               notifier.handleRangeMapSelectionTap(
                 coordinates.latitude,
@@ -550,14 +560,17 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             }
 
             if (activeTool == 'add_waypoint') {
-              // 1. Capturem la coordenada real on està mirant la retícula en aquest instant precís
-              final LatLng? reticleCoords = await _getVisibleReticleLatLng();
-              if (reticleCoords == null) return;
+              // En web (ratolí), el waypoint s'ha de fixar exactament al punt clicat.
+              // En mòbil/app, mantenim el flux de retícula centrada.
+              final LatLng? waypointCoords = hasMouse
+                  ? coordinates
+                  : await _getVisibleReticleLatLng();
+              if (waypointCoords == null) return;
 
               // 2. Sincronitzem l'estat inicial de seguretat
               notifier.updateWaypointPosition(
-                reticleCoords.latitude,
-                reticleCoords.longitude,
+                waypointCoords.latitude,
+                waypointCoords.longitude,
               );
               notifier.setMapIdle(true);
 
@@ -579,8 +592,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
               // 4. Modifiquem la crida del notifier per assegurar-nos que insereixi la coordenada capturada:
               notifier.updateWaypointPosition(
-                reticleCoords.latitude,
-                reticleCoords.longitude,
+                waypointCoords.latitude,
+                waypointCoords.longitude,
               );
               notifier.addWaypointToSelectedTrack(name: name, comment: "");
 
@@ -621,7 +634,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         ),
 
         // ⭐ BOTÓ DEL SIDEBAR A SOBRE DEL MAPA (Ocult a l'APK mòbil per no duplicar amb l'AppBar)
-        if (hasMouse)
+        if (hasMouse && !isMobileLayout)
           Positioned(
             top: 12,
             left: 12,
@@ -702,7 +715,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         return false;
       },
       child: KeyboardListener(
-        focusNode: FocusNode()..requestFocus(),
+        focusNode: _keyboardFocusNode,
         onKeyEvent: (KeyEvent event) {
           if (event is KeyDownEvent) {
             final currentState = ref.read(gpxEditorProvider);
@@ -848,14 +861,24 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       return fallback;
     }
 
+    final double devicePixelRatio =
+        MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
+    final double coordinateScale = _isMobileApp && devicePixelRatio > 0
+        ? devicePixelRatio
+        : 1.0;
+
     // 🔥 FIX REAL: MapLibre vol Point<num>, no Point<double>
     final pixelCenter = math.Point<num>(
-      renderBox.size.width / 2,
-      renderBox.size.height / 2,
+      (renderBox.size.width / 2) * coordinateScale,
+      (renderBox.size.height / 2) * coordinateScale,
     );
 
     final latLng = await _controller!.toLatLng(pixelCenter);
     return latLng;
+  }
+
+  Future<LatLng?> captureVisibleReticleLatLng() {
+    return _getVisibleReticleLatLng();
   }
 
   Future<void> _addDrawPointAtVisibleReticle() async {
@@ -866,6 +889,29 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     ref
         .read(gpxEditorProvider.notifier)
         .addPointToNewTrack(target.latitude, target.longitude);
+    paintLiveOverlays(ref.read(gpxEditorProvider));
+  }
+
+  Future<void> addWaypointAtVisibleReticle({
+    required String name,
+    String comment = '',
+    LatLng? target,
+  }) async {
+    final LatLng? resolvedTarget =
+        target ??
+        await _getVisibleReticleLatLng() ??
+        _controller?.cameraPosition?.target;
+    if (!mounted || resolvedTarget == null) return;
+
+    ref
+        .read(gpxEditorProvider.notifier)
+        .updateWaypointPosition(
+          resolvedTarget.latitude,
+          resolvedTarget.longitude,
+        );
+    ref
+        .read(gpxEditorProvider.notifier)
+        .addWaypointToSelectedTrack(name: name, comment: comment);
     paintLiveOverlays(ref.read(gpxEditorProvider));
   }
 
@@ -1233,10 +1279,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       if (content.trim().isEmpty) return;
 
       final String fileName = path.split(Platform.pathSeparator).last;
-      final TrackModel parsed = await compute(
-        _parseGpxOnBackgroundIsolate,
-        {'content': content, 'fileName': fileName},
-      );
+      final TrackModel parsed = await compute(_parseGpxOnBackgroundIsolate, {
+        'content': content,
+        'fileName': fileName,
+      });
 
       await _applyImportedTracks([parsed]);
     } catch (e) {

@@ -204,6 +204,7 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
     // 📱 CONFIGURACIÓ EXCLUSIVA PER A MÒBIL (APK i iOS)
     // S'eliminen per complet els "MouseRegion" i "Listener" que donen problemes amb els dits
     return MapLibreMap(
+      translucentTextureSurface: true,
       compassEnabled: false, // Aquí al mòbil sí que funcionarà perfectament
       scrollGesturesEnabled: widget.panEnabled,
       rotateGesturesEnabled: false,
