@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 class AppColors {
   // ===== Nova paleta Trackio =====
 
+  // ===== Editor branding (single source of truth) =====
+  static const Color editorPrimary = Color(0xFF76A812);
+  static const Color editorSidebarBackground = Color(0xFFE8F4DA);
+  static const Color editorTrackCardBackground = Color(0xFFF5F5F5);
+  static const Color editorOnPrimary = Colors.white;
+
   // Base UI
   static const Color techBlue = Color(0xFF0066FF);
   static const Color accentOrange = Color(0xFFFF6B00);
@@ -29,6 +35,12 @@ class AppColors {
   static const Color starTrekGreen = slopeGreen;
   static const Color onSuccess = slopeGreen;
   static const Color pureRed = effortRed;
+
+  // Semantic editor tokens
+  static const Color appBarBackground = editorPrimary;
+  static const Color appBarForeground = editorOnPrimary;
+  static const Color mapToolActiveBackground = Colors.white;
+  static const Color mapToolActiveForeground = appBarBackground;
 
   static const Color lightBackground = cleanLightGray;
   static const Color darkBackground = slateGray;
@@ -93,11 +105,11 @@ class AppColors {
       appBarTheme: AppBarTheme(
         elevation: 0,
         centerTitle: true,
-        backgroundColor: isLight ? lightSurface : darkSurface,
-        foregroundColor: scheme.primary,
+        backgroundColor: appBarBackground,
+        foregroundColor: appBarForeground,
         surfaceTintColor: Colors.transparent,
-        iconTheme: IconThemeData(color: scheme.primary),
-        actionsIconTheme: IconThemeData(color: scheme.primary),
+        iconTheme: const IconThemeData(color: appBarForeground),
+        actionsIconTheme: const IconThemeData(color: appBarForeground),
       ),
 
       // ================= DRAWER =================

@@ -33,6 +33,7 @@ class GpxEditorState {
   final int? geometryInsertIndex;
   final int? geometryMoveNodeIndex;
   final bool geometryCanUndo;
+  final bool canUndoAction;
 
   // 🌟 Dibuix interactiu
   final List<TrackPointModel> drawingPoints;
@@ -65,6 +66,7 @@ class GpxEditorState {
     this.geometryInsertIndex,
     this.geometryMoveNodeIndex,
     this.geometryCanUndo = false,
+    this.canUndoAction = false,
     this.showSidebar = true,
     this.drawingPoints = const [],
     this.drawingLivePoint,
@@ -106,6 +108,7 @@ class GpxEditorState {
     Object? geometryInsertIndex = _noChange,
     Object? geometryMoveNodeIndex = _noChange,
     bool? geometryCanUndo,
+    bool? canUndoAction,
     bool? showSidebar,
     List<TrackPointModel>? drawingPoints,
     Object? drawingLivePoint = _noChange,
@@ -165,6 +168,7 @@ class GpxEditorState {
           ? this.geometryMoveNodeIndex
           : geometryMoveNodeIndex as int?,
       geometryCanUndo: geometryCanUndo ?? this.geometryCanUndo,
+      canUndoAction: canUndoAction ?? this.canUndoAction,
       showSidebar: showSidebar ?? this.showSidebar,
       drawingPoints: drawingPoints ?? this.drawingPoints,
       drawingLivePoint: identical(drawingLivePoint, _noChange)

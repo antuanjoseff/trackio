@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
 class TrackioIcons {
-  static Widget reverseDirection({required Color color, double size = 16}) {
+  static Widget reverseDirection({required Color color, double size = 20}) {
     return Icon(Icons.sync_alt_rounded, color: color, size: size);
   }
 
-  static Widget cutGpx({required Color color, double size = 16}) {
-    return Icon(Icons.content_cut_rounded, color: color, size: size * 0.75);
+  static Widget cutGpx({required Color color, double size = 20}) {
+    return Icon(Icons.content_cut_rounded, color: color, size: size);
   }
 
-  static Widget joinGpx({required Color color, double size = 18}) {
+  static Widget joinGpx({required Color color, double size = 20}) {
     return Icon(Icons.add_link_rounded, color: color, size: size);
   }
 
@@ -27,7 +27,7 @@ class TrackioIcons {
     );
   }
 
-  static Widget addWaypoint({required Color color, double size = 18}) {
+  static Widget addWaypoint({required Color color, double size = 20}) {
     return Stack(
       alignment: Alignment.center,
       children: [

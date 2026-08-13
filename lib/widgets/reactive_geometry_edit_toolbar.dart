@@ -52,37 +52,52 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                   tooltip: t.addNode,
                   style: IconButton.styleFrom(
                     backgroundColor: geometryMode == 'add'
-                        ? AppColors.starTrekRed.withOpacity(0.16)
+                        ? AppColors.mapToolActiveBackground
                         : null,
                   ),
                   onPressed: () => ref
                       .read(gpxEditorProvider.notifier)
                       .setGeometryEditMode('add'),
-                  icon: Icon(Icons.add_circle, color: AppColors.starTrekRed),
+                  icon: Icon(
+                    Icons.add_circle,
+                    color: geometryMode == 'add'
+                        ? AppColors.mapToolActiveForeground
+                        : AppColors.appBarForeground,
+                  ),
                 ),
                 IconButton(
                   tooltip: t.deleteNode,
                   style: IconButton.styleFrom(
                     backgroundColor: geometryMode == 'delete'
-                        ? AppColors.starTrekRed.withOpacity(0.16)
+                        ? AppColors.mapToolActiveBackground
                         : null,
                   ),
                   onPressed: () => ref
                       .read(gpxEditorProvider.notifier)
                       .setGeometryEditMode('delete'),
-                  icon: Icon(Icons.remove_circle, color: AppColors.starTrekRed),
+                  icon: Icon(
+                    Icons.remove_circle,
+                    color: geometryMode == 'delete'
+                        ? AppColors.mapToolActiveForeground
+                        : AppColors.appBarForeground,
+                  ),
                 ),
                 IconButton(
                   tooltip: t.moveNode,
                   style: IconButton.styleFrom(
                     backgroundColor: geometryMode == 'move'
-                        ? AppColors.starTrekRed.withOpacity(0.16)
+                        ? AppColors.mapToolActiveBackground
                         : null,
                   ),
                   onPressed: () => ref
                       .read(gpxEditorProvider.notifier)
                       .setGeometryEditMode('move'),
-                  icon: Icon(Icons.open_with, color: AppColors.starTrekRed),
+                  icon: Icon(
+                    Icons.open_with,
+                    color: geometryMode == 'move'
+                        ? AppColors.mapToolActiveForeground
+                        : AppColors.appBarForeground,
+                  ),
                 ),
                 IconButton(
                   tooltip: t.undoGeometryEdit,
@@ -103,7 +118,7 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                   icon: Icon(
                     Icons.undo,
                     color: canUndoGeometry
-                        ? AppColors.starTrekRed
+                        ? AppColors.appBarForeground
                         : Colors.grey.shade400,
                   ),
                 ),
@@ -114,7 +129,7 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                       .setActiveTool('none'),
                   icon: const Icon(
                     Icons.close_rounded,
-                    color: AppColors.starTrekRed,
+                    color: AppColors.appBarForeground,
                   ),
                 ),
               ],

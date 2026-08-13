@@ -26,6 +26,62 @@ class _GeometryUndoEntry {
   });
 }
 
+class _ActionUndoEntry {
+  final List<TrackModel> tracks;
+  final int? selectedTrackId;
+  final String activeTool;
+  final int? previewTrackId;
+  final List<TrackPointModel>? previewPoints;
+  final TrackPointModel? snappedPoint;
+  final int? snappedPointIndex;
+  final LatLng? waypointCameraPosition;
+  final List<TrackPointModel> drawingPoints;
+  final TrackPointModel? drawingLivePoint;
+  final int? selectionStartIndex;
+  final int? selectionEndIndex;
+  final bool isSelectingRange;
+  final bool forceHideReticle;
+  final bool isMapIdle;
+  final int? chartRangeStartIndex;
+  final int? chartRangeEndIndex;
+  final int? chartNeedleIndex;
+  final String chartSelectionMode;
+
+  const _ActionUndoEntry({
+    required this.tracks,
+    required this.selectedTrackId,
+    required this.activeTool,
+    required this.previewTrackId,
+    required this.previewPoints,
+    required this.snappedPoint,
+    required this.snappedPointIndex,
+    required this.waypointCameraPosition,
+    required this.drawingPoints,
+    required this.drawingLivePoint,
+    required this.selectionStartIndex,
+    required this.selectionEndIndex,
+    required this.isSelectingRange,
+    required this.forceHideReticle,
+    required this.isMapIdle,
+    required this.chartRangeStartIndex,
+    required this.chartRangeEndIndex,
+    required this.chartNeedleIndex,
+    required this.chartSelectionMode,
+  });
+}
+
+class _MergePlan {
+  final List<TrackPointModel> points;
+  final bool candidateFirst;
+  final bool candidateReversed;
+
+  const _MergePlan({
+    required this.points,
+    required this.candidateFirst,
+    required this.candidateReversed,
+  });
+}
+
 final gpxEditorProvider = StateNotifierProvider<GpxEditor, GpxEditorState>((
   ref,
 ) {
@@ -37,11 +93,13 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   // 🌟 REPARAT: Eliminem l'antiga instància d'EnvironmentSensors i canviem el tipat a int
   StreamSubscription<int>? _lightSubscription;
   final List<_GeometryUndoEntry> _geometryUndoStack = [];
+  final List<_ActionUndoEntry> _actionUndoStack = [];
   int? _moveOriginTrackId;
   int? _moveOriginIndex;
   TrackPointModel? _moveOriginPoint;
 
   static const int _maxGeometryUndoEntries = 100;
+  static const int _maxActionUndoEntries = 50;
 
   // El constructor clàssic inicialitza l'estat i activa el sensor modern
   GpxEditor() : super(GpxEditorState.initial());
@@ -60,6 +118,174 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       elevation: point.elevation,
       timestamp: point.timestamp,
     );
+  }
+
+  WaypointModel _cloneWaypoint(WaypointModel waypoint) {
+    return WaypointModel(
+      latitude: waypoint.latitude,
+      longitude: waypoint.longitude,
+      elevation: waypoint.elevation,
+      name: waypoint.name,
+      comment: waypoint.comment,
+    );
+  }
+
+  TrackModel _cloneTrack(TrackModel track) {
+    return TrackModel(
+      id: track.id,
+      name: track.name,
+      isVisible: track.isVisible,
+      hexColor: track.hexColor,
+      importedAt: track.importedAt,
+      points: track.points.map(_clonePoint).toList(),
+      waypoints: track.waypoints.map(_cloneWaypoint).toList(),
+    );
+  }
+
+  List<TrackModel> _cloneTracks(List<TrackModel> tracks) {
+    return tracks.map(_cloneTrack).toList();
+  }
+
+  List<TrackPointModel>? _clonePointsNullable(List<TrackPointModel>? points) {
+    if (points == null) return null;
+    return points.map(_clonePoint).toList();
+  }
+
+  double _squaredDistanceBetweenTrackPoints(
+    TrackPointModel a,
+    TrackPointModel b,
+  ) {
+    if (a.latitude == null ||
+        a.longitude == null ||
+        b.latitude == null ||
+        b.longitude == null) {
+      return double.infinity;
+    }
+
+    final double dLat = (a.latitude! - b.latitude!) * 111320;
+    final double cosLatRaw = math.cos(a.latitude! * math.pi / 180);
+    final double cosLat = cosLatRaw.abs() < 0.000001 ? 0.000001 : cosLatRaw;
+    final double dLng = (a.longitude! - b.longitude!) * 111320 * cosLat;
+    return (dLat * dLat) + (dLng * dLng);
+  }
+
+  _MergePlan _buildMergePlanByClosestEndpoints(
+    TrackModel activeTrack,
+    TrackModel candidateTrack,
+  ) {
+    if (activeTrack.points.isEmpty || candidateTrack.points.isEmpty) {
+      return _MergePlan(
+        points: [...activeTrack.points, ...candidateTrack.points],
+        candidateFirst: false,
+        candidateReversed: false,
+      );
+    }
+
+    final TrackPointModel aStart = activeTrack.points.first;
+    final TrackPointModel aEnd = activeTrack.points.last;
+    final TrackPointModel bStart = candidateTrack.points.first;
+    final TrackPointModel bEnd = candidateTrack.points.last;
+
+    final double endStart = _squaredDistanceBetweenTrackPoints(aEnd, bStart);
+    final double endEnd = _squaredDistanceBetweenTrackPoints(aEnd, bEnd);
+    final double startStart = _squaredDistanceBetweenTrackPoints(
+      aStart,
+      bStart,
+    );
+    final double startEnd = _squaredDistanceBetweenTrackPoints(aStart, bEnd);
+
+    final List<Map<String, dynamic>> options = [
+      {
+        'distance': endStart,
+        'points': [...activeTrack.points, ...candidateTrack.points],
+        'candidateFirst': false,
+        'candidateReversed': false,
+      },
+      {
+        'distance': endEnd,
+        'points': [...activeTrack.points, ...candidateTrack.points.reversed],
+        'candidateFirst': false,
+        'candidateReversed': true,
+      },
+      {
+        'distance': startStart,
+        'points': [...candidateTrack.points.reversed, ...activeTrack.points],
+        'candidateFirst': true,
+        'candidateReversed': true,
+      },
+      {
+        'distance': startEnd,
+        'points': [...candidateTrack.points, ...activeTrack.points],
+        'candidateFirst': true,
+        'candidateReversed': false,
+      },
+    ];
+
+    options.sort(
+      (a, b) => (a['distance'] as double).compareTo(b['distance'] as double),
+    );
+
+    final best = options.first;
+    return _MergePlan(
+      points: List<TrackPointModel>.from(
+        best['points'] as List<TrackPointModel>,
+      ),
+      candidateFirst: best['candidateFirst'] as bool,
+      candidateReversed: best['candidateReversed'] as bool,
+    );
+  }
+
+  void _refreshActionUndoAvailability() {
+    final bool canUndo = _actionUndoStack.isNotEmpty;
+    if (state.canUndoAction == canUndo) return;
+    state = state.copyWith(canUndoAction: canUndo);
+  }
+
+  _ActionUndoEntry _captureActionUndoSnapshot() {
+    return _ActionUndoEntry(
+      tracks: _cloneTracks(state.tracks),
+      selectedTrackId: state.selectedTrackId,
+      activeTool: state.activeTool,
+      previewTrackId: state.previewTrackId,
+      previewPoints: _clonePointsNullable(state.previewPoints),
+      snappedPoint: state.snappedPoint == null
+          ? null
+          : _clonePoint(state.snappedPoint!),
+      snappedPointIndex: state.snappedPointIndex,
+      waypointCameraPosition: state.waypointCameraPosition == null
+          ? null
+          : LatLng(
+              state.waypointCameraPosition!.latitude,
+              state.waypointCameraPosition!.longitude,
+            ),
+      drawingPoints: state.drawingPoints.map(_clonePoint).toList(),
+      drawingLivePoint: state.drawingLivePoint == null
+          ? null
+          : _clonePoint(state.drawingLivePoint!),
+      selectionStartIndex: state.selectionStartIndex,
+      selectionEndIndex: state.selectionEndIndex,
+      isSelectingRange: state.isSelectingRange,
+      forceHideReticle: state.forceHideReticle,
+      isMapIdle: state.isMapIdle,
+      chartRangeStartIndex: state.chartRangeStartIndex,
+      chartRangeEndIndex: state.chartRangeEndIndex,
+      chartNeedleIndex: state.chartNeedleIndex,
+      chartSelectionMode: state.chartSelectionMode,
+    );
+  }
+
+  void _pushActionUndoSnapshot() {
+    _actionUndoStack.add(_captureActionUndoSnapshot());
+    if (_actionUndoStack.length > _maxActionUndoEntries) {
+      _actionUndoStack.removeAt(0);
+    }
+    _refreshActionUndoAvailability();
+  }
+
+  void _clearActionUndoHistory() {
+    if (_actionUndoStack.isEmpty && !state.canUndoAction) return;
+    _actionUndoStack.clear();
+    _refreshActionUndoAvailability();
   }
 
   bool _samePoint(TrackPointModel a, TrackPointModel b) {
@@ -814,7 +1040,6 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     if (isMergeMode) {
       double minDistance = double.infinity;
       int? closestTrackId;
-      List<TrackPointModel>? closestPoints;
 
       for (final track in state.tracks) {
         if (track.id == state.selectedTrackId) continue;
@@ -833,23 +1058,25 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
           if (d < minDistance) {
             minDistance = d;
             closestTrackId = track.id;
-            closestPoints = track.points;
           }
         }
       }
 
       const threshold = 50.0;
 
-      if (closestTrackId != null &&
-          closestPoints != null &&
-          minDistance < threshold * threshold) {
+      if (closestTrackId != null && minDistance < threshold * threshold) {
         final trackA = state.tracks.firstWhere(
           (t) => t.id == state.selectedTrackId,
+        );
+        final trackB = state.tracks.firstWhere((t) => t.id == closestTrackId);
+        final _MergePlan plan = _buildMergePlanByClosestEndpoints(
+          trackA,
+          trackB,
         );
 
         state = state.copyWith(
           previewTrackId: closestTrackId,
-          previewPoints: [...trackA.points, ...closestPoints],
+          previewPoints: plan.points,
         );
       } else {
         state = state.copyWith(previewTrackId: null, previewPoints: null);
@@ -916,21 +1143,34 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
         state.previewPoints == null)
       return;
 
+    _pushActionUndoSnapshot();
+
     final trackA = state.tracks.firstWhere(
       (t) => t.id == state.selectedTrackId,
     );
     final trackB = state.tracks.firstWhere((t) => t.id == state.previewTrackId);
+    final _MergePlan plan = _buildMergePlanByClosestEndpoints(trackA, trackB);
 
     final int newTrackId = DateTime.now().microsecondsSinceEpoch;
     final String cleanNameA = trackA.name.replaceAll(RegExp(r'_part\d+'), '');
     final String cleanNameB = trackB.name.replaceAll(RegExp(r'_part\d+'), '');
 
+    final List<WaypointModel> candidateWaypoints = plan.candidateReversed
+        ? trackB.waypoints.reversed.map(_cloneWaypoint).toList()
+        : trackB.waypoints.map(_cloneWaypoint).toList();
+    final List<WaypointModel> activeWaypoints = trackA.waypoints
+        .map(_cloneWaypoint)
+        .toList();
+    final List<WaypointModel> mergedWaypoints = plan.candidateFirst
+        ? [...candidateWaypoints, ...activeWaypoints]
+        : [...activeWaypoints, ...candidateWaypoints];
+
     final mergedTrack = TrackModel(
       id: newTrackId,
       name: "${cleanNameA}_merge_${cleanNameB}",
       hexColor: trackA.hexColor,
-      points: List<TrackPointModel>.from(state.previewPoints!),
-      waypoints: [...trackA.waypoints, ...trackB.waypoints],
+      points: plan.points,
+      waypoints: mergedWaypoints,
     );
 
     // 🌟 REPARADO: No borramos trackA ni trackB.
@@ -972,6 +1212,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final originalTrack = updatedTracks[trackIndex];
     if (cutIndex <= 0 || cutIndex >= originalTrack.points.length - 1) return;
 
+    _pushActionUndoSnapshot();
+
     final pointsPart1 = originalTrack.points.sublist(0, cutIndex + 1);
     final pointsPart2 = originalTrack.points.sublist(cutIndex);
     final String baseName = originalTrack.name.replaceAll(
@@ -1011,6 +1253,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   // 🔥 AQUÍ ESTÀ EL MÈTODE QUE ET DEMANAVA LA UI REPARAT:
   void reverseCurrentTrackWithCleanState() {
     if (state.selectedTrackId == null) return;
+
+    _pushActionUndoSnapshot();
 
     state = state.copyWith(
       tracks: state.tracks.map((track) {
@@ -1154,6 +1398,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     // Si no hi ha cap track triat o el mapa no té posició, no fem res
     if (state.selectedTrackId == null || state.waypointCameraPosition == null)
       return;
+
+    _pushActionUndoSnapshot();
 
     final targetPosition = state.waypointCameraPosition!;
 
@@ -1562,6 +1808,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   void saveDrawnTrack(String trackName) {
     if (state.drawingPoints.isEmpty) return;
 
+    _pushActionUndoSnapshot();
+
     final int nouId = DateTime.now().microsecondsSinceEpoch;
 
     final nouTrack = TrackModel(
@@ -1887,6 +2135,45 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   /// 🧹 NETEJA ABSOLUTA AL SORTIR (Retorna l'estat a la factoria inicial en tancar l'APK)
   void clearAllTracksAbsolute() {
+    _clearActionUndoHistory();
     state = GpxEditorState.initial();
+  }
+
+  void undoLastAction() {
+    if (_actionUndoStack.isEmpty) return;
+
+    final _ActionUndoEntry last = _actionUndoStack.removeLast();
+    state = state.copyWith(
+      tracks: _cloneTracks(last.tracks),
+      selectedTrackId: last.selectedTrackId,
+      activeTool: last.activeTool,
+      previewTrackId: last.previewTrackId,
+      previewPoints: _clonePointsNullable(last.previewPoints),
+      snappedPoint: last.snappedPoint == null
+          ? null
+          : _clonePoint(last.snappedPoint!),
+      snappedPointIndex: last.snappedPointIndex,
+      waypointCameraPosition: last.waypointCameraPosition == null
+          ? null
+          : LatLng(
+              last.waypointCameraPosition!.latitude,
+              last.waypointCameraPosition!.longitude,
+            ),
+      drawingPoints: last.drawingPoints.map(_clonePoint).toList(),
+      drawingLivePoint: last.drawingLivePoint == null
+          ? null
+          : _clonePoint(last.drawingLivePoint!),
+      selectionStartIndex: last.selectionStartIndex,
+      selectionEndIndex: last.selectionEndIndex,
+      isSelectingRange: last.isSelectingRange,
+      forceHideReticle: last.forceHideReticle,
+      isMapIdle: last.isMapIdle,
+      chartRangeStartIndex: last.chartRangeStartIndex,
+      chartRangeEndIndex: last.chartRangeEndIndex,
+      chartNeedleIndex: last.chartNeedleIndex,
+      chartSelectionMode: last.chartSelectionMode,
+    );
+
+    _refreshActionUndoAvailability();
   }
 } // Tancament oficial de la classe GpxEditor

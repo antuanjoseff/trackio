@@ -56,7 +56,27 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isWaypointDialogOpen = false;
   DateTime? _suppressMapClickUntil;
   String? _activeRangeMapHandle;
+  int? _mapScaleMeters;
+  double? _mapScaleWidthPx;
   static const bool _debugWaypointTapFlow = true;
+  static const List<int> _fixedScaleStepsMeters = [
+    1,
+    5,
+    10,
+    50,
+    100,
+    300,
+    500,
+    1000,
+    2000,
+    5000,
+    10000,
+    100000,
+    10000000,
+    20000000,
+    50000000,
+    100000000,
+  ];
   late final AppLifecycleListener _lifecycleListener;
   late final FocusNode _keyboardFocusNode;
   final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
@@ -418,6 +438,59 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     return bestIndex;
   }
 
+  void _updateMapScaleFromCamera(CameraPosition pos) {
+    const double earthRadiusMeters = 6378137.0;
+    const double tileSize = 256.0;
+    const double targetScaleWidthPx = 36.0;
+    const double maxScaleWidthPx = 45.0;
+
+    final double latitudeRad = pos.target.latitude * math.pi / 180.0;
+    final double metersPerPixel =
+        (math.cos(latitudeRad).abs() * 2 * math.pi * earthRadiusMeters) /
+        (tileSize * math.pow(2.0, pos.zoom));
+
+    if (!metersPerPixel.isFinite || metersPerPixel <= 0) return;
+
+    int? bestMeters;
+    double? bestWidth;
+    double bestDelta = double.infinity;
+
+    for (final int stepMeters in _fixedScaleStepsMeters) {
+      final double widthPx = stepMeters / metersPerPixel;
+      if (widthPx > maxScaleWidthPx) continue;
+      final double delta = (widthPx - targetScaleWidthPx).abs();
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestMeters = stepMeters;
+        bestWidth = widthPx;
+      }
+    }
+
+    if (bestMeters == null || bestWidth == null) {
+      return;
+    }
+
+    final bool changed =
+        _mapScaleMeters != bestMeters ||
+        _mapScaleWidthPx == null ||
+        (bestWidth - _mapScaleWidthPx!).abs() > 0.5;
+
+    if (changed && mounted) {
+      setState(() {
+        _mapScaleMeters = bestMeters;
+        _mapScaleWidthPx = bestWidth;
+      });
+    }
+  }
+
+  String _formatScaleLabel(int meters) {
+    if (meters < 1000) {
+      return '$meters m';
+    }
+    final int km = meters ~/ 1000;
+    return '$km km';
+  }
+
   void _handleSidebarReorderDragStateChanged(bool isDragging) {
     if (_isSidebarReordering == isDragging) return;
     setState(() => _isSidebarReordering = isDragging);
@@ -559,6 +632,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           },
 
           onCameraMove: (pos) {
+            _updateMapScaleFromCamera(pos);
             _handleCameraMove(pos, ref.read(gpxEditorProvider));
           },
           onCameraIdle: _handleCameraIdle,
@@ -974,6 +1048,40 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               Icons.add_circle_outline,
               size: 40,
               color: AppColors.starTrekRed,
+            ),
+          ),
+
+        if (_mapScaleMeters != null && _mapScaleWidthPx != null)
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.black.withOpacity(0.2)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    _formatScaleLabel(_mapScaleMeters!),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    width: _mapScaleWidthPx!.clamp(8.0, 45.0),
+                    height: 2,
+                    child: CustomPaint(painter: _MapScaleBarPainter()),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -1715,6 +1823,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final pos = _controller?.cameraPosition;
     if (pos == null) return;
 
+    _updateMapScaleFromCamera(pos);
+
     final state = ref.read(gpxEditorProvider);
 
     if (state.activeTool == 'edit_geometry') {
@@ -2049,6 +2159,22 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       await Future.delayed(perFrameDelay);
     }
   }
+}
+
+class _MapScaleBarPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final double y = size.height / 2;
+    canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _WaypointTapMatch {

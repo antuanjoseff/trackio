@@ -52,6 +52,9 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     final liveShowChart = ref.watch(
       gpxEditorProvider.select((s) => s.showElevationChart),
     );
+    final canUndoAction = ref.watch(
+      gpxEditorProvider.select((s) => s.canUndoAction),
+    );
     final liveShowSidebar = ref.watch(
       gpxEditorProvider.select((s) => s.showSidebar),
     );
@@ -129,6 +132,22 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                   onPressed: () => ref
                                       .read(gpxEditorProvider.notifier)
                                       .toggleElevationChart(),
+                                ),
+                                const SizedBox(height: 6),
+                                _buildCompactBtn(
+                                  context,
+                                  icon: Icon(
+                                    Icons.undo_rounded,
+                                    color: canUndoAction
+                                        ? AppColors.starTrekRed
+                                        : Colors.grey.shade500,
+                                  ),
+                                  tooltip: t.undoGeometryEdit,
+                                  onPressed: canUndoAction
+                                      ? () => ref
+                                            .read(gpxEditorProvider.notifier)
+                                            .undoLastAction()
+                                      : null,
                                 ),
                               ],
                             ),
@@ -479,15 +498,9 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                 left: liveShowSidebar ? 344 : 12,
                 child: SafeArea(
                   top: true,
-                  child: _buildCompactBtn(
+                  child: _buildSidebarToggleBtn(
                     context,
                     isActive: liveShowSidebar,
-                    icon: Icon(
-                      liveShowSidebar
-                          ? Icons.view_sidebar
-                          : Icons.view_sidebar_outlined,
-                      color: AppColors.starTrekRed,
-                    ),
                     tooltip: "Menú",
                     onPressed: () =>
                         ref.read(gpxEditorProvider.notifier).toggleSidebar(),
@@ -509,6 +522,51 @@ class TrackioHorizontalLayout extends ConsumerWidget {
   }
 
   // 📐 BOTONS D'ALTA DENSITAT ESTRUCUTURALS
+  Widget _buildSidebarToggleBtn(
+    BuildContext context, {
+    required bool isActive,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: isActive
+            ? AppColors.mapToolActiveBackground
+            : AppColors.appBarBackground,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isActive
+              ? AppColors.mapToolActiveBackground
+              : AppColors.appBarBackground,
+          width: 1.6,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isActive ? 0.2 : 0.12),
+            blurRadius: isActive ? 8 : 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        tooltip: tooltip,
+        icon: Icon(
+          isActive ? Icons.menu_open_rounded : Icons.menu_rounded,
+          color: isActive
+              ? AppColors.mapToolActiveForeground
+              : AppColors.appBarForeground,
+        ),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        iconSize: 20,
+        constraints: const BoxConstraints(),
+      ),
+    );
+  }
+
+  // 📐 BOTONS D'ALTA DENSITAT ESTRUCUTURALS
   Widget _buildCompactBtn(
     BuildContext context, {
     required Widget icon,
@@ -517,24 +575,30 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     bool isActive = false,
   }) {
     final bool isDisabled = onPressed == null;
-    final Color baseSurface = Theme.of(context).colorScheme.surface;
-    final Widget effectiveIcon = isActive
-        ? ColorFiltered(
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+    final Widget effectiveIcon = isDisabled
+        ? icon
+        : ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              isActive
+                  ? AppColors.mapToolActiveForeground
+                  : AppColors.appBarForeground,
+              BlendMode.srcIn,
+            ),
             child: icon,
-          )
-        : icon;
+          );
 
     return Container(
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: isActive ? AppColors.starTrekRed : baseSurface.withOpacity(0.84),
+        color: isActive
+            ? AppColors.mapToolActiveBackground
+            : AppColors.appBarBackground,
         shape: BoxShape.circle,
         border: Border.all(
           color: isActive
-              ? AppColors.starTrekRed
-              : AppColors.starTrekRed.withOpacity(0.35),
+              ? AppColors.mapToolActiveBackground
+              : AppColors.appBarBackground,
           width: isActive ? 1.6 : 1.0,
         ),
         boxShadow: [

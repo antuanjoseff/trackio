@@ -47,6 +47,9 @@ class TrackioVerticalLayout extends ConsumerWidget {
     final canUndoGeometry = ref.watch(
       gpxEditorProvider.select((s) => s.geometryCanUndo),
     );
+    final liveShowSidebar = ref.watch(
+      gpxEditorProvider.select((s) => s.showSidebar),
+    );
     final currentFullState = ref.watch(gpxEditorProvider);
     final bool isMobileApp =
         Theme.of(context).platform == TargetPlatform.android ||
@@ -101,6 +104,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                         children: [
                           _btn(
                             context,
+                            isActive: liveShowSidebar,
                             icon: Icon(
                               isMobile
                                   ? Icons.menu_rounded
@@ -638,24 +642,30 @@ class TrackioVerticalLayout extends ConsumerWidget {
     bool isActive = false,
   }) {
     final bool isDisabled = onPressed == null;
-    final Color baseSurface = Theme.of(context).colorScheme.surface;
-    final Widget effectiveIcon = isActive
-        ? ColorFiltered(
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+    final Widget effectiveIcon = isDisabled
+        ? icon
+        : ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              isActive
+                  ? AppColors.mapToolActiveForeground
+                  : AppColors.appBarForeground,
+              BlendMode.srcIn,
+            ),
             child: icon,
-          )
-        : icon;
+          );
 
     return Container(
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: isActive ? AppColors.starTrekRed : baseSurface.withOpacity(0.84),
+        color: isActive
+            ? AppColors.mapToolActiveBackground
+            : AppColors.appBarBackground,
         shape: BoxShape.circle,
         border: Border.all(
           color: isActive
-              ? AppColors.starTrekRed
-              : AppColors.starTrekRed.withOpacity(0.35),
+              ? AppColors.mapToolActiveBackground
+              : AppColors.appBarBackground,
           width: isActive ? 1.6 : 1.0,
         ),
         boxShadow: [

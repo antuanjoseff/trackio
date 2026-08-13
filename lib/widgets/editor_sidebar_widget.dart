@@ -40,8 +40,7 @@ class EditorSidebarWidget extends ConsumerWidget {
 
     return SizedBox.expand(
       child: Container(
-        // Fons grisós molt suau que fa ressaltar els elements flotants blancs
-        color: const Color(0xFFF8F9FA),
+        color: AppColors.editorSidebarBackground,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 14.0),
           child: Column(
@@ -160,7 +159,7 @@ class EditorSidebarWidget extends ConsumerWidget {
           key: ValueKey("track_row_${track.id}"),
           margin: const EdgeInsets.symmetric(vertical: 5.0, horizontal: 2.0),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.editorTrackCardBackground,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? trackBaseColor : Colors.grey.shade200,
