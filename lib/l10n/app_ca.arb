@@ -61,5 +61,12 @@
   
   "saveGpxDialogTitle": "Desa el fitxer GPX",
   "shareGpxSubject": "Exportar ruta GPX",
-  "pressBackAgainToExit": "Prem enrere un altre cop per sortir"
+  "pressBackAgainToExit": "Prem enrere un altre cop per sortir",
+  "waypointInfoElevation": "Alçada",
+  "waypointInfoElapsedTime": "Temps acumulat",
+  "waypointInfoDistanceFromStart": "Distància des de l'inici",
+  "editWaypointName": "Editar nom",
+  "deleteWaypoint": "Eliminar waypoint",
+  "confirmDeleteWaypointTitle": "Eliminar waypoint",
+  "confirmDeleteWaypointMessage": "Segur que vols eliminar aquest waypoint?"
 }

@@ -1183,6 +1183,59 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     );
   }
 
+  void renameWaypointOnSelectedTrack({
+    required int waypointIndex,
+    required String newName,
+  }) {
+    final selectedTrackId = state.selectedTrackId;
+    if (selectedTrackId == null) return;
+
+    final String trimmedName = newName.trim();
+    if (trimmedName.isEmpty) return;
+
+    final int trackIndex = state.tracks.indexWhere(
+      (t) => t.id == selectedTrackId,
+    );
+    if (trackIndex == -1) return;
+
+    final TrackModel track = state.tracks[trackIndex];
+    if (waypointIndex < 0 || waypointIndex >= track.waypoints.length) return;
+
+    final List<WaypointModel> updatedWaypoints = List<WaypointModel>.from(
+      track.waypoints,
+    );
+    updatedWaypoints[waypointIndex] = updatedWaypoints[waypointIndex].copyWith(
+      name: trimmedName,
+    );
+
+    final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
+    updatedTracks[trackIndex] = track.copyWith(waypoints: updatedWaypoints);
+
+    state = state.copyWith(tracks: updatedTracks);
+  }
+
+  void deleteWaypointOnSelectedTrack({required int waypointIndex}) {
+    final selectedTrackId = state.selectedTrackId;
+    if (selectedTrackId == null) return;
+
+    final int trackIndex = state.tracks.indexWhere(
+      (t) => t.id == selectedTrackId,
+    );
+    if (trackIndex == -1) return;
+
+    final TrackModel track = state.tracks[trackIndex];
+    if (waypointIndex < 0 || waypointIndex >= track.waypoints.length) return;
+
+    final List<WaypointModel> updatedWaypoints = List<WaypointModel>.from(
+      track.waypoints,
+    )..removeAt(waypointIndex);
+
+    final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
+    updatedTracks[trackIndex] = track.copyWith(waypoints: updatedWaypoints);
+
+    state = state.copyWith(tracks: updatedTracks);
+  }
+
   // =========================================================================
   // 📈 SELECCIÓ DES DEL GRÀFIC (SINCRONITZACIÓ BIDIRECCIONAL)
   // =========================================================================

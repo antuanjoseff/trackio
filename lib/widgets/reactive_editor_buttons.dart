@@ -6,6 +6,8 @@ import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/screens/main_editor_screen.dart';
 
+const double _floatingButtonsBottom = 16.0;
+
 // ==========================================
 // ✂️ BOTÓ SPLIT
 // ==========================================
@@ -24,9 +26,11 @@ class ReactiveSplitButton extends ConsumerWidget {
     if (activeTool != 'split' || !isMapIdle || !hasSnappedPoint)
       return const SizedBox.shrink();
 
-    return Center(
-      child: Transform.translate(
-        offset: const Offset(0, 60),
+    return Positioned(
+      bottom: _floatingButtonsBottom,
+      left: 0,
+      right: 0,
+      child: Center(
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.starTrekRed,
@@ -83,7 +87,7 @@ class ReactiveRangeButton extends ConsumerWidget {
     }
 
     return Positioned(
-      bottom: 16,
+      bottom: _floatingButtonsBottom,
       left: 32,
       right: 32,
       child: ElevatedButton(
@@ -125,9 +129,11 @@ class ReactiveMergeButton extends ConsumerWidget {
     if (activeTool != 'merge' || !isMapIdle || !hasPreview)
       return const SizedBox.shrink();
 
-    return Center(
-      child: Transform.translate(
-        offset: const Offset(0, 60),
+    return Positioned(
+      bottom: _floatingButtonsBottom,
+      left: 0,
+      right: 0,
+      child: Center(
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.starTrekRed,
@@ -169,15 +175,12 @@ class ReactiveWaypointButton extends ConsumerWidget {
     final hasSelectedTrack = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId != null),
     );
-    final showElevationChart = ref.watch(
-      gpxEditorProvider.select((s) => s.showElevationChart),
-    );
 
     if (activeTool != 'add_waypoint' || !isMapIdle || !hasSelectedTrack)
       return const SizedBox.shrink();
 
     return Positioned(
-      bottom: showElevationChart ? 200 : 24,
+      bottom: _floatingButtonsBottom,
       left: 0,
       right: 0,
       child: Center(
@@ -250,9 +253,6 @@ class ReactiveAddNodeButton extends ConsumerWidget {
     final hasInsertIndex = ref.watch(
       gpxEditorProvider.select((s) => s.geometryInsertIndex != null),
     );
-    final showElevationChart = ref.watch(
-      gpxEditorProvider.select((s) => s.showElevationChart),
-    );
 
     if (activeTool != 'edit_geometry' ||
         geometryMode != 'add' ||
@@ -263,7 +263,7 @@ class ReactiveAddNodeButton extends ConsumerWidget {
     }
 
     return Positioned(
-      bottom: showElevationChart ? 200 : 24,
+      bottom: _floatingButtonsBottom,
       left: 0,
       right: 0,
       child: Center(
@@ -305,9 +305,6 @@ class ReactiveDeleteNodeButton extends ConsumerWidget {
     final hasSnap = ref.watch(
       gpxEditorProvider.select((s) => s.snappedPoint != null),
     );
-    final showElevationChart = ref.watch(
-      gpxEditorProvider.select((s) => s.showElevationChart),
-    );
 
     if (activeTool != 'edit_geometry' ||
         geometryMode != 'delete' ||
@@ -317,7 +314,7 @@ class ReactiveDeleteNodeButton extends ConsumerWidget {
     }
 
     return Positioned(
-      bottom: showElevationChart ? 200 : 24,
+      bottom: _floatingButtonsBottom,
       left: 0,
       right: 0,
       child: Center(
@@ -362,9 +359,6 @@ class ReactiveMoveNodeButton extends ConsumerWidget {
     final selectedMoveNodeIndex = ref.watch(
       gpxEditorProvider.select((s) => s.geometryMoveNodeIndex),
     );
-    final showElevationChart = ref.watch(
-      gpxEditorProvider.select((s) => s.showElevationChart),
-    );
 
     if (activeTool != 'edit_geometry' ||
         geometryMode != 'move' ||
@@ -376,7 +370,7 @@ class ReactiveMoveNodeButton extends ConsumerWidget {
     final bool isNodeAlreadySelected = selectedMoveNodeIndex != null;
 
     return Positioned(
-      bottom: showElevationChart ? 200 : 24,
+      bottom: _floatingButtonsBottom,
       left: 0,
       right: 0,
       child: Center(

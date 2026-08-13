@@ -78,7 +78,8 @@ class AppLocalizationsCa extends AppLocalizations {
   String get addWaypoint => 'Afegir waypoint';
 
   @override
-  String get selectTrackToUseTools => 'Selecciona un track de la llista per utilitzar les eines.';
+  String get selectTrackToUseTools =>
+      'Selecciona un track de la llista per utilitzar les eines.';
 
   @override
   String get importTracks => 'Importar tracks';
@@ -90,10 +91,12 @@ class AppLocalizationsCa extends AppLocalizations {
   String get chooseColor => 'Tria un color';
 
   @override
-  String get selectTrackToViewElevationProfile => 'Selecciona un track per veure el perfil d\'altituds';
+  String get selectTrackToViewElevationProfile =>
+      'Selecciona un track per veure el perfil d\'altituds';
 
   @override
-  String get trackWithoutElevationData => 'Aquest track no conté dades d\'altitud';
+  String get trackWithoutElevationData =>
+      'Aquest track no conté dades d\'altitud';
 
   @override
   String get hideSpeed => 'Amagar velocitat';
@@ -102,7 +105,8 @@ class AppLocalizationsCa extends AppLocalizations {
   String get showSpeed => 'Mostrar velocitat';
 
   @override
-  String get newTrackAddedFromSelectedSegment => 'Nou track afegit correctament del tram seleccionat';
+  String get newTrackAddedFromSelectedSegment =>
+      'Nou track afegit correctament del tram seleccionat';
 
   @override
   String get addTrack => 'AFEGIR TRACK';
@@ -114,7 +118,8 @@ class AppLocalizationsCa extends AppLocalizations {
   String get route => 'RUTA';
 
   @override
-  String get waypointAddedToActiveTrack => 'Waypoint afegit correctament al track actiu';
+  String get waypointAddedToActiveTrack =>
+      'Waypoint afegit correctament al track actiu';
 
   @override
   String get waypointNamePrefix => 'WP';
@@ -190,4 +195,26 @@ class AppLocalizationsCa extends AppLocalizations {
 
   @override
   String get pressBackAgainToExit => 'Prem enrere un altre cop per sortir';
+
+  @override
+  String get waypointInfoElevation => 'Alçada';
+
+  @override
+  String get waypointInfoElapsedTime => 'Temps acumulat';
+
+  @override
+  String get waypointInfoDistanceFromStart => 'Distància des de l\'inici';
+
+  @override
+  String get editWaypointName => 'Editar nom';
+
+  @override
+  String get deleteWaypoint => 'Eliminar waypoint';
+
+  @override
+  String get confirmDeleteWaypointTitle => 'Eliminar waypoint';
+
+  @override
+  String get confirmDeleteWaypointMessage =>
+      'Segur que vols eliminar aquest waypoint?';
 }

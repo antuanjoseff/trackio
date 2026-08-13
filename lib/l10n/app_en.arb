@@ -61,7 +61,14 @@
   
   "saveGpxDialogTitle": "Save GPX file",
   "shareGpxSubject": "Export GPX route",
-  "pressBackAgainToExit": "Press back again to exit"
+  "pressBackAgainToExit": "Press back again to exit",
+  "waypointInfoElevation": "Elevation",
+  "waypointInfoElapsedTime": "Elapsed time",
+  "waypointInfoDistanceFromStart": "Distance from start",
+  "editWaypointName": "Edit name",
+  "deleteWaypoint": "Delete waypoint",
+  "confirmDeleteWaypointTitle": "Delete waypoint",
+  "confirmDeleteWaypointMessage": "Are you sure you want to delete this waypoint?"
 
 }
 

@@ -12,6 +12,7 @@ mixin MapRenderingMixin {
     "layer_range_white",
     "layer_range_orange",
     "layer_snapped_circle",
+    "layer_waypoint_highlight",
     "layer_start_circle",
     "layer_end_circle",
     "layer_geometry_nodes",
@@ -54,6 +55,31 @@ mixin MapRenderingMixin {
     controller!.setGeoJsonSource("source_geometry_nodes", {
       "type": "FeatureCollection",
       "features": features,
+    });
+  }
+
+  void clearWaypointHighlight() {
+    if (controller == null) return;
+    const Map<String, dynamic> emptyCollection = {
+      "type": "FeatureCollection",
+      "features": [],
+    };
+    controller!.setGeoJsonSource("source_waypoint_highlight", emptyCollection);
+  }
+
+  void setWaypointHighlight(LatLng waypoint) {
+    if (controller == null) return;
+    controller!.setGeoJsonSource("source_waypoint_highlight", {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [waypoint.longitude, waypoint.latitude],
+          },
+        },
+      ],
     });
   }
 
@@ -396,6 +422,31 @@ mixin MapRenderingMixin {
         existingLayers.add("layer_snapped_circle");
       }
 
+      if (!existingSources.contains("source_waypoint_highlight")) {
+        await controller!.addSource(
+          "source_waypoint_highlight",
+          const GeojsonSourceProperties(
+            data: {"type": "FeatureCollection", "features": []},
+          ),
+        );
+        existingSources.add("source_waypoint_highlight");
+      }
+
+      if (!existingLayers.contains("layer_waypoint_highlight")) {
+        await controller!.addCircleLayer(
+          "source_waypoint_highlight",
+          "layer_waypoint_highlight",
+          const CircleLayerProperties(
+            circleColor: "#FFD54F",
+            circleRadius: 11.0,
+            circleStrokeColor: "#FFFFFF",
+            circleStrokeWidth: 2.5,
+            circleOpacity: 0.95,
+          ),
+        );
+        existingLayers.add("layer_waypoint_highlight");
+      }
+
       // ============================================================
       // CERCLE VERD - INICI RANG
       // ============================================================
@@ -569,11 +620,6 @@ mixin MapRenderingMixin {
 
         tracksToPaint.add(track);
 
-        final waypointCoords = track.waypoints
-            .where((p) => p.latitude != null && p.longitude != null)
-            .map((p) => [p.longitude!, p.latitude!])
-            .toList();
-
         final trackGeojson = {
           "type": "FeatureCollection",
           "features": [
@@ -586,11 +632,29 @@ mixin MapRenderingMixin {
 
         final waypointGeojson = {
           "type": "FeatureCollection",
-          "features": waypointCoords
+          "features": track.waypoints
+              .asMap()
+              .entries
+              .where(
+                (entry) =>
+                    entry.value.latitude != null &&
+                    entry.value.longitude != null,
+              )
               .map(
-                (c) => {
+                (entry) => {
                   "type": "Feature",
-                  "geometry": {"type": "Point", "coordinates": c},
+                  "properties": {
+                    "track_id": track.id,
+                    "waypoint_index": entry.key,
+                    "waypoint_id": "${track.id}_${entry.key}",
+                  },
+                  "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                      entry.value.longitude!,
+                      entry.value.latitude!,
+                    ],
+                  },
                 },
               )
               .toList(),
@@ -652,7 +716,7 @@ mixin MapRenderingMixin {
           waypointLayerId,
           CircleLayerProperties(
             circleColor: active ? "#FFFFFF" : "#FFFFFF",
-            circleRadius: active ? 7 : 6,
+            circleRadius: active ? 9 : 8,
             circleStrokeColor: track.hexColor,
             circleStrokeWidth: 2,
             circleOpacity: track.isVisible ? 1 : 0,

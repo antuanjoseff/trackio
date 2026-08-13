@@ -61,6 +61,13 @@
 
   "saveGpxDialogTitle": "Guardar archivo GPX",
   "shareGpxSubject": "Exportar ruta GPX",
-  "pressBackAgainToExit": "Pulsa atrás otra vez para salir"
+  "pressBackAgainToExit": "Pulsa atrás otra vez para salir",
+  "waypointInfoElevation": "Altura",
+  "waypointInfoElapsedTime": "Tiempo acumulado",
+  "waypointInfoDistanceFromStart": "Distancia desde el inicio",
+  "editWaypointName": "Editar nombre",
+  "deleteWaypoint": "Eliminar waypoint",
+  "confirmDeleteWaypointTitle": "Eliminar waypoint",
+  "confirmDeleteWaypointMessage": "¿Seguro que quieres eliminar este waypoint?"
 }
 

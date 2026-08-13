@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:latlong2/latlong.dart' as geo;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/dialogs.dart';
@@ -52,7 +53,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isSidebarReordering = false;
   bool _isWebGeometryNodeDragging = false;
   bool _isImportingExternalFile = false;
+  bool _isWaypointDialogOpen = false;
+  DateTime? _suppressMapClickUntil;
   String? _activeRangeMapHandle;
+  static const bool _debugWaypointTapFlow = true;
   late final AppLifecycleListener _lifecycleListener;
   late final FocusNode _keyboardFocusNode;
   final GlobalKey _staticMapKey = GlobalKey(debugLabel: "main_editor_map");
@@ -195,6 +199,225 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     setGeometryNodesOverlay(visibleNodes);
   }
 
+  Future<bool> _handleWaypointFeatureTap(
+    math.Point<num> point,
+    String? layerId,
+    LatLng? tappedLatLng,
+  ) async {
+    if (_debugWaypointTapFlow) {
+      debugPrint(
+        '[WP TAP] handle feature tap start layer=$layerId x=${point.x} y=${point.y}',
+      );
+    }
+
+    if (_controller == null || _isWaypointDialogOpen) {
+      if (_debugWaypointTapFlow) {
+        debugPrint(
+          '[WP TAP] abort: controller=${_controller != null} dialogOpen=$_isWaypointDialogOpen',
+        );
+      }
+      return false;
+    }
+
+    final state = ref.read(gpxEditorProvider);
+    const blockedTapTools = {
+      'draw',
+      'split',
+      'merge',
+      'range_map',
+      'add_waypoint',
+      'edit_geometry',
+    };
+
+    if (blockedTapTools.contains(state.activeTool)) {
+      if (_debugWaypointTapFlow) {
+        debugPrint('[WP TAP] abort: blocked tool=${state.activeTool}');
+      }
+      return false;
+    }
+
+    final List<String> waypointLayers = state.tracks
+        .where((t) => t.isVisible)
+        .map((t) => 'layer_wp_${t.id}')
+        .toList();
+
+    if (_debugWaypointTapFlow) {
+      debugPrint('[WP TAP] candidate layers=${waypointLayers.length}');
+    }
+
+    if (waypointLayers.isEmpty) {
+      if (_debugWaypointTapFlow) {
+        debugPrint('[WP TAP] abort: no visible waypoint layers');
+      }
+      return false;
+    }
+
+    final math.Point<double> queryPoint = math.Point<double>(
+      point.x.toDouble(),
+      point.y.toDouble(),
+    );
+
+    final features = await _controller!.queryRenderedFeatures(
+      queryPoint,
+      waypointLayers,
+      null,
+    );
+
+    if (_debugWaypointTapFlow) {
+      debugPrint('[WP TAP] queryRenderedFeatures count=${features.length}');
+    }
+
+    if (features.isEmpty) {
+      if (_debugWaypointTapFlow) {
+        debugPrint('[WP TAP] abort: no feature hit');
+      }
+
+      if (tappedLatLng != null &&
+          layerId != null &&
+          layerId.startsWith('layer_wp_')) {
+        final int? trackIdFromLayer = int.tryParse(
+          layerId.replaceFirst('layer_wp_', ''),
+        );
+        if (trackIdFromLayer != null) {
+          final int trackIdx = state.tracks.indexWhere(
+            (t) => t.id == trackIdFromLayer,
+          );
+          if (trackIdx != -1) {
+            final TrackModel track = state.tracks[trackIdx];
+            final int? nearestWpIndex = _findNearestWaypointIndexOnTrack(
+              track,
+              tappedLatLng,
+            );
+            if (nearestWpIndex != null) {
+              if (state.selectedTrackId != track.id) {
+                ref.read(gpxEditorProvider.notifier).selectTrack(track.id);
+              }
+              await _showWaypointInfoDialog(
+                _WaypointTapMatch(track: track, waypointIndex: nearestWpIndex),
+              );
+              if (_debugWaypointTapFlow) {
+                debugPrint('[WP TAP] dialog opened from layer+latLng fallback');
+              }
+              return true;
+            }
+          }
+        }
+      }
+
+      return false;
+    }
+
+    final dynamic feature = features.first;
+    final dynamic props = feature['properties'];
+
+    final int? trackIdFromProps = _parseFeatureInt(props?['track_id']);
+    final int? trackIdFromLayer =
+        (layerId != null && layerId.startsWith('layer_wp_'))
+        ? int.tryParse(layerId.replaceFirst('layer_wp_', ''))
+        : null;
+    final int? trackId = trackIdFromProps ?? trackIdFromLayer;
+    final int? waypointIndex = _parseFeatureInt(props?['waypoint_index']);
+
+    if (trackId == null || waypointIndex == null) {
+      if (_debugWaypointTapFlow) {
+        debugPrint(
+          '[WP TAP] abort: invalid properties trackId=$trackId waypointIndex=$waypointIndex propsTrackId=$trackIdFromProps layerTrackId=$trackIdFromLayer',
+        );
+      }
+      return false;
+    }
+
+    final int trackIndex = state.tracks.indexWhere((t) => t.id == trackId);
+    if (trackIndex == -1) {
+      if (_debugWaypointTapFlow) {
+        debugPrint('[WP TAP] abort: track not found for trackId=$trackId');
+      }
+      return false;
+    }
+
+    final TrackModel track = state.tracks[trackIndex];
+    if (waypointIndex < 0 || waypointIndex >= track.waypoints.length) {
+      if (_debugWaypointTapFlow) {
+        debugPrint(
+          '[WP TAP] abort: waypoint index out of range index=$waypointIndex size=${track.waypoints.length}',
+        );
+      }
+      return false;
+    }
+
+    _suppressMapClickUntil = DateTime.now().add(
+      const Duration(milliseconds: 250),
+    );
+
+    if (state.selectedTrackId != track.id) {
+      if (_debugWaypointTapFlow) {
+        debugPrint('[WP TAP] selecting tapped track id=${track.id}');
+      }
+      ref.read(gpxEditorProvider.notifier).selectTrack(track.id);
+    }
+
+    if (_debugWaypointTapFlow) {
+      debugPrint(
+        '[WP TAP] opening dialog track=${track.id} waypointIndex=$waypointIndex',
+      );
+    }
+
+    await _showWaypointInfoDialog(
+      _WaypointTapMatch(track: track, waypointIndex: waypointIndex),
+    );
+
+    return true;
+  }
+
+  int? _parseFeatureInt(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+
+    final String value = raw.toString().trim();
+    if (value.isEmpty) return null;
+
+    final int? asInt = int.tryParse(value);
+    if (asInt != null) return asInt;
+
+    final num? asNum = num.tryParse(value);
+    return asNum?.toInt();
+  }
+
+  int? _findNearestWaypointIndexOnTrack(TrackModel track, LatLng tapLatLng) {
+    if (track.waypoints.isEmpty) return null;
+
+    final double cosLatRaw = math.cos(tapLatLng.latitude * math.pi / 180);
+    final double cosLat = cosLatRaw.abs() < 0.000001 ? 0.000001 : cosLatRaw;
+
+    double bestDistanceSquared = double.infinity;
+    int bestIndex = -1;
+
+    for (int i = 0; i < track.waypoints.length; i++) {
+      final wp = track.waypoints[i];
+      if (wp.latitude == null || wp.longitude == null) continue;
+
+      final double lat = (wp.latitude! - tapLatLng.latitude) * 111320;
+      final double lng =
+          (wp.longitude! - tapLatLng.longitude) * 111320 * cosLat;
+      final double d2 = (lat * lat) + (lng * lng);
+
+      if (d2 < bestDistanceSquared) {
+        bestDistanceSquared = d2;
+        bestIndex = i;
+      }
+    }
+
+    if (bestIndex == -1) return null;
+
+    const double maxDistanceMeters = 120.0;
+    if (bestDistanceSquared > maxDistanceMeters * maxDistanceMeters) {
+      return null;
+    }
+
+    return bestIndex;
+  }
+
   void _handleSidebarReorderDragStateChanged(bool isDragging) {
     if (_isSidebarReordering == isDragging) return;
     setState(() => _isSidebarReordering = isDragging);
@@ -309,6 +532,21 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               _activeRangeMapHandle == null,
           onMapCreated: (c) {
             _controller = c;
+
+            c.onFeatureTapped.add((
+              point,
+              latLng,
+              featureId,
+              layerId,
+              annotation,
+            ) {
+              if (_debugWaypointTapFlow) {
+                debugPrint(
+                  '[WP TAP] onFeatureTapped layer=$layerId featureId=$featureId lat=${latLng.latitude} lon=${latLng.longitude}',
+                );
+              }
+              unawaited(_handleWaypointFeatureTap(point, layerId, latLng));
+            });
           },
 
           onStyleLoaded: () async {
@@ -473,8 +711,77 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           onMapClick: (coordinates) async {
             FocusScope.of(context).requestFocus();
 
+            final DateTime now = DateTime.now();
+            if (_suppressMapClickUntil != null &&
+                now.isBefore(_suppressMapClickUntil!)) {
+              if (_debugWaypointTapFlow) {
+                debugPrint('[WP TAP] onMapClick suppressed by debounce window');
+              }
+              return;
+            }
+
             final state = ref.read(gpxEditorProvider);
             final notifier = ref.read(gpxEditorProvider.notifier);
+            final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
+            final activeTool = state.activeTool;
+
+            const blockedTapTools = {
+              'draw',
+              'split',
+              'merge',
+              'range_map',
+              'add_waypoint',
+              'edit_geometry',
+            };
+
+            if (!blockedTapTools.contains(activeTool) &&
+                !_isWaypointDialogOpen &&
+                _controller != null) {
+              if (_debugWaypointTapFlow) {
+                debugPrint(
+                  '[WP TAP] onMapClick -> feature query path tool=$activeTool',
+                );
+              }
+              final math.Point<num> screenPoint = await _controller!
+                  .toScreenLocation(coordinates);
+              final bool openedByFeature = await _handleWaypointFeatureTap(
+                screenPoint,
+                null,
+                coordinates,
+              );
+              if (openedByFeature) {
+                if (_debugWaypointTapFlow) {
+                  debugPrint('[WP TAP] dialog opened from feature query path');
+                }
+                return;
+              }
+            }
+
+            if (!blockedTapTools.contains(activeTool) &&
+                !_isWaypointDialogOpen) {
+              try {
+                final _WaypointTapMatch? tappedWaypoint =
+                    await _findTappedWaypointInActiveTrack(
+                      coordinates,
+                      zoom,
+                      state,
+                    );
+                if (tappedWaypoint != null) {
+                  if (state.selectedTrackId != tappedWaypoint.track.id) {
+                    notifier.selectTrack(tappedWaypoint.track.id);
+                  }
+                  if (_debugWaypointTapFlow) {
+                    debugPrint(
+                      '[WP TAP] dialog opened from fallback distance path',
+                    );
+                  }
+                  await _showWaypointInfoDialog(tappedWaypoint);
+                  return;
+                }
+              } catch (e) {
+                debugPrint('Waypoint tap detection failed: $e');
+              }
+            }
 
             // 🛡️ Si el gràfic està en mode rang però no estem editant el tram amb el mapa,
             // el clic net el tanca. Quan l'eina de rang del mapa està activa, el clic
@@ -483,11 +790,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                 state.activeTool != 'range_map') {
               notifier.clearChartSelection();
               paintLiveOverlays(ref.read(gpxEditorProvider));
-              return; // Aturem la intercepció creuada aquí!
             }
-
-            final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
-            final activeTool = state.activeTool;
 
             if (activeTool == 'draw') {
               // ⚡ TALLAFOCS REAL PER A LA WEB CONTRA LA FILTRACIÓ DEL CLIC
@@ -846,6 +1149,365 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       notifier.setMapIdle(true);
       paintLiveOverlays(ref.read(gpxEditorProvider));
     });
+  }
+
+  Future<_WaypointTapMatch?> _findTappedWaypointInActiveTrack(
+    LatLng tapCoordinates,
+    double currentZoom,
+    GpxEditorState state,
+  ) async {
+    if (state.tracks.isEmpty) return null;
+
+    final List<TrackModel> candidateTracks = [];
+    if (state.selectedTrackId != null) {
+      final int selectedIndex = state.tracks.indexWhere(
+        (t) => t.id == state.selectedTrackId,
+      );
+      if (selectedIndex != -1) {
+        candidateTracks.add(state.tracks[selectedIndex]);
+      }
+    }
+    candidateTracks.addAll(
+      state.tracks.where(
+        (t) =>
+            t.isVisible &&
+            t.id != state.selectedTrackId &&
+            t.waypoints.any(
+              (wp) => wp.latitude != null && wp.longitude != null,
+            ),
+      ),
+    );
+    if (candidateTracks.isEmpty) return null;
+
+    if (_controller != null) {
+      final math.Point<num> tapPoint = await _controller!.toScreenLocation(
+        tapCoordinates,
+      );
+      final double hitRadiusPx = _hasMouseConnected ? 34.0 : 64.0;
+      final double hitRadiusSquared = hitRadiusPx * hitRadiusPx;
+
+      double bestDistanceSquaredPx = double.infinity;
+      int bestWaypointIndexPx = -1;
+      TrackModel? bestTrack;
+
+      for (final track in candidateTracks) {
+        for (int i = 0; i < track.waypoints.length; i++) {
+          final wp = track.waypoints[i];
+          if (wp.latitude == null || wp.longitude == null) continue;
+
+          final math.Point<num> waypointPoint = await _controller!
+              .toScreenLocation(LatLng(wp.latitude!, wp.longitude!));
+
+          final double dx = waypointPoint.x.toDouble() - tapPoint.x.toDouble();
+          final double dy = waypointPoint.y.toDouble() - tapPoint.y.toDouble();
+          final double distanceSquaredPx = (dx * dx) + (dy * dy);
+
+          if (distanceSquaredPx < bestDistanceSquaredPx) {
+            bestDistanceSquaredPx = distanceSquaredPx;
+            bestWaypointIndexPx = i;
+            bestTrack = track;
+          }
+        }
+      }
+
+      if (bestWaypointIndexPx != -1 &&
+          bestDistanceSquaredPx <= hitRadiusSquared &&
+          bestTrack != null) {
+        return _WaypointTapMatch(
+          track: bestTrack,
+          waypointIndex: bestWaypointIndexPx,
+        );
+      }
+    }
+
+    final double cosLatRaw = math.cos(tapCoordinates.latitude * math.pi / 180);
+    final double cosLat = cosLatRaw.abs() < 0.000001 ? 0.000001 : cosLatRaw;
+
+    final double maxDistance = currentZoom < 12
+        ? 120.0
+        : (currentZoom < 15 ? 80.0 : 45.0);
+
+    double bestDistanceSquared = double.infinity;
+    int bestWaypointIndex = -1;
+    TrackModel? bestTrackFallback;
+
+    for (final track in candidateTracks) {
+      for (int i = 0; i < track.waypoints.length; i++) {
+        final wp = track.waypoints[i];
+        if (wp.latitude == null || wp.longitude == null) continue;
+
+        final double lat = (wp.latitude! - tapCoordinates.latitude) * 111320;
+        final double lng =
+            (wp.longitude! - tapCoordinates.longitude) * 111320 * cosLat;
+        final double distanceSquared = (lat * lat) + (lng * lng);
+
+        if (distanceSquared < bestDistanceSquared) {
+          bestDistanceSquared = distanceSquared;
+          bestWaypointIndex = i;
+          bestTrackFallback = track;
+        }
+      }
+    }
+
+    if (bestWaypointIndex == -1 ||
+        bestDistanceSquared > (maxDistance * maxDistance)) {
+      return null;
+    }
+
+    return _WaypointTapMatch(
+      track: bestTrackFallback!,
+      waypointIndex: bestWaypointIndex,
+    );
+  }
+
+  int _findNearestTrackPointIndexToWaypoint(
+    TrackModel track,
+    WaypointModel waypoint,
+  ) {
+    if (track.points.isEmpty ||
+        waypoint.latitude == null ||
+        waypoint.longitude == null) {
+      return -1;
+    }
+
+    final double cosLatRaw = math.cos(waypoint.latitude! * math.pi / 180);
+    final double cosLat = cosLatRaw.abs() < 0.000001 ? 0.000001 : cosLatRaw;
+
+    double bestDistanceSquared = double.infinity;
+    int bestIndex = -1;
+
+    for (int i = 0; i < track.points.length; i++) {
+      final p = track.points[i];
+      if (p.latitude == null || p.longitude == null) continue;
+
+      final double lat = (p.latitude! - waypoint.latitude!) * 111320;
+      final double lng = (p.longitude! - waypoint.longitude!) * 111320 * cosLat;
+      final double distanceSquared = (lat * lat) + (lng * lng);
+
+      if (distanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = distanceSquared;
+        bestIndex = i;
+      }
+    }
+
+    return bestIndex;
+  }
+
+  _WaypointComputedInfo _computeWaypointInfo(
+    TrackModel track,
+    WaypointModel waypoint,
+  ) {
+    final int nearestPointIndex = _findNearestTrackPointIndexToWaypoint(
+      track,
+      waypoint,
+    );
+
+    double accumulatedDistanceMeters = 0.0;
+    const geo.Distance distanceCalculator = geo.Distance();
+
+    if (nearestPointIndex > 0) {
+      for (int i = 1; i <= nearestPointIndex; i++) {
+        final prev = track.points[i - 1];
+        final curr = track.points[i];
+        if (prev.latitude == null ||
+            prev.longitude == null ||
+            curr.latitude == null ||
+            curr.longitude == null) {
+          continue;
+        }
+
+        accumulatedDistanceMeters += distanceCalculator.as(
+          geo.LengthUnit.Meter,
+          geo.LatLng(prev.latitude!, prev.longitude!),
+          geo.LatLng(curr.latitude!, curr.longitude!),
+        );
+      }
+    }
+
+    DateTime? startTimestamp;
+    for (final p in track.points) {
+      if (p.timestamp != null) {
+        startTimestamp = p.timestamp;
+        break;
+      }
+    }
+
+    DateTime? waypointTimestamp;
+    if (nearestPointIndex >= 0 && nearestPointIndex < track.points.length) {
+      waypointTimestamp = track.points[nearestPointIndex].timestamp;
+    }
+
+    Duration? elapsed;
+    if (startTimestamp != null && waypointTimestamp != null) {
+      if (!waypointTimestamp.isBefore(startTimestamp)) {
+        elapsed = waypointTimestamp.difference(startTimestamp);
+      }
+    }
+
+    double? elevation = waypoint.elevation;
+    if ((elevation == null || elevation == 0.0) &&
+        nearestPointIndex >= 0 &&
+        nearestPointIndex < track.points.length) {
+      elevation = track.points[nearestPointIndex].elevation;
+    }
+
+    return _WaypointComputedInfo(
+      elevationMeters: elevation,
+      elapsedFromStart: elapsed,
+      distanceFromStartMeters: accumulatedDistanceMeters,
+    );
+  }
+
+  String _formatWaypointDistance(double meters) {
+    if (meters >= 1000) {
+      return '${(meters / 1000).toStringAsFixed(2)} km';
+    }
+    return '${meters.toStringAsFixed(0)} m';
+  }
+
+  String _formatWaypointElapsed(Duration? duration) {
+    if (duration == null) return '--:--:--';
+
+    final String hours = duration.inHours.toString().padLeft(2, '0');
+    final String minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    final String seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+
+    return '$hours:$minutes:$seconds';
+  }
+
+  Future<void> _showWaypointInfoDialog(_WaypointTapMatch tapMatch) async {
+    if (_isWaypointDialogOpen) return;
+    _isWaypointDialogOpen = true;
+
+    try {
+      final t = AppLocalizations.of(context)!;
+
+      final liveState = ref.read(gpxEditorProvider);
+      final int trackIndex = liveState.tracks.indexWhere(
+        (track) => track.id == tapMatch.track.id,
+      );
+      if (trackIndex == -1) return;
+
+      final TrackModel track = liveState.tracks[trackIndex];
+      if (tapMatch.waypointIndex < 0 ||
+          tapMatch.waypointIndex >= track.waypoints.length) {
+        return;
+      }
+
+      final WaypointModel waypoint = track.waypoints[tapMatch.waypointIndex];
+      final _WaypointComputedInfo info = _computeWaypointInfo(track, waypoint);
+
+      final double? waypointLat = waypoint.latitude;
+      final double? waypointLng = waypoint.longitude;
+      if (waypointLat != null && waypointLng != null) {
+        setWaypointHighlight(LatLng(waypointLat, waypointLng));
+      }
+
+      final String currentName = (waypoint.name ?? '').trim().isEmpty
+          ? '${t.waypointNamePrefix}${tapMatch.waypointIndex + 1}'
+          : waypoint.name!.trim();
+
+      final String? action = await showDialog<String>(
+        context: context,
+        useRootNavigator: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(currentName),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${t.waypointInfoElevation}: ${info.elevationText}'),
+              const SizedBox(height: 8),
+              Text(
+                '${t.waypointInfoElapsedTime}: ${_formatWaypointElapsed(info.elapsedFromStart)}',
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${t.waypointInfoDistanceFromStart}: ${_formatWaypointDistance(info.distanceFromStartMeters)}',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'delete'),
+              child: Text(t.deleteWaypoint),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'edit'),
+              child: Text(t.editWaypointName),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'close'),
+              child: Text(t.cancel),
+            ),
+          ],
+        ),
+      );
+
+      if (action == 'edit') {
+        final String? newName = await askWaypointNameDialog(
+          context,
+          currentName,
+        );
+        if (newName == null || newName.trim().isEmpty) return;
+
+        ref
+            .read(gpxEditorProvider.notifier)
+            .renameWaypointOnSelectedTrack(
+              waypointIndex: tapMatch.waypointIndex,
+              newName: newName,
+            );
+        return;
+      }
+
+      if (action == 'delete') {
+        final bool confirmed = await _showConfirmDeleteWaypointDialog(
+          currentName,
+        );
+        if (!confirmed) return;
+
+        ref
+            .read(gpxEditorProvider.notifier)
+            .deleteWaypointOnSelectedTrack(
+              waypointIndex: tapMatch.waypointIndex,
+            );
+
+        final stateAfterDelete = ref.read(gpxEditorProvider);
+        await paintTracks(
+          stateAfterDelete.tracks,
+          stateAfterDelete.selectedTrackId,
+        );
+        paintLiveOverlays(stateAfterDelete);
+      }
+    } finally {
+      clearWaypointHighlight();
+      _isWaypointDialogOpen = false;
+    }
+  }
+
+  Future<bool> _showConfirmDeleteWaypointDialog(String waypointName) async {
+    final t = AppLocalizations.of(context)!;
+
+    final bool? result = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.confirmDeleteWaypointTitle),
+        content: Text('${t.confirmDeleteWaypointMessage}\n$waypointName'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(t.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(t.deleteWaypoint),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
   }
 
   Future<LatLng?> _getVisibleReticleLatLng() async {
@@ -1386,5 +2048,29 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       });
       await Future.delayed(perFrameDelay);
     }
+  }
+}
+
+class _WaypointTapMatch {
+  final TrackModel track;
+  final int waypointIndex;
+
+  const _WaypointTapMatch({required this.track, required this.waypointIndex});
+}
+
+class _WaypointComputedInfo {
+  final double? elevationMeters;
+  final Duration? elapsedFromStart;
+  final double distanceFromStartMeters;
+
+  const _WaypointComputedInfo({
+    required this.elevationMeters,
+    required this.elapsedFromStart,
+    required this.distanceFromStartMeters,
+  });
+
+  String get elevationText {
+    if (elevationMeters == null) return '--';
+    return '${elevationMeters!.toStringAsFixed(1)} m';
   }
 }
