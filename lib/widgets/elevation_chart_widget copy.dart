@@ -145,11 +145,10 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
         if (pPrev.timestamp != null && pCurr.timestamp != null) {
           final double seconds =
-              pCurr.timestamp!
-                  .difference(pPrev.timestamp!)
-                  .inMilliseconds /
+              pCurr.timestamp!.difference(pPrev.timestamp!).inMilliseconds /
               1000.0;
-          if (seconds > 0) {
+          // 🌟 REPARACIÓ: Ignorem velocitats si el temps és <= 0 (punts sense diferència temporal)
+          if (seconds > 0.1) {
             final double meters = localDistances[i] - localDistances[i - 1];
             speedKmh = (meters / 1000) / (seconds / 3600);
           }

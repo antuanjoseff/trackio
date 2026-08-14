@@ -188,6 +188,105 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     return math.sqrt((dLat * dLat) + (dLng * dLng));
   }
 
+  double? estimateLocalVelocityMps({
+    required List<TrackPointModel> points,
+    required int insertIndex,
+    int maxSegments = 3,
+  }) {
+    if (insertIndex <= 0 || insertIndex >= points.length) {
+      return null;
+    }
+
+    final List<double> speeds = [];
+
+    for (int offset = 1; offset <= maxSegments; offset++) {
+      final int leftA = insertIndex - offset - 1;
+      final int leftB = insertIndex - offset;
+      if (leftA >= 0 && leftB >= 0 && leftB < points.length) {
+        final TrackPointModel p1 = points[leftA];
+        final TrackPointModel p2 = points[leftB];
+        final double? dist = _distanceBetweenTrackPointsMeters(p1, p2);
+        final int? t1 = p1.timestamp?.millisecondsSinceEpoch;
+        final int? t2 = p2.timestamp?.millisecondsSinceEpoch;
+        if (dist != null && dist > 0.0 && t1 != null && t2 != null && t2 > t1) {
+          speeds.add(dist / ((t2 - t1) / 1000.0));
+        }
+      }
+
+      final int rightA = insertIndex + offset;
+      final int rightB = insertIndex + offset + 1;
+      if (rightA >= 0 &&
+          rightB >= 0 &&
+          rightA < points.length &&
+          rightB < points.length) {
+        final TrackPointModel p1 = points[rightA];
+        final TrackPointModel p2 = points[rightB];
+        final double? dist = _distanceBetweenTrackPointsMeters(p1, p2);
+        final int? t1 = p1.timestamp?.millisecondsSinceEpoch;
+        final int? t2 = p2.timestamp?.millisecondsSinceEpoch;
+        if (dist != null && dist > 0.0 && t1 != null && t2 != null && t2 > t1) {
+          speeds.add(dist / ((t2 - t1) / 1000.0));
+        }
+      }
+    }
+
+    if (speeds.isEmpty) return null;
+
+    final double total = speeds.fold<double>(0.0, (sum, speed) => sum + speed);
+    return total / speeds.length;
+  }
+
+  DateTime? estimateInsertedTimestampForGap({
+    required TrackPointModel previousPoint,
+    required TrackPointModel nextPoint,
+    required double distanceToPrevious,
+    required double distanceToNext,
+    required List<TrackPointModel> surroundingPoints,
+    required int insertIndex,
+  }) {
+    final int? prevMs = previousPoint.timestamp?.millisecondsSinceEpoch;
+    final int? nextMs = nextPoint.timestamp?.millisecondsSinceEpoch;
+    if (prevMs == null || nextMs == null || nextMs <= prevMs) {
+      return previousPoint.timestamp ?? nextPoint.timestamp;
+    }
+
+    final int totalGapMs = nextMs - prevMs;
+    const int largeGapThresholdMs = 2 * 60 * 1000;
+    if (totalGapMs < largeGapThresholdMs) {
+      final double totalDistance = distanceToPrevious + distanceToNext;
+      double interpolationT = 0.5;
+      if (totalDistance > 0.000001) {
+        interpolationT = (distanceToPrevious / totalDistance).clamp(0.0, 1.0);
+      }
+
+      final int interpolatedMillis =
+          (prevMs + ((nextMs - prevMs) * interpolationT)).round();
+      return DateTime.fromMillisecondsSinceEpoch(interpolatedMillis);
+    }
+
+    final double? estimatedVelocityMps = estimateLocalVelocityMps(
+      points: surroundingPoints,
+      insertIndex: insertIndex,
+    );
+    if (estimatedVelocityMps == null || estimatedVelocityMps <= 0.0) {
+      final double totalDistance = distanceToPrevious + distanceToNext;
+      double interpolationT = 0.5;
+      if (totalDistance > 0.000001) {
+        interpolationT = (distanceToPrevious / totalDistance).clamp(0.0, 1.0);
+      }
+
+      final int interpolatedMillis =
+          (prevMs + ((nextMs - prevMs) * interpolationT)).round();
+      return DateTime.fromMillisecondsSinceEpoch(interpolatedMillis);
+    }
+
+    final double estimatedDeltaSeconds =
+        distanceToPrevious / estimatedVelocityMps;
+    final int estimatedDeltaMillis = (estimatedDeltaSeconds * 1000.0).round();
+    final int candidateMillis = prevMs + estimatedDeltaMillis;
+    return DateTime.fromMillisecondsSinceEpoch(candidateMillis);
+  }
+
   Future<void> _tryUpdateAddedNodeElevationFromMdt({
     required int trackId,
     required int insertIndex,
@@ -622,14 +721,13 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
     DateTime? interpolatedTimestamp;
     if (previousPoint.timestamp != null && nextPoint.timestamp != null) {
-      final int previousMillis =
-          previousPoint.timestamp!.millisecondsSinceEpoch;
-      final int nextMillis = nextPoint.timestamp!.millisecondsSinceEpoch;
-      final int interpolatedMillis =
-          (previousMillis + ((nextMillis - previousMillis) * interpolationT))
-              .round();
-      interpolatedTimestamp = DateTime.fromMillisecondsSinceEpoch(
-        interpolatedMillis,
+      interpolatedTimestamp = estimateInsertedTimestampForGap(
+        previousPoint: previousPoint,
+        nextPoint: nextPoint,
+        distanceToPrevious: distanceToPrevious ?? 0.0,
+        distanceToNext: distanceToNext ?? 0.0,
+        surroundingPoints: updatedPoints,
+        insertIndex: insertIndex,
       );
     } else {
       interpolatedTimestamp = previousPoint.timestamp ?? nextPoint.timestamp;
