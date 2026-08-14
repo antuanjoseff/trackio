@@ -144,10 +144,11 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         final pCurr = _validPoints[i];
 
         if (pPrev.timestamp != null && pCurr.timestamp != null) {
-          final seconds = pCurr.timestamp!
-              .difference(pPrev.timestamp!)
-              .inSeconds
-              .abs();
+          final double seconds =
+              pCurr.timestamp!
+                  .difference(pPrev.timestamp!)
+                  .inMilliseconds /
+              1000.0;
           if (seconds > 0) {
             final double meters = localDistances[i] - localDistances[i - 1];
             speedKmh = (meters / 1000) / (seconds / 3600);

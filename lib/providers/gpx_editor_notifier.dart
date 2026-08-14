@@ -5,6 +5,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
+import 'package:trackio/services/cog_service.dart';
 import 'package:trackio/services/track_elevation_service.dart';
 import 'dart:math' as math;
 
@@ -167,6 +168,75 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final double cosLat = cosLatRaw.abs() < 0.000001 ? 0.000001 : cosLatRaw;
     final double dLng = (a.longitude! - b.longitude!) * 111320 * cosLat;
     return (dLat * dLat) + (dLng * dLng);
+  }
+
+  double? _distanceBetweenTrackPointsMeters(
+    TrackPointModel a,
+    TrackPointModel b,
+  ) {
+    if (a.latitude == null ||
+        a.longitude == null ||
+        b.latitude == null ||
+        b.longitude == null) {
+      return null;
+    }
+
+    final double dLat = (a.latitude! - b.latitude!) * 111320;
+    final double cosLatRaw = math.cos(a.latitude! * math.pi / 180);
+    final double cosLat = cosLatRaw.abs() < 0.000001 ? 0.000001 : cosLatRaw;
+    final double dLng = (a.longitude! - b.longitude!) * 111320 * cosLat;
+    return math.sqrt((dLat * dLat) + (dLng * dLng));
+  }
+
+  Future<void> _tryUpdateAddedNodeElevationFromMdt({
+    required int trackId,
+    required int insertIndex,
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final double externalElevation = await CogService().getElevation(
+        latitude,
+        longitude,
+      );
+
+      final int trackIndex = state.tracks.indexWhere((t) => t.id == trackId);
+      if (trackIndex == -1) return;
+
+      final TrackModel track = state.tracks[trackIndex];
+      if (insertIndex < 0 || insertIndex >= track.points.length) return;
+
+      final TrackPointModel currentPoint = track.points[insertIndex];
+      if (currentPoint.latitude == null || currentPoint.longitude == null) {
+        return;
+      }
+
+      if ((currentPoint.latitude! - latitude).abs() > 0.0000001 ||
+          (currentPoint.longitude! - longitude).abs() > 0.0000001) {
+        return;
+      }
+
+      final TrackPointModel updatedPoint = TrackPointModel(
+        latitude: currentPoint.latitude,
+        longitude: currentPoint.longitude,
+        elevation: externalElevation,
+        timestamp: currentPoint.timestamp,
+      );
+
+      final List<TrackPointModel> updatedPoints = List<TrackPointModel>.from(
+        track.points,
+      );
+      updatedPoints[insertIndex] = updatedPoint;
+
+      final List<TrackModel> updatedTracks = List<TrackModel>.from(
+        state.tracks,
+      );
+      updatedTracks[trackIndex] = track.copyWith(points: updatedPoints);
+
+      state = state.copyWith(tracks: updatedTracks);
+    } catch (_) {
+      // Fora cobertura MDT (o error de servei): mantenim la interpolació local.
+    }
   }
 
   _MergePlan _buildMergePlanByClosestEndpoints(
@@ -522,24 +592,47 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final TrackPointModel previousPoint = updatedPoints[insertIndex - 1];
     final TrackPointModel nextPoint = updatedPoints[insertIndex];
 
-    double? averagedElevation;
-    if (previousPoint.elevation != null && nextPoint.elevation != null) {
-      averagedElevation =
-          (previousPoint.elevation! + nextPoint.elevation!) / 2.0;
-    } else {
-      averagedElevation = previousPoint.elevation ?? nextPoint.elevation;
+    final TrackPointModel snappedPoint = state.snappedPoint!;
+
+    final double? distanceToPrevious = _distanceBetweenTrackPointsMeters(
+      previousPoint,
+      snappedPoint,
+    );
+    final double? distanceToNext = _distanceBetweenTrackPointsMeters(
+      snappedPoint,
+      nextPoint,
+    );
+
+    double interpolationT = 0.5;
+    if (distanceToPrevious != null && distanceToNext != null) {
+      final double totalDistance = distanceToPrevious + distanceToNext;
+      if (totalDistance > 0.000001) {
+        interpolationT = (distanceToPrevious / totalDistance).clamp(0.0, 1.0);
+      }
     }
 
-    DateTime? averagedTimestamp;
-    if (previousPoint.timestamp != null && nextPoint.timestamp != null) {
-      final int averagedMillis =
-          ((previousPoint.timestamp!.millisecondsSinceEpoch +
-                      nextPoint.timestamp!.millisecondsSinceEpoch) /
-                  2)
-              .round();
-      averagedTimestamp = DateTime.fromMillisecondsSinceEpoch(averagedMillis);
+    double? interpolatedElevation;
+    if (previousPoint.elevation != null && nextPoint.elevation != null) {
+      interpolatedElevation =
+          previousPoint.elevation! +
+          ((nextPoint.elevation! - previousPoint.elevation!) * interpolationT);
     } else {
-      averagedTimestamp = previousPoint.timestamp ?? nextPoint.timestamp;
+      interpolatedElevation = previousPoint.elevation ?? nextPoint.elevation;
+    }
+
+    DateTime? interpolatedTimestamp;
+    if (previousPoint.timestamp != null && nextPoint.timestamp != null) {
+      final int previousMillis =
+          previousPoint.timestamp!.millisecondsSinceEpoch;
+      final int nextMillis = nextPoint.timestamp!.millisecondsSinceEpoch;
+      final int interpolatedMillis =
+          (previousMillis + ((nextMillis - previousMillis) * interpolationT))
+              .round();
+      interpolatedTimestamp = DateTime.fromMillisecondsSinceEpoch(
+        interpolatedMillis,
+      );
+    } else {
+      interpolatedTimestamp = previousPoint.timestamp ?? nextPoint.timestamp;
     }
 
     updatedPoints.insert(
@@ -547,8 +640,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       TrackPointModel(
         latitude: state.snappedPoint!.latitude,
         longitude: state.snappedPoint!.longitude,
-        elevation: averagedElevation,
-        timestamp: averagedTimestamp,
+        elevation: interpolatedElevation,
+        timestamp: interpolatedTimestamp,
       ),
     );
 
@@ -564,12 +657,25 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final List<TrackModel> updatedTracks = List<TrackModel>.from(state.tracks);
     updatedTracks[trackIndex] = targetTrack.copyWith(points: updatedPoints);
 
+    final double insertedLat = state.snappedPoint!.latitude!;
+    final double insertedLon = state.snappedPoint!.longitude!;
+    final int insertedTrackId = targetTrack.id;
+
     state = state.copyWith(
       tracks: updatedTracks,
       snappedPoint: null,
       snappedPointIndex: null,
       geometryInsertIndex: null,
       isMapIdle: false,
+    );
+
+    unawaited(
+      _tryUpdateAddedNodeElevationFromMdt(
+        trackId: insertedTrackId,
+        insertIndex: insertIndex,
+        latitude: insertedLat,
+        longitude: insertedLon,
+      ),
     );
   }
 
@@ -687,8 +793,9 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   void calculateMoveNodeSnap(
     double centerLat,
     double centerLng,
-    double currentZoom,
-  ) {
+    double currentZoom, {
+    double? maxDistanceMetersOverride,
+  }) {
     if (state.activeTool != 'edit_geometry' ||
         state.geometryEditMode != 'move') {
       return;
@@ -746,9 +853,9 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       }
     }
 
-    final double maxDistance = currentZoom < 12
-        ? 120.0
-        : (currentZoom < 15 ? 60.0 : 25.0);
+    final double maxDistance =
+        maxDistanceMetersOverride ??
+        (currentZoom < 12 ? 120.0 : (currentZoom < 15 ? 60.0 : 25.0));
 
     if (bestIndex >= 0 && bestDistance < maxDistance * maxDistance) {
       state = state.copyWith(

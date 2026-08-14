@@ -693,6 +693,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               coordinates.latitude,
               coordinates.longitude,
               zoom,
+              maxDistanceMetersOverride: zoom < 12
+                  ? 20.0
+                  : (zoom < 15 ? 10.0 : 6.0),
             );
             notifier.selectMoveNodeFromCurrentSnap();
 
