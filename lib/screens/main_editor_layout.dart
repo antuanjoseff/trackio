@@ -355,6 +355,7 @@ class MainEditorLayout extends ConsumerWidget {
                         indent: 12,
                         endIndent: 12,
                         width: 16,
+                        color: Colors.white,
                       ),
                     ],
 
@@ -379,7 +380,12 @@ class MainEditorLayout extends ConsumerWidget {
                           .toggleElevationChart(),
                     ),
 
-                    const VerticalDivider(indent: 12, endIndent: 12, width: 16),
+                    const VerticalDivider(
+                      indent: 12,
+                      endIndent: 12,
+                      width: 16,
+                      color: Colors.white,
+                    ),
 
                     IconButton(
                       tooltip: t.importTracks,

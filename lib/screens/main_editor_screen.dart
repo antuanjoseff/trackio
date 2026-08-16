@@ -506,11 +506,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     );
 
     final editorState = ref.watch(gpxEditorProvider);
-    final liveShowSidebar = ref.watch(
-      gpxEditorProvider.select((s) => s.showSidebar),
-    );
     final bool hasMouse = _hasMouseConnected;
-    final bool isMobileLayout = MediaQuery.of(context).size.width <= 800;
     final bool isGeometryAddMode =
         editorState.activeTool == 'edit_geometry' &&
         editorState.geometryEditMode == 'add';
@@ -1019,38 +1015,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             _handleMouseMove(coordinates, zoom, state);
           },
         ),
-
-        // ⭐ BOTÓ DEL SIDEBAR A SOBRE DEL MAPA (Ocult a l'APK mòbil per no duplicar amb l'AppBar)
-        if (hasMouse && !isMobileLayout)
-          Positioned(
-            top: 12,
-            left: 12,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              decoration: BoxDecoration(
-                color: AppColors.starTrekGold.withOpacity(0.85),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                icon: Icon(
-                  liveShowSidebar
-                      ? Icons.view_sidebar
-                      : Icons.view_sidebar_outlined,
-                  color: AppColors.starTrekRed,
-                ),
-                onPressed: () =>
-                    ref.read(gpxEditorProvider.notifier).toggleSidebar(),
-              ),
-            ),
-          ),
 
         if (showReticle)
           const Center(

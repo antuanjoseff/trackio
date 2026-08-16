@@ -546,6 +546,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
           final double tooltipWidth = _tooltipWidth > 0 ? _tooltipWidth : 130.0;
           const double tooltipMinLeft = 4.0;
+          const double tooltipGap = 6.0;
           final double tooltipMaxLeft =
               (chartWidth + paddingLeft + paddingRight) - tooltipWidth;
 
@@ -554,31 +555,58 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
           // Càlcul de col·lisió i posicionament lateral dels tooltips de tram
           if (startXRealPixel != null && endXRealPixel != null) {
+            double startLeft = (startXRealPixel - tooltipWidth / 2).clamp(
+              tooltipMinLeft,
+              tooltipMaxLeft,
+            );
+            double endLeft = (endXRealPixel - tooltipWidth / 2).clamp(
+              tooltipMinLeft,
+              tooltipMaxLeft,
+            );
+
             final bool startIsLeft = startXRealPixel <= endXRealPixel;
-            final double xLeft = startIsLeft ? startXRealPixel : endXRealPixel;
-            final double xRight = startIsLeft ? endXRealPixel : startXRealPixel;
-            final double distance = xRight - xLeft;
+            double leftTooltip = startIsLeft ? startLeft : endLeft;
+            double rightTooltip = startIsLeft ? endLeft : startLeft;
 
-            double leftBox;
-            double rightBox;
+            double overlap =
+                (leftTooltip + tooltipWidth + tooltipGap) - rightTooltip;
+            if (overlap > 0) {
+              final double moveEach = overlap / 2;
+              final double leftCapacity = leftTooltip - tooltipMinLeft;
+              final double rightCapacity = tooltipMaxLeft - rightTooltip;
 
-            if (distance >= tooltipWidth) {
-              leftBox = xLeft - tooltipWidth / 2;
-              rightBox = xRight - tooltipWidth / 2;
-            } else {
-              final double midPoint = (xLeft + xRight) / 2;
-              leftBox = midPoint - tooltipWidth;
-              rightBox = midPoint;
+              final double moveLeft = leftCapacity < moveEach
+                  ? leftCapacity
+                  : moveEach;
+              final double moveRight = rightCapacity < moveEach
+                  ? rightCapacity
+                  : moveEach;
+
+              leftTooltip -= moveLeft;
+              rightTooltip += moveRight;
+
+              overlap =
+                  (leftTooltip + tooltipWidth + tooltipGap) - rightTooltip;
+              if (overlap > 0) {
+                final double extraRightCapacity = tooltipMaxLeft - rightTooltip;
+                final double extraRight = overlap < extraRightCapacity
+                    ? overlap
+                    : extraRightCapacity;
+                rightTooltip += extraRight;
+                overlap -= extraRight;
+              }
+
+              if (overlap > 0) {
+                final double extraLeftCapacity = leftTooltip - tooltipMinLeft;
+                final double extraLeft = overlap < extraLeftCapacity
+                    ? overlap
+                    : extraLeftCapacity;
+                leftTooltip -= extraLeft;
+              }
             }
 
-            startTooltipLeft = (startIsLeft ? leftBox : rightBox).clamp(
-              tooltipMinLeft,
-              tooltipMaxLeft,
-            );
-            endTooltipLeft = (startIsLeft ? rightBox : leftBox).clamp(
-              tooltipMinLeft,
-              tooltipMaxLeft,
-            );
+            startTooltipLeft = startIsLeft ? leftTooltip : rightTooltip;
+            endTooltipLeft = startIsLeft ? rightTooltip : leftTooltip;
           }
 
           final bool showRangeArea =
