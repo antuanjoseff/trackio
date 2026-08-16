@@ -162,7 +162,9 @@ class EditorSidebarWidget extends ConsumerWidget {
             color: AppColors.editorTrackCardBackground,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isSelected ? trackBaseColor : Colors.grey.shade200,
+              color: isSelected
+                  ? AppColors.appBarBackground
+                  : Colors.grey.shade200,
               width: isSelected ? 1.5 : 1.0,
             ),
             boxShadow: [

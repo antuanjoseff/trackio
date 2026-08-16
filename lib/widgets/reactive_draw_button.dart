@@ -51,125 +51,44 @@ class ReactiveDrawButton extends ConsumerWidget {
           onPointerDown: (PointerDownEvent event) {
             // Absorbeix el senyal de hardware del ratolí a la Web per immunitzar el mapa de sota
           },
-          child: Card(
-            elevation: 6,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-            color: Theme.of(context).appBarTheme.backgroundColor,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).appBarTheme.backgroundColor,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.14),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1️⃣ BOTÓ CANCEL·LAR
-                  if (useCompactMode)
+                  IconButton(
+                    tooltip: t.cancel,
+                    onPressed: () => _handleOnCancel(ref, screenState),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.appBarForeground,
+                    ),
+                  ),
+                  if (!hasMouse)
                     IconButton(
+                      tooltip: t.selectDrawPoint,
+                      onPressed: () =>
+                          _handleOnAddPoint(context, ref, screenState),
                       icon: const Icon(
-                        Icons.close,
-                        color: AppColors.starTrekRed,
+                        Icons.add_circle,
+                        color: AppColors.appBarForeground,
                       ),
-                      tooltip: t.cancel,
-                      onPressed: () {
-                        ref.read(gpxEditorProvider.notifier).cancelDrawing();
-                        if (screenState?.controller != null) {
-                          screenState!.controller!.setGeoJsonSource(
-                            "source_range",
-                            const {"type": "FeatureCollection", "features": []},
-                          );
-                          screenState.controller!.setGeoJsonSource(
-                            "source_snapped_point",
-                            const {"type": "FeatureCollection", "features": []},
-                          );
-                        }
-                      },
-                    )
-                  else
-                    TextButton.icon(
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.starTrekRed,
-                      ),
-                      icon: const Icon(Icons.close),
-                      label: Text(t.cancel),
-                      onPressed: () {
-                        ref.read(gpxEditorProvider.notifier).cancelDrawing();
-                        if (screenState?.controller != null) {
-                          screenState!.controller!.setGeoJsonSource(
-                            "source_range",
-                            const {"type": "FeatureCollection", "features": []},
-                          );
-                          screenState.controller!.setGeoJsonSource(
-                            "source_snapped_point",
-                            const {"type": "FeatureCollection", "features": []},
-                          );
-                        }
-                      },
                     ),
-
-                  if (useCompactMode)
-                    const SizedBox(width: 4)
-                  else
-                    const SizedBox(width: 8),
-
-                  // 🌟 2️⃣ BOTÓ BLAU CENTRAL PER FIXAR PUNTS EN VIU (Exclusiu per a mòbils/APK)
-                  if (!hasMouse) ...[
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.starTrekRed,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      child: const Icon(Icons.add_circle, size: 20),
-                      onPressed: () {
-                        FocusScope.of(context).unfocus();
-
-                        final notifier = ref.read(gpxEditorProvider.notifier);
-                        final drawState = ref.read(gpxEditorProvider);
-                        final stateActive =
-                            screenState ??
-                            context
-                                .findAncestorStateOfType<
-                                  MainEditorScreenState
-                                >();
-
-                        final livePoint = drawState.drawingLivePoint;
-                        if (livePoint?.latitude != null &&
-                            livePoint?.longitude != null) {
-                          notifier.addPointToNewTrack(
-                            livePoint!.latitude!,
-                            livePoint.longitude!,
-                          );
-                          return;
-                        }
-
-                        final center =
-                            stateActive?.controller?.cameraPosition?.target;
-                        if (center == null) return;
-
-                        notifier.addPointToNewTrack(
-                          center.latitude,
-                          center.longitude,
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-
-                  // 3️⃣ BOTÓ DESFER (UNDO)
                   IconButton(
                     tooltip: t.undo,
-                    icon: Icon(
-                      Icons.undo,
-                      color: pointsCount > 0
-                          ? AppColors.starTrekRed
-                          : Colors.grey.shade400,
-                    ),
                     onPressed: pointsCount > 0
                         ? () {
                             ref
@@ -182,48 +101,30 @@ class ReactiveDrawButton extends ConsumerWidget {
                             }
                           }
                         : null,
+                    icon: Icon(
+                      Icons.undo,
+                      color: pointsCount > 0
+                          ? AppColors.appBarForeground
+                          : Colors.grey.shade400,
+                    ),
                   ),
-
-                  if (useCompactMode)
-                    const SizedBox(width: 4)
-                  else
-                    const SizedBox(width: 8),
-
-                  // 4️⃣ BOTÓ DESAR RUTA
-                  if (useCompactMode)
-                    Badge(
-                      label: Text('$pointsCount'),
-                      backgroundColor: AppColors.starTrekRed,
-                      isLabelVisible: pointsCount > 0,
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.check_circle,
-                          color: pointsCount > 0
-                              ? AppColors.starTrekRed
-                              : Colors.grey.shade400,
-                          size: 24,
-                        ),
-                        tooltip: t.confirmDrawSave,
-                        onPressed: pointsCount > 0
-                            ? () => _handleOnSave(context, ref, t, screenState)
-                            : null,
-                      ),
-                    )
-                  else
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.onSuccess,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      icon: const Icon(Icons.check),
-                      label: Text('${t.confirmDrawSave} ($pointsCount)'),
+                  Badge(
+                    label: Text('$pointsCount'),
+                    backgroundColor: AppColors.starTrekRed,
+                    isLabelVisible: pointsCount > 0,
+                    child: IconButton(
+                      tooltip: t.confirmDrawSave,
                       onPressed: pointsCount > 0
                           ? () => _handleOnSave(context, ref, t, screenState)
                           : null,
+                      icon: Icon(
+                        Icons.check_circle,
+                        color: pointsCount > 0
+                            ? AppColors.appBarForeground
+                            : Colors.grey.shade300,
+                      ),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -231,6 +132,44 @@ class ReactiveDrawButton extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _handleOnCancel(WidgetRef ref, MainEditorScreenState? screenState) {
+    ref.read(gpxEditorProvider.notifier).cancelDrawing();
+    if (screenState?.controller != null) {
+      screenState!.controller!.setGeoJsonSource("source_range", const {
+        "type": "FeatureCollection",
+        "features": [],
+      });
+      screenState.controller!.setGeoJsonSource("source_snapped_point", const {
+        "type": "FeatureCollection",
+        "features": [],
+      });
+    }
+  }
+
+  void _handleOnAddPoint(
+    BuildContext context,
+    WidgetRef ref,
+    MainEditorScreenState? screenState,
+  ) {
+    FocusScope.of(context).unfocus();
+
+    final notifier = ref.read(gpxEditorProvider.notifier);
+    final drawState = ref.read(gpxEditorProvider);
+    final stateActive =
+        screenState ?? context.findAncestorStateOfType<MainEditorScreenState>();
+
+    final livePoint = drawState.drawingLivePoint;
+    if (livePoint?.latitude != null && livePoint?.longitude != null) {
+      notifier.addPointToNewTrack(livePoint!.latitude!, livePoint.longitude!);
+      return;
+    }
+
+    final center = stateActive?.controller?.cameraPosition?.target;
+    if (center == null) return;
+
+    notifier.addPointToNewTrack(center.latitude, center.longitude);
   }
 
   // 💾 Lògica del diàleg i el desament adaptatiu

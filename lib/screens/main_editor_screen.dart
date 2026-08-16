@@ -13,6 +13,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/dialogs.dart';
 import 'package:trackio/core/utils/gpx_parser.dart';
+import 'package:trackio/core/utils/track_stats_calculator.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -783,6 +784,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             notifier.setMapIdle(true);
             paintLiveOverlays(ref.read(gpxEditorProvider));
             unawaited(_updateGeometryNodesOverlay());
+          },
+          onMouseDoubleClickMap: (coordinates) async {
+            if (!hasMouse) return;
+            final state = ref.read(gpxEditorProvider);
+            if (state.activeTool != 'draw') return;
+            await _finalizeDrawTrack();
           },
 
           onMapClick: (coordinates) async {
@@ -1663,6 +1670,50 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         .read(gpxEditorProvider.notifier)
         .addPointToNewTrack(target.latitude, target.longitude);
     paintLiveOverlays(ref.read(gpxEditorProvider));
+  }
+
+  Future<void> _finalizeDrawTrack() async {
+    final t = AppLocalizations.of(context)!;
+    final state = ref.read(gpxEditorProvider);
+    if (state.activeTool != 'draw' || state.drawingPoints.isEmpty) return;
+
+    final stats = TrackStatsCalculator.compute(state.drawingPoints);
+    final String defaultName =
+        "${t.drawnRouteDefaultName} ${DateTime.now().hour}:${DateTime.now().minute}";
+
+    final Map<String, dynamic>? result = await askTrackNameDialog(
+      context: context,
+      defaultName: defaultName,
+      displayDistance:
+          "${((stats['distance'] as double) / 1000).toStringAsFixed(2)} km",
+      displayElevation: "${(stats['gain'] as double).toStringAsFixed(0)} m",
+    );
+    if (!mounted || result == null) return;
+
+    final String trackName = result['name'] as String;
+    ref.read(gpxEditorProvider.notifier).saveDrawnTrack(trackName);
+
+    final finalState = ref.read(gpxEditorProvider);
+    if (_controller != null) {
+      await _controller!.setGeoJsonSource("source_range", const {
+        "type": "FeatureCollection",
+        "features": [],
+      });
+      await _controller!.setGeoJsonSource("source_snapped_point", const {
+        "type": "FeatureCollection",
+        "features": [],
+      });
+    }
+
+    await paintTracks(finalState.tracks, finalState.selectedTrackId);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("${t.routeSavedSuccess}: $trackName"),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> addWaypointAtVisibleReticle({

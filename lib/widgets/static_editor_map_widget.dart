@@ -14,6 +14,7 @@ class StaticEditorMapWidget extends StatefulWidget {
   final Function(LatLng coordinates)? onMousePrimaryDownMap;
   final Function(LatLng coordinates)? onMousePrimaryDragMap;
   final VoidCallback? onMousePrimaryUpMap;
+  final Function(LatLng coordinates)? onMouseDoubleClickMap;
   final MouseCursor cursor;
   final bool panEnabled;
 
@@ -31,6 +32,7 @@ class StaticEditorMapWidget extends StatefulWidget {
     this.onMousePrimaryDownMap,
     this.onMousePrimaryDragMap,
     this.onMousePrimaryUpMap,
+    this.onMouseDoubleClickMap,
     this.onMapClick,
   });
 
@@ -43,8 +45,12 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
   DateTime? _suppressNativeMapClickUntil;
   Offset? _mousePrimaryDownOffset;
   bool _mousePrimaryMoved = false;
+  DateTime? _lastMouseClickAt;
+  Offset? _lastMouseClickOffset;
 
   static const double _mouseClickSlopPx = 8.0;
+  static const Duration _mouseDoubleClickMaxDelay = Duration(milliseconds: 320);
+  static const double _mouseDoubleClickSlopPx = 14.0;
 
   bool get _hasMouse => RendererBinding.instance.mouseTracker.mouseIsConnected;
 
@@ -140,6 +146,23 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
       math.Point<num>(event.localPosition.dx, event.localPosition.dy),
     );
     if (!mounted) return;
+
+    final DateTime now = DateTime.now();
+    final Offset currentOffset = event.localPosition;
+    final bool isDoubleClick =
+        _lastMouseClickAt != null &&
+        now.difference(_lastMouseClickAt!) <= _mouseDoubleClickMaxDelay &&
+        _lastMouseClickOffset != null &&
+        (currentOffset - _lastMouseClickOffset!).distance <=
+            _mouseDoubleClickSlopPx;
+
+    _lastMouseClickAt = now;
+    _lastMouseClickOffset = currentOffset;
+
+    if (isDoubleClick && widget.onMouseDoubleClickMap != null) {
+      widget.onMouseDoubleClickMap!(latLng);
+      return;
+    }
 
     _suppressNativeMapClickUntil = DateTime.now().add(
       const Duration(milliseconds: 120),
