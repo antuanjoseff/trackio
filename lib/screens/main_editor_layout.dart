@@ -359,33 +359,35 @@ class MainEditorLayout extends ConsumerWidget {
                       ),
                     ],
 
-                    // ↕️ 6. GRÀFIC D'ELEVACIONS
-                    IconButton(
-                      tooltip: t.elevationProfile,
-                      icon: Icon(
-                        liveShowChart
-                            ? Icons.insert_chart
-                            : Icons.insert_chart_outlined,
-                        color: liveShowChart
-                            ? AppColors.mapToolActiveForeground
-                            : Colors.white70,
+                    // ↕️ 6. GRÀFIC D'ELEVACIONS (només a web)
+                    if (!isMobile) ...[
+                      IconButton(
+                        tooltip: t.elevationProfile,
+                        icon: Icon(
+                          liveShowChart
+                              ? Icons.insert_chart
+                              : Icons.insert_chart_outlined,
+                          color: liveShowChart
+                              ? AppColors.mapToolActiveForeground
+                              : Colors.white70,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: liveShowChart
+                              ? AppColors.mapToolActiveBackground
+                              : null,
+                        ),
+                        onPressed: () => ref
+                            .read(gpxEditorProvider.notifier)
+                            .toggleElevationChart(),
                       ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: liveShowChart
-                            ? AppColors.mapToolActiveBackground
-                            : null,
-                      ),
-                      onPressed: () => ref
-                          .read(gpxEditorProvider.notifier)
-                          .toggleElevationChart(),
-                    ),
 
-                    const VerticalDivider(
-                      indent: 12,
-                      endIndent: 12,
-                      width: 16,
-                      color: Colors.white,
-                    ),
+                      const VerticalDivider(
+                        indent: 12,
+                        endIndent: 12,
+                        width: 16,
+                        color: Colors.white,
+                      ),
+                    ],
 
                     IconButton(
                       tooltip: t.importTracks,

@@ -4,11 +4,7 @@ class TrackioLargeIcon extends StatelessWidget {
   final Widget child;
   final double scale;
 
-  const TrackioLargeIcon({
-    super.key,
-    required this.child,
-    this.scale = 1.35, // Ajusta aquest valor per fer-les més o menys grans
-  });
+  const TrackioLargeIcon({super.key, required this.child, this.scale = 1.35});
 
   @override
   Widget build(BuildContext context) {

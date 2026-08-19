@@ -27,7 +27,7 @@ class AppColors {
   static const Color effortRed = Color(0xFFEF4444);
 
   // Compatibilitat amb codi existent
-  static const Color starTrekRed = techBlue;
+  static const Color starTrekRed = slopeGreen;
   static const Color starTrekGold = accentOrange;
   static const Color starTrekBlue = activeTrackCyan;
   static const Color starTrekPurple = secondaryTrackViolet;

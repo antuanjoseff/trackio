@@ -4,6 +4,9 @@ import 'package:trackio/models/cog_tile.dart';
 
 class CogService {
   static final CogService _instance = CogService._internal();
+  static const String _apiHost = 'trackio.es';
+  static const String _tileGridPath = '/api/getTileGrid';
+
   factory CogService() => _instance;
   CogService._internal();
 
@@ -11,7 +14,7 @@ class CogService {
   final int _maxTiles = 4;
 
   Future<CogTile> _downloadTile(double lat, double lon) async {
-    final uri = Uri.http('213.165.93.0', '/api/getTileGrid', {
+    final uri = Uri.https(_apiHost, _tileGridPath, {
       'lat': lat.toString(),
       'lon': lon.toString(),
     });

@@ -655,8 +655,8 @@ class TrackioVerticalLayout extends ConsumerWidget {
           );
 
     return Container(
-      width: 38,
-      height: 38,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
         color: isActive
             ? AppColors.mapToolActiveBackground
@@ -666,12 +666,12 @@ class TrackioVerticalLayout extends ConsumerWidget {
           color: isActive
               ? AppColors.mapToolActiveBackground
               : AppColors.appBarBackground,
-          width: isActive ? 1.6 : 1.0,
+          width: isActive ? 1.4 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(isActive ? 0.2 : 0.1),
-            blurRadius: isActive ? 8 : 5,
+            blurRadius: isActive ? 7 : 4,
             offset: const Offset(0, 2),
           ),
         ],
@@ -684,7 +684,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
           onPressed: onPressed,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
-          iconSize: 20,
+          iconSize: 18,
         ),
       ),
     );

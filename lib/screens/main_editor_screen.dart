@@ -507,6 +507,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     final editorState = ref.watch(gpxEditorProvider);
     final bool hasMouse = _hasMouseConnected;
+    final bool isSmallMobileLayout =
+        _isMobileApp || MediaQuery.sizeOf(context).width <= 800;
     final bool isGeometryAddMode =
         editorState.activeTool == 'edit_geometry' &&
         editorState.geometryEditMode == 'add';
@@ -1025,7 +1027,88 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             ),
           ),
 
-        if (_mapScaleMeters != null && _mapScaleWidthPx != null)
+        if (isSmallMobileLayout)
+          Positioned(
+            left: 12,
+            bottom: 7,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: showElevationChart
+                        ? Colors.white
+                        : AppColors.appBarBackground,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.appBarBackground,
+                      width: 1.4,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    tooltip: 'Perfil d’elevacions',
+                    icon: Icon(
+                      Icons.terrain,
+                      color: showElevationChart
+                          ? AppColors.appBarBackground
+                          : Colors.white,
+                      size: 18,
+                    ),
+                    onPressed: () => ref
+                        .read(gpxEditorProvider.notifier)
+                        .toggleElevationChart(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    splashRadius: 20,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (_mapScaleMeters != null && _mapScaleWidthPx != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.92),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.black.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          _formatScaleLabel(_mapScaleMeters!),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        SizedBox(
+                          width: _mapScaleWidthPx!.clamp(8.0, 45.0),
+                          height: 2,
+                          child: CustomPaint(painter: _MapScaleBarPainter()),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          )
+        else if (_mapScaleMeters != null && _mapScaleWidthPx != null)
           Positioned(
             left: 12,
             bottom: 12,
