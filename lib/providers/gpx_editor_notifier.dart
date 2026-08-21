@@ -1189,6 +1189,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   }
 
   void updateTrackColor(int trackId, String hexColor) {
+    _pushActionUndoSnapshot();
     state = state.copyWith(
       tracks: state.tracks
           .map((t) => t.id == trackId ? t.copyWith(hexColor: hexColor) : t)
@@ -1198,6 +1199,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   /// ✏️ NOU: Canvia el nom del track
   void updateTrackName(int trackId, String newName) {
+    _pushActionUndoSnapshot();
     state = state.copyWith(
       tracks: state.tracks
           .map((t) => t.id == trackId ? t.copyWith(name: newName) : t)
@@ -1208,6 +1210,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   /// 🕒 NOU: Reescala linealment tots els timestamps del track perquè
   /// el primer coincideixi amb [newStart] i l'últim amb [newEnd].
   void updateTrackTimestamps(int trackId, DateTime newStart, DateTime newEnd) {
+    _pushActionUndoSnapshot();
     final tracks = state.tracks.map((track) {
       if (track.id != trackId || track.points.isEmpty) return track;
 
@@ -1278,6 +1281,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     );
     if (newPoints.isEmpty) return 'invalid';
 
+    _pushActionUndoSnapshot();
     state = state.copyWith(
       tracks: state.tracks
           .map((t) => t.id == trackId ? t.copyWith(points: newPoints) : t)
