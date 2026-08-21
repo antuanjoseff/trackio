@@ -5,6 +5,7 @@ import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
+import 'package:trackio/core/utils/modal_helper.dart';
 import 'package:trackio/vars/track_colors.dart';
 import 'package:trackio/widgets/color_palette_dialog.dart';
 import 'package:trackio/widgets/edit_timestamps_dialog.dart';
@@ -207,9 +208,9 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                     children: [
                       // El cercle de color també obre la paleta per canviar el color
                       InkWell(
-                        onTap: () => showDialog(
+                        onTap: () => showModalGuarded(
                           context: context,
-                          useRootNavigator: false,
+                          ref: ref,
                           barrierColor: Colors.black.withOpacity(0.02),
                           builder: (_) => ColorPaletteDialog(
                             onColorSelected: (hex) async {
@@ -510,9 +511,9 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
   }
 
   Future<void> _showEditTimestampsDialog(TrackModel track) async {
-    final result = await showDialog<(DateTime, DateTime)>(
+    final result = await showModalGuarded<(DateTime, DateTime)>(
       context: context,
-      useRootNavigator: false,
+      ref: ref,
       barrierColor: Colors.black.withOpacity(0.02),
       builder: (_) => EditTimestampsDialog(track: track, t: widget.t),
     );
@@ -524,9 +525,9 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
   }
 
   Future<void> _showRenameTrackDialog(TrackModel track) async {
-    final String? newName = await showDialog<String>(
+    final String? newName = await showModalGuarded<String>(
       context: context,
-      useRootNavigator: false,
+      ref: ref,
       barrierColor: Colors.black.withOpacity(0.02),
       builder: (_) => RenameTrackDialog(track: track, t: widget.t),
     );
@@ -536,9 +537,9 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
   }
 
   Future<void> _showNodeCountDialog(TrackModel track) async {
-    final result = await showDialog<(double, bool)>(
+    final result = await showModalGuarded<(double, bool)>(
       context: context,
-      useRootNavigator: false,
+      ref: ref,
       barrierColor: Colors.black.withOpacity(0.02),
       builder: (_) => NodeCountDialog(track: track, t: widget.t),
     );
@@ -551,9 +552,9 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
   }
 
   void _showTrackPropertiesDialog(TrackModel track) {
-    showDialog(
+    showModalGuarded(
       context: context,
-      useRootNavigator: false,
+      ref: ref,
       barrierColor: Colors.black.withOpacity(0.02),
       builder: (_) => TrackPropertiesDialog(track: track, t: widget.t),
     );

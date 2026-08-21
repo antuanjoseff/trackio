@@ -12,6 +12,7 @@ import 'package:latlong2/latlong.dart' as geo;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/dialogs.dart';
+import 'package:trackio/core/utils/modal_helper.dart';
 import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/core/utils/track_stats_calculator.dart';
 import 'package:trackio/l10n/app_localizations.dart';
@@ -601,7 +602,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           panEnabled:
               !_isSidebarReordering &&
               !_isWebGeometryNodeDragging &&
-              _activeRangeMapHandle == null,
+              _activeRangeMapHandle == null &&
+              !ref.watch(gpxEditorProvider.select((s) => s.isModalOpen)),
           onMapCreated: (c) {
             _controller = c;
 
@@ -1572,9 +1574,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           ? '${t.waypointNamePrefix}${tapMatch.waypointIndex + 1}'
           : waypoint.name!.trim();
 
-      final String? action = await showDialog<String>(
+      final String? action = await showModalGuarded<String>(
         context: context,
-        useRootNavigator: false,
+        ref: ref,
         builder: (dialogContext) => AlertDialog(
           title: Text(currentName),
           content: Column(
@@ -1653,9 +1655,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   Future<bool> _showConfirmDeleteWaypointDialog(String waypointName) async {
     final t = AppLocalizations.of(context)!;
 
-    final bool? result = await showDialog<bool>(
+    final bool? result = await showModalGuarded<bool>(
       context: context,
-      useRootNavigator: false,
+      ref: ref,
       builder: (dialogContext) => AlertDialog(
         title: Text(t.confirmDeleteWaypointTitle),
         content: Text('${t.confirmDeleteWaypointMessage}\n$waypointName'),

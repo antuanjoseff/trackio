@@ -191,12 +191,16 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
         onHover: _hasMouse ? _handleMouseHover : null,
         child: Listener(
           behavior: HitTestBehavior.translucent,
-          onPointerDown: _handleMousePrimaryDown,
-          onPointerMove: _handleMousePrimaryMove,
-          onPointerUp: _handleMousePrimaryUp,
+          // 🛡️ Si el pan està desactivat (p.ex. modal obert), ignorem els
+          // events del ratolí perquè no arribin al platform view del mapa.
+          onPointerDown: widget.panEnabled ? _handleMousePrimaryDown : null,
+          onPointerMove: widget.panEnabled ? _handleMousePrimaryMove : null,
+          onPointerUp: widget.panEnabled ? _handleMousePrimaryUp : null,
           child: MapLibreMap(
             compassEnabled: false,
             scrollGesturesEnabled: widget.panEnabled,
+            zoomGesturesEnabled: widget.panEnabled,
+            doubleClickZoomEnabled: widget.panEnabled,
             rotateGesturesEnabled: false,
             tiltGesturesEnabled: false,
             styleString: "assets/map/style.json",
@@ -230,6 +234,8 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
       translucentTextureSurface: true,
       compassEnabled: false, // Aquí al mòbil sí que funcionarà perfectament
       scrollGesturesEnabled: widget.panEnabled,
+      zoomGesturesEnabled: widget.panEnabled,
+      doubleClickZoomEnabled: widget.panEnabled,
       rotateGesturesEnabled: false,
       tiltGesturesEnabled: false,
       styleString: "assets/map/style.json",

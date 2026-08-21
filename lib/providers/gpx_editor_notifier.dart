@@ -541,6 +541,12 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     state = state.copyWith(isMapIdle: isIdle);
   }
 
+  /// 🛡️ Marca si hi ha un modal obert per desactivar els gestos del mapa
+  void setModalOpen(bool isOpen) {
+    if (state.isModalOpen == isOpen) return;
+    state = state.copyWith(isModalOpen: isOpen);
+  }
+
   void updateSnappedPoint(TrackPointModel? point, int? index) {
     state = state.copyWith(snappedPoint: point, snappedPointIndex: index);
   }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
+import 'package:trackio/providers/gpx_editor_notifier.dart';
 
 Future<Map<String, dynamic>?> askTrackNameDialog({
   required BuildContext context,
@@ -14,6 +16,11 @@ Future<Map<String, dynamic>?> askTrackNameDialog({
   // Valors per defecte de les hores i minuts per al selector
   int hours = 1;
   int minutes = 0;
+
+  // 🛡️ Desactivem els gestos del mapa mentre el modal estigui obert
+  final container = ProviderScope.containerOf(context, listen: false);
+  final notifier = container.read(gpxEditorProvider.notifier);
+  notifier.setModalOpen(true);
 
   return showDialog<Map<String, dynamic>>(
     context: context,
@@ -163,7 +170,7 @@ Future<Map<String, dynamic>?> askTrackNameDialog({
         },
       );
     },
-  );
+  ).whenComplete(() => notifier.setModalOpen(false));
 }
 
 Future<String?> askWaypointNameDialog(
@@ -172,6 +179,11 @@ Future<String?> askWaypointNameDialog(
 ) {
   final t = AppLocalizations.of(context)!;
   final controller = TextEditingController(text: defaultName);
+
+  // 🛡️ Desactivem els gestos del mapa mentre el modal estigui obert
+  final container = ProviderScope.containerOf(context, listen: false);
+  final notifier = container.read(gpxEditorProvider.notifier);
+  notifier.setModalOpen(true);
 
   return showDialog<String>(
     context: context,
@@ -203,5 +215,5 @@ Future<String?> askWaypointNameDialog(
         ),
       ],
     ),
-  );
+  ).whenComplete(() => notifier.setModalOpen(false));
 }

@@ -35,6 +35,9 @@ class GpxEditorState {
   final bool geometryCanUndo;
   final bool canUndoAction;
 
+  // 🛡️ Indica que hi ha un diàleg/modal obert → desactiva els gestos del mapa
+  final bool isModalOpen;
+
   // 🌟 Dibuix interactiu
   final List<TrackPointModel> drawingPoints;
   final TrackPointModel? drawingLivePoint;
@@ -67,6 +70,7 @@ class GpxEditorState {
     this.geometryMoveNodeIndex,
     this.geometryCanUndo = false,
     this.canUndoAction = false,
+    this.isModalOpen = false,
     this.showSidebar = true,
     this.drawingPoints = const [],
     this.drawingLivePoint,
@@ -109,6 +113,7 @@ class GpxEditorState {
     Object? geometryMoveNodeIndex = _noChange,
     bool? geometryCanUndo,
     bool? canUndoAction,
+    bool? isModalOpen,
     bool? showSidebar,
     List<TrackPointModel>? drawingPoints,
     Object? drawingLivePoint = _noChange,
@@ -169,6 +174,7 @@ class GpxEditorState {
           : geometryMoveNodeIndex as int?,
       geometryCanUndo: geometryCanUndo ?? this.geometryCanUndo,
       canUndoAction: canUndoAction ?? this.canUndoAction,
+      isModalOpen: isModalOpen ?? this.isModalOpen,
       showSidebar: showSidebar ?? this.showSidebar,
       drawingPoints: drawingPoints ?? this.drawingPoints,
       drawingLivePoint: identical(drawingLivePoint, _noChange)
