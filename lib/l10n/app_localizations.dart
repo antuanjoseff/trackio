@@ -63,8 +63,7 @@ import 'app_localizations_es.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale)
-    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -72,8 +71,7 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate =
-      _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -85,19 +83,18 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
-      <LocalizationsDelegate<dynamic>>[
-        delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ];
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+  ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ca'),
     Locale('en'),
-    Locale('es'),
+    Locale('es')
   ];
 
   /// No description provided for @appTitle.
@@ -507,10 +504,165 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure you want to delete this waypoint?'**
   String get confirmDeleteWaypointMessage;
+
+  /// No description provided for @more.
+  ///
+  /// In en, this message translates to:
+  /// **'more'**
+  String get more;
+
+  /// No description provided for @less.
+  ///
+  /// In en, this message translates to:
+  /// **'less'**
+  String get less;
+
+  /// No description provided for @editTimestamps.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit timestamps'**
+  String get editTimestamps;
+
+  /// No description provided for @nodeCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Node count'**
+  String get nodeCount;
+
+  /// No description provided for @properties.
+  ///
+  /// In en, this message translates to:
+  /// **'Properties'**
+  String get properties;
+
+  /// No description provided for @firstTimestamp.
+  ///
+  /// In en, this message translates to:
+  /// **'First timestamp'**
+  String get firstTimestamp;
+
+  /// No description provided for @lastTimestamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Last timestamp'**
+  String get lastTimestamp;
+
+  /// No description provided for @apply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get apply;
+
+  /// No description provided for @noTimestamps.
+  ///
+  /// In en, this message translates to:
+  /// **'This track has no timestamps'**
+  String get noTimestamps;
+
+  /// No description provided for @renameTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get renameTrack;
+
+  /// No description provided for @trackName.
+  ///
+  /// In en, this message translates to:
+  /// **'Track name'**
+  String get trackName;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// No description provided for @resampleMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mode'**
+  String get resampleMode;
+
+  /// No description provided for @resampleByTime.
+  ///
+  /// In en, this message translates to:
+  /// **'By time'**
+  String get resampleByTime;
+
+  /// No description provided for @resampleByDistance.
+  ///
+  /// In en, this message translates to:
+  /// **'By distance'**
+  String get resampleByDistance;
+
+  /// No description provided for @secondsAbbr.
+  ///
+  /// In en, this message translates to:
+  /// **'s'**
+  String get secondsAbbr;
+
+  /// No description provided for @metersAbbr.
+  ///
+  /// In en, this message translates to:
+  /// **'m'**
+  String get metersAbbr;
+
+  /// No description provided for @resultingNodes.
+  ///
+  /// In en, this message translates to:
+  /// **'Resulting nodes: {count}'**
+  String resultingNodes(int count);
+
+  /// No description provided for @invalidInterval.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid value'**
+  String get invalidInterval;
+
+  /// No description provided for @trackNeedsTimestamps.
+  ///
+  /// In en, this message translates to:
+  /// **'The track has no timestamps'**
+  String get trackNeedsTimestamps;
+
+  /// No description provided for @trackNeedsPoints.
+  ///
+  /// In en, this message translates to:
+  /// **'The track needs at least 2 points'**
+  String get trackNeedsPoints;
+
+  /// No description provided for @totalDistance.
+  ///
+  /// In en, this message translates to:
+  /// **'Total distance'**
+  String get totalDistance;
+
+  /// No description provided for @nodesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Node count'**
+  String get nodesCount;
+
+  /// No description provided for @metersPerNode.
+  ///
+  /// In en, this message translates to:
+  /// **'Average meters per node'**
+  String get metersPerNode;
+
+  /// No description provided for @trackDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Track duration'**
+  String get trackDuration;
+
+  /// No description provided for @noData.
+  ///
+  /// In en, this message translates to:
+  /// **'—'**
+  String get noData;
 }
 
-class _AppLocalizationsDelegate
-    extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -519,28 +671,26 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['ca', 'en', 'es'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>['ca', 'en', 'es'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'ca':
-      return AppLocalizationsCa();
-    case 'en':
-      return AppLocalizationsEn();
-    case 'es':
-      return AppLocalizationsEs();
+    case 'ca': return AppLocalizationsCa();
+    case 'en': return AppLocalizationsEn();
+    case 'es': return AppLocalizationsEs();
   }
 
   throw FlutterError(
     'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
     'an issue with the localizations generation tool. Please file an issue '
     'on GitHub with a reproducible sample app and the gen-l10n configuration '
-    'that was used.',
+    'that was used.'
   );
 }

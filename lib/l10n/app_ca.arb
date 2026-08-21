@@ -68,5 +68,37 @@
   "editWaypointName": "Editar nom",
   "deleteWaypoint": "Eliminar waypoint",
   "confirmDeleteWaypointTitle": "Eliminar waypoint",
-  "confirmDeleteWaypointMessage": "Segur que vols eliminar aquest waypoint?"
+  "confirmDeleteWaypointMessage": "Segur que vols eliminar aquest waypoint?",
+
+  "more": "més",
+  "less": "menys",
+  "editTimestamps": "Editar timestamps",
+  "nodeCount": "Número de nodes",
+  "properties": "Propietats",
+  "firstTimestamp": "Primer timestamp",
+  "lastTimestamp": "Últim timestamp",
+  "apply": "Aplica",
+  "noTimestamps": "Aquest track no conté timestamps",
+  "renameTrack": "Canviar el nom",
+  "trackName": "Nom del track",
+  "save": "Desa",
+  "resampleMode": "Modalitat",
+  "resampleByTime": "Per temps",
+  "resampleByDistance": "Per distància",
+  "secondsAbbr": "s",
+  "metersAbbr": "m",
+  "resultingNodes": "Nodes resultants: {count}",
+  "@resultingNodes": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "invalidInterval": "Introdueix un valor vàlid",
+  "trackNeedsTimestamps": "El track no té timestamps",
+  "trackNeedsPoints": "El track necessita almenys 2 punts",
+  "totalDistance": "Distància total",
+  "nodesCount": "Número de nodes",
+  "metersPerNode": "Mitjana metres per node",
+  "trackDuration": "Durada del track",
+  "noData": "—"
 }

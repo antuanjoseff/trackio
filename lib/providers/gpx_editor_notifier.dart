@@ -3,6 +3,7 @@ import 'dart:async'; // Necessari per al StreamSubscription del sensor
 import 'package:flutter/foundation.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/utils/geo_utils.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/services/cog_service.dart';
@@ -104,6 +105,12 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
 
   // El constructor clàssic inicialitza l'estat i activa el sensor modern
   GpxEditor() : super(GpxEditorState.initial());
+
+  /// Helper per a tests: injecta tracks directament a l'estat.
+  @visibleForTesting
+  void debugSetTracks(List<TrackModel> tracks) {
+    state = state.copyWith(tracks: tracks);
+  }
 
   // 🌟 OBLIGATORI PER A LA BATERIA: Tanquem el canal de dades en destruir el Notifier
   @override
@@ -1186,6 +1193,166 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       tracks: state.tracks
           .map((t) => t.id == trackId ? t.copyWith(hexColor: hexColor) : t)
           .toList(),
+    );
+  }
+
+  /// ✏️ NOU: Canvia el nom del track
+  void updateTrackName(int trackId, String newName) {
+    state = state.copyWith(
+      tracks: state.tracks
+          .map((t) => t.id == trackId ? t.copyWith(name: newName) : t)
+          .toList(),
+    );
+  }
+
+  /// 🕒 NOU: Reescala linealment tots els timestamps del track perquè
+  /// el primer coincideixi amb [newStart] i l'últim amb [newEnd].
+  void updateTrackTimestamps(int trackId, DateTime newStart, DateTime newEnd) {
+    final tracks = state.tracks.map((track) {
+      if (track.id != trackId || track.points.isEmpty) return track;
+
+      final DateTime? oldStart = track.points.first.timestamp;
+      final DateTime? oldEnd = track.points.last.timestamp;
+      if (oldStart == null || oldEnd == null) return track;
+
+      final int oldSpan = oldEnd.difference(oldStart).inMilliseconds;
+      final int newSpan = newEnd.difference(newStart).inMilliseconds;
+
+      final newPoints = track.points.map((point) {
+        final DateTime? ts = point.timestamp;
+        if (ts == null) return point;
+        final int offset = ts.difference(oldStart).inMilliseconds;
+        final int newOffset = oldSpan == 0
+            ? 0
+            : (offset * newSpan / oldSpan).round();
+        return point.copyWith(
+          timestamp: newStart.add(Duration(milliseconds: newOffset)),
+        );
+      }).toList();
+
+      // Garantim els límits exactes introduïts per l'usuari
+      newPoints.first = newPoints.first.copyWith(timestamp: newStart);
+      newPoints.last = newPoints.last.copyWith(timestamp: newEnd);
+
+      return track.copyWith(points: newPoints);
+    }).toList();
+
+    state = state.copyWith(tracks: tracks);
+  }
+
+  /// 🔢 NOU: Resample del track — canvia el número de nodes sense
+  /// modificar el recorregut, interpolant linealment lat/lon/ele/temps.
+  /// [byTime] = true → interval en segons entre nodes consecutius.
+  /// [byTime] = false → interval en metres entre nodes consecutius.
+  /// Retorna null si ok, o un codi d'error ('no-points' / 'no-timestamps').
+  String? resampleTrackPoints(
+    int trackId,
+    double interval, {
+    required bool byTime,
+  }) {
+    if (interval <= 0) return 'invalid';
+
+    TrackModel? track;
+    for (final t in state.tracks) {
+      if (t.id == trackId) {
+        track = t;
+        break;
+      }
+    }
+    if (track == null) return null;
+
+    // Nomes punts amb coordenades valides
+    final points = track.points
+        .where((p) => p.latitude != null && p.longitude != null)
+        .toList();
+    if (points.length < 2) return 'no-points';
+
+    if (byTime && points.any((p) => p.timestamp == null)) {
+      return 'no-timestamps';
+    }
+
+    final List<TrackPointModel> newPoints = _resamplePoints(
+      points,
+      interval,
+      byTime: byTime,
+    );
+    if (newPoints.isEmpty) return 'invalid';
+
+    state = state.copyWith(
+      tracks: state.tracks
+          .map((t) => t.id == trackId ? t.copyWith(points: newPoints) : t)
+          .toList(),
+    );
+    return null;
+  }
+
+  List<TrackPointModel> _resamplePoints(
+    List<TrackPointModel> points,
+    double interval, {
+    required bool byTime,
+  }) {
+    final List<TrackPointModel> result = [points.first.copyWith()];
+    int seg = 0;
+    double carry =
+        0; // temps (ms) o distància (m) ja recorreguda dins del segment
+
+    while (seg < points.length - 1) {
+      final a = points[seg];
+      final b = points[seg + 1];
+
+      final double segLength = byTime
+          ? b.timestamp!.difference(a.timestamp!).inMilliseconds.toDouble()
+          : GeoCalculations.distanceBetween(
+              a.latitude!,
+              a.longitude!,
+              b.latitude!,
+              b.longitude!,
+            );
+
+      final double step = byTime ? interval * 1000 : interval;
+      final double available = segLength - carry;
+
+      if (segLength <= 0 || available < step) {
+        // Saltem al següent segment acumulant el que quedava
+        carry = segLength <= 0 ? carry : carry - segLength;
+        seg++;
+        continue;
+      }
+
+      // Punt interpolat a distància 'carry + step' des de l'inici del segment
+      final double travelled = carry + step;
+      final double frac = (travelled / segLength).clamp(0.0, 1.0);
+      result.add(_interpolatePoint(a, b, frac));
+      carry = travelled;
+    }
+
+    // Sempre conservem el punt final original
+    if (result.last.latitude != points.last.latitude ||
+        result.last.longitude != points.last.longitude) {
+      result.add(points.last.copyWith());
+    }
+    return result;
+  }
+
+  TrackPointModel _interpolatePoint(
+    TrackPointModel a,
+    TrackPointModel b,
+    double frac,
+  ) {
+    double? lerp(double? x, double? y) =>
+        (x == null || y == null) ? null : x + (y - x) * frac;
+
+    DateTime? ts;
+    if (a.timestamp != null && b.timestamp != null) {
+      final int span = b.timestamp!.difference(a.timestamp!).inMilliseconds;
+      ts = a.timestamp!.add(Duration(milliseconds: (span * frac).round()));
+    }
+
+    return TrackPointModel(
+      latitude: lerp(a.latitude, b.latitude),
+      longitude: lerp(a.longitude, b.longitude),
+      elevation: lerp(a.elevation, b.elevation),
+      timestamp: ts,
     );
   }
 

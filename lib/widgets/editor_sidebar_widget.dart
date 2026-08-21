@@ -7,12 +7,16 @@ import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/vars/track_colors.dart';
 import 'package:trackio/widgets/color_palette_dialog.dart';
+import 'package:trackio/widgets/edit_timestamps_dialog.dart';
+import 'package:trackio/widgets/node_count_dialog.dart';
+import 'package:trackio/widgets/rename_track_dialog.dart';
+import 'package:trackio/widgets/track_properties_dialog.dart';
 
 // El pont condicional per a l'exportació de fitxers GPX en multiplataforma
 import 'package:trackio/services/gpx_exporter_io.dart'
     if (dart.library.js_interop) 'package:trackio/services/gpx_exporter_web.dart';
 
-class EditorSidebarWidget extends ConsumerWidget {
+class EditorSidebarWidget extends ConsumerStatefulWidget {
   final GpxEditorState state;
   final AppLocalizations t;
   final Future<void> Function(List<TrackModel>) onPaintTracks;
@@ -31,7 +35,24 @@ class EditorSidebarWidget extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EditorSidebarWidget> createState() =>
+      _EditorSidebarWidgetState();
+}
+
+class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
+  // Tracks amb el bloc d'accions extra desplegat (trackId -> expanded)
+  final Set<int> _expandedTrackIds = {};
+
+  void _toggleExpanded(int trackId) {
+    setState(() {
+      if (!_expandedTrackIds.remove(trackId)) {
+        _expandedTrackIds.add(trackId);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tracks = ref.watch(gpxEditorProvider.select((s) => s.tracks));
     final selectedTrackId = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId),
@@ -50,7 +71,7 @@ class EditorSidebarWidget extends ConsumerWidget {
               // Botó d'importar rutes exclusiu de la Web (Al mòbil es fa per l'AppBar o Drawer)
               if (!isMobile) ...[
                 InkWell(
-                  onTap: onImportPressed,
+                  onTap: widget.onImportPressed,
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -73,7 +94,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          t.importGpx.toUpperCase(),
+                          widget.t.importGpx.toUpperCase(),
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 11,
@@ -97,7 +118,6 @@ class EditorSidebarWidget extends ConsumerWidget {
               if (isMobile)
                 Expanded(
                   child: _buildTracksListView(
-                    ref,
                     tracks,
                     selectedTrackId,
                     isMobile,
@@ -107,7 +127,6 @@ class EditorSidebarWidget extends ConsumerWidget {
               else
                 Flexible(
                   child: _buildTracksListView(
-                    ref,
                     tracks,
                     selectedTrackId,
                     isMobile,
@@ -122,7 +141,6 @@ class EditorSidebarWidget extends ConsumerWidget {
   }
 
   Widget _buildTracksListView(
-    WidgetRef ref,
     List<TrackModel> tracks,
     int? selectedTrackId,
     bool isMobile,
@@ -131,7 +149,7 @@ class EditorSidebarWidget extends ConsumerWidget {
     if (tracks.isEmpty) {
       return Center(
         child: Text(
-          t.noTracksLoaded,
+          widget.t.noTracksLoaded,
           style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
         ),
       );
@@ -144,11 +162,11 @@ class EditorSidebarWidget extends ConsumerWidget {
           ? const AlwaysScrollableScrollPhysics()
           : const ClampingScrollPhysics(),
       itemCount: tracks.length,
-      onReorderStart: (_) => onReorderDragStateChanged(true),
-      onReorderEnd: (_) => onReorderDragStateChanged(false),
+      onReorderStart: (_) => widget.onReorderDragStateChanged(true),
+      onReorderEnd: (_) => widget.onReorderDragStateChanged(false),
       onReorder: (old, next) async {
         ref.read(gpxEditorProvider.notifier).reorderTracks(old, next);
-        await onPaintTracks(ref.read(gpxEditorProvider).tracks);
+        await widget.onPaintTracks(ref.read(gpxEditorProvider).tracks);
       },
       itemBuilder: (context, index) {
         final track = tracks[index];
@@ -187,15 +205,35 @@ class EditorSidebarWidget extends ConsumerWidget {
                   contentPadding: const EdgeInsets.only(left: 12.0, right: 4.0),
                   title: Row(
                     children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: trackBaseColor,
+                      // El cercle de color també obre la paleta per canviar el color
+                      InkWell(
+                        onTap: () => showDialog(
+                          context: context,
+                          useRootNavigator: false,
+                          barrierColor: Colors.black.withOpacity(0.02),
+                          builder: (_) => ColorPaletteDialog(
+                            onColorSelected: (hex) async {
+                              ref
+                                  .read(gpxEditorProvider.notifier)
+                                  .updateTrackColor(track.id, hex);
+                              await widget.onPaintTracks(
+                                ref.read(gpxEditorProvider).tracks,
+                              );
+                            },
+                          ),
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          margin: const EdgeInsets.all(4.0),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: trackBaseColor,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           track.name,
@@ -249,7 +287,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                               ref
                                   .read(gpxEditorProvider.notifier)
                                   .toggleTrackVisibility(track.id);
-                              await onPaintTracks(
+                              await widget.onPaintTracks(
                                 ref.read(gpxEditorProvider).tracks,
                               );
                             },
@@ -273,7 +311,9 @@ class EditorSidebarWidget extends ConsumerWidget {
                                   if (!isMobile) ...[
                                     const SizedBox(width: 6),
                                     Text(
-                                      track.isVisible ? t.visible : t.hidden,
+                                      track.isVisible
+                                          ? widget.t.visible
+                                          : widget.t.hidden,
                                       style: TextStyle(
                                         fontSize: 11,
                                         color: Colors.grey.shade700,
@@ -285,22 +325,9 @@ class EditorSidebarWidget extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(width: 2),
+                          // Text "més/menys" que desplega les accions extra
                           InkWell(
-                            onTap: () => showDialog(
-                              context: context,
-                              useRootNavigator: false,
-                              barrierColor: Colors.black.withOpacity(0.02),
-                              builder: (_) => ColorPaletteDialog(
-                                onColorSelected: (hex) async {
-                                  ref
-                                      .read(gpxEditorProvider.notifier)
-                                      .updateTrackColor(track.id, hex);
-                                  await onPaintTracks(
-                                    ref.read(gpxEditorProvider).tracks,
-                                  );
-                                },
-                              ),
-                            ),
+                            onTap: () => _toggleExpanded(track.id),
                             borderRadius: BorderRadius.circular(6),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -309,34 +336,22 @@ class EditorSidebarWidget extends ConsumerWidget {
                               ),
                               child: Row(
                                 children: [
-                                  Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: trackBaseColor,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Colors.black12,
-                                          blurRadius: 1,
-                                        ),
-                                      ],
+                                  Icon(
+                                    _expandedTrackIds.contains(track.id)
+                                        ? Icons.expand_less_rounded
+                                        : Icons.expand_more_rounded,
+                                    size: 15,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                  Text(
+                                    _expandedTrackIds.contains(track.id)
+                                        ? widget.t.less
+                                        : widget.t.more,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade700,
                                     ),
                                   ),
-                                  if (!isMobile) ...[
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      t.color,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
-                                  ],
                                 ],
                               ),
                             ),
@@ -402,7 +417,7 @@ class EditorSidebarWidget extends ConsumerWidget {
                               ref
                                   .read(gpxEditorProvider.notifier)
                                   .deleteTrack(track.id);
-                              await onPaintTracks(
+                              await widget.onPaintTracks(
                                 ref.read(gpxEditorProvider).tracks,
                               );
                             },
@@ -412,11 +427,135 @@ class EditorSidebarWidget extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Bloc desplegable amb les accions extra del track
+                if (_expandedTrackIds.contains(track.id))
+                  Container(
+                    color: isSelected
+                        ? Colors.grey.shade50
+                        : Colors.transparent,
+                    padding: const EdgeInsets.only(
+                      left: 12.0,
+                      right: 12.0,
+                      bottom: 6.0,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildExtraAction(
+                          context: context,
+                          icon: Icons.drive_file_rename_outline_rounded,
+                          label: widget.t.renameTrack,
+                          onTap: () => _showRenameTrackDialog(track),
+                        ),
+                        _buildExtraAction(
+                          context: context,
+                          icon: Icons.schedule_outlined,
+                          label: widget.t.editTimestamps,
+                          onTap: () => _showEditTimestampsDialog(track),
+                        ),
+                        _buildExtraAction(
+                          context: context,
+                          icon: Icons.commit_rounded,
+                          label: widget.t.nodeCount,
+                          onTap: () => _showNodeCountDialog(track),
+                        ),
+                        _buildExtraAction(
+                          context: context,
+                          icon: Icons.tune_rounded,
+                          label: widget.t.properties,
+                          onTap: () => _showTrackPropertiesDialog(track),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  /// Fila d'acció extra (icona + text) dins del bloc desplegable
+  Widget _buildExtraAction({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 7.0),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.grey.shade600),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: Colors.grey.shade400,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEditTimestampsDialog(TrackModel track) async {
+    final result = await showDialog<(DateTime, DateTime)>(
+      context: context,
+      useRootNavigator: false,
+      barrierColor: Colors.black.withOpacity(0.02),
+      builder: (_) => EditTimestampsDialog(track: track, t: widget.t),
+    );
+    if (result != null) {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .updateTrackTimestamps(track.id, result.$1, result.$2);
+    }
+  }
+
+  Future<void> _showRenameTrackDialog(TrackModel track) async {
+    final String? newName = await showDialog<String>(
+      context: context,
+      useRootNavigator: false,
+      barrierColor: Colors.black.withOpacity(0.02),
+      builder: (_) => RenameTrackDialog(track: track, t: widget.t),
+    );
+    if (newName != null) {
+      ref.read(gpxEditorProvider.notifier).updateTrackName(track.id, newName);
+    }
+  }
+
+  Future<void> _showNodeCountDialog(TrackModel track) async {
+    final result = await showDialog<(double, bool)>(
+      context: context,
+      useRootNavigator: false,
+      barrierColor: Colors.black.withOpacity(0.02),
+      builder: (_) => NodeCountDialog(track: track, t: widget.t),
+    );
+    if (result != null) {
+      ref
+          .read(gpxEditorProvider.notifier)
+          .resampleTrackPoints(track.id, result.$1, byTime: result.$2);
+      await widget.onPaintTracks(ref.read(gpxEditorProvider).tracks);
+    }
+  }
+
+  void _showTrackPropertiesDialog(TrackModel track) {
+    showDialog(
+      context: context,
+      useRootNavigator: false,
+      barrierColor: Colors.black.withOpacity(0.02),
+      builder: (_) => TrackPropertiesDialog(track: track, t: widget.t),
     );
   }
 }

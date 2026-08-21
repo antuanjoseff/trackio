@@ -68,6 +68,38 @@
   "editWaypointName": "Editar nombre",
   "deleteWaypoint": "Eliminar waypoint",
   "confirmDeleteWaypointTitle": "Eliminar waypoint",
-  "confirmDeleteWaypointMessage": "¿Seguro que quieres eliminar este waypoint?"
+  "confirmDeleteWaypointMessage": "¿Seguro que quieres eliminar este waypoint?",
+
+  "more": "más",
+  "less": "menos",
+  "editTimestamps": "Editar timestamps",
+  "nodeCount": "Número de nodos",
+  "properties": "Propiedades",
+  "firstTimestamp": "Primer timestamp",
+  "lastTimestamp": "Último timestamp",
+  "apply": "Aplicar",
+  "noTimestamps": "Este track no contiene timestamps",
+  "renameTrack": "Cambiar nombre",
+  "trackName": "Nombre del track",
+  "save": "Guardar",
+  "resampleMode": "Modalidad",
+  "resampleByTime": "Por tiempo",
+  "resampleByDistance": "Por distancia",
+  "secondsAbbr": "s",
+  "metersAbbr": "m",
+  "resultingNodes": "Nodos resultantes: {count}",
+  "@resultingNodes": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "invalidInterval": "Introduce un valor válido",
+  "trackNeedsTimestamps": "El track no tiene timestamps",
+  "trackNeedsPoints": "El track necesita al menos 2 puntos",
+  "totalDistance": "Distancia total",
+  "nodesCount": "Número de nodos",
+  "metersPerNode": "Media metros por nodo",
+  "trackDuration": "Duración del track",
+  "noData": "—"
 }
 

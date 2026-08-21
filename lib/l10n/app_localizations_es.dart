@@ -78,8 +78,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get addWaypoint => 'Añadir waypoint';
 
   @override
-  String get selectTrackToUseTools =>
-      'Selecciona un track de la lista para usar las herramientas.';
+  String get selectTrackToUseTools => 'Selecciona un track de la lista para usar las herramientas.';
 
   @override
   String get importTracks => 'Importar tracks';
@@ -91,12 +90,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chooseColor => 'Elige un color';
 
   @override
-  String get selectTrackToViewElevationProfile =>
-      'Selecciona un track para ver el perfil de altitud';
+  String get selectTrackToViewElevationProfile => 'Selecciona un track para ver el perfil de altitud';
 
   @override
-  String get trackWithoutElevationData =>
-      'Este track no contiene datos de altitud';
+  String get trackWithoutElevationData => 'Este track no contiene datos de altitud';
 
   @override
   String get hideSpeed => 'Ocultar velocidad';
@@ -105,8 +102,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get showSpeed => 'Mostrar velocidad';
 
   @override
-  String get newTrackAddedFromSelectedSegment =>
-      'Nuevo track añadido correctamente del tramo seleccionado';
+  String get newTrackAddedFromSelectedSegment => 'Nuevo track añadido correctamente del tramo seleccionado';
 
   @override
   String get addTrack => 'AÑADIR TRACK';
@@ -118,8 +114,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get route => 'RUTA';
 
   @override
-  String get waypointAddedToActiveTrack =>
-      'Waypoint añadido correctamente al track activo';
+  String get waypointAddedToActiveTrack => 'Waypoint añadido correctamente al track activo';
 
   @override
   String get waypointNamePrefix => 'WP';
@@ -215,6 +210,85 @@ class AppLocalizationsEs extends AppLocalizations {
   String get confirmDeleteWaypointTitle => 'Eliminar waypoint';
 
   @override
-  String get confirmDeleteWaypointMessage =>
-      '¿Seguro que quieres eliminar este waypoint?';
+  String get confirmDeleteWaypointMessage => '¿Seguro que quieres eliminar este waypoint?';
+
+  @override
+  String get more => 'más';
+
+  @override
+  String get less => 'menos';
+
+  @override
+  String get editTimestamps => 'Editar timestamps';
+
+  @override
+  String get nodeCount => 'Número de nodos';
+
+  @override
+  String get properties => 'Propiedades';
+
+  @override
+  String get firstTimestamp => 'Primer timestamp';
+
+  @override
+  String get lastTimestamp => 'Último timestamp';
+
+  @override
+  String get apply => 'Aplicar';
+
+  @override
+  String get noTimestamps => 'Este track no contiene timestamps';
+
+  @override
+  String get renameTrack => 'Cambiar nombre';
+
+  @override
+  String get trackName => 'Nombre del track';
+
+  @override
+  String get save => 'Guardar';
+
+  @override
+  String get resampleMode => 'Modalidad';
+
+  @override
+  String get resampleByTime => 'Por tiempo';
+
+  @override
+  String get resampleByDistance => 'Por distancia';
+
+  @override
+  String get secondsAbbr => 's';
+
+  @override
+  String get metersAbbr => 'm';
+
+  @override
+  String resultingNodes(int count) {
+    return 'Nodos resultantes: $count';
+  }
+
+  @override
+  String get invalidInterval => 'Introduce un valor válido';
+
+  @override
+  String get trackNeedsTimestamps => 'El track no tiene timestamps';
+
+  @override
+  String get trackNeedsPoints => 'El track necesita al menos 2 puntos';
+
+  @override
+  String get totalDistance => 'Distancia total';
+
+  @override
+  String get nodesCount => 'Número de nodos';
+
+  @override
+  String get metersPerNode => 'Media metros por nodo';
+
+  @override
+  String get trackDuration => 'Duración del track';
+
+  @override
+  String get noData => '—';
 }

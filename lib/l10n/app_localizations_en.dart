@@ -78,8 +78,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addWaypoint => 'Add waypoint';
 
   @override
-  String get selectTrackToUseTools =>
-      'Select a track from the list to use the tools.';
+  String get selectTrackToUseTools => 'Select a track from the list to use the tools.';
 
   @override
   String get importTracks => 'Import tracks';
@@ -91,8 +90,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chooseColor => 'Choose a color';
 
   @override
-  String get selectTrackToViewElevationProfile =>
-      'Select a track to view the elevation profile';
+  String get selectTrackToViewElevationProfile => 'Select a track to view the elevation profile';
 
   @override
   String get trackWithoutElevationData => 'This track has no elevation data';
@@ -104,8 +102,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showSpeed => 'Show speed';
 
   @override
-  String get newTrackAddedFromSelectedSegment =>
-      'New track added from selected segment';
+  String get newTrackAddedFromSelectedSegment => 'New track added from selected segment';
 
   @override
   String get addTrack => 'ADD TRACK';
@@ -213,6 +210,85 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirmDeleteWaypointTitle => 'Delete waypoint';
 
   @override
-  String get confirmDeleteWaypointMessage =>
-      'Are you sure you want to delete this waypoint?';
+  String get confirmDeleteWaypointMessage => 'Are you sure you want to delete this waypoint?';
+
+  @override
+  String get more => 'more';
+
+  @override
+  String get less => 'less';
+
+  @override
+  String get editTimestamps => 'Edit timestamps';
+
+  @override
+  String get nodeCount => 'Node count';
+
+  @override
+  String get properties => 'Properties';
+
+  @override
+  String get firstTimestamp => 'First timestamp';
+
+  @override
+  String get lastTimestamp => 'Last timestamp';
+
+  @override
+  String get apply => 'Apply';
+
+  @override
+  String get noTimestamps => 'This track has no timestamps';
+
+  @override
+  String get renameTrack => 'Rename';
+
+  @override
+  String get trackName => 'Track name';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get resampleMode => 'Mode';
+
+  @override
+  String get resampleByTime => 'By time';
+
+  @override
+  String get resampleByDistance => 'By distance';
+
+  @override
+  String get secondsAbbr => 's';
+
+  @override
+  String get metersAbbr => 'm';
+
+  @override
+  String resultingNodes(int count) {
+    return 'Resulting nodes: $count';
+  }
+
+  @override
+  String get invalidInterval => 'Enter a valid value';
+
+  @override
+  String get trackNeedsTimestamps => 'The track has no timestamps';
+
+  @override
+  String get trackNeedsPoints => 'The track needs at least 2 points';
+
+  @override
+  String get totalDistance => 'Total distance';
+
+  @override
+  String get nodesCount => 'Node count';
+
+  @override
+  String get metersPerNode => 'Average meters per node';
+
+  @override
+  String get trackDuration => 'Track duration';
+
+  @override
+  String get noData => '—';
 }
