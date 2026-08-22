@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 
@@ -80,6 +81,10 @@ class _NodeCountDialogState extends State<NodeCountDialog> {
                 ),
                 ButtonSegment(value: false, label: Text(t.resampleByDistance)),
               ],
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: AppColors.appBarBackground,
+                selectedForegroundColor: AppColors.appBarForeground,
+              ),
               selected: {_byTime},
               onSelectionChanged: (s) => setState(() {
                 _byTime = s.first;
@@ -129,10 +134,15 @@ class _NodeCountDialogState extends State<NodeCountDialog> {
       ),
       actions: [
         TextButton(
+          style: AppColors.dialogCancelButtonStyle,
           onPressed: () => Navigator.of(context).pop(),
           child: Text(t.cancel),
         ),
-        FilledButton(onPressed: _isValid ? _apply : null, child: Text(t.apply)),
+        FilledButton(
+          style: AppColors.dialogActionButtonStyle,
+          onPressed: _isValid ? _apply : null,
+          child: Text(t.apply),
+        ),
       ],
     );
   }

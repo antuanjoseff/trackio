@@ -24,6 +24,7 @@ class MainEditorLayout extends ConsumerWidget {
     required this.onReverseTrack,
     required this.onImportPressed,
     required this.onSidebarReorderDragStateChanged,
+    required this.onSidebarHoverChanged,
   });
 
   final AppLocalizations t;
@@ -35,6 +36,7 @@ class MainEditorLayout extends ConsumerWidget {
   final Future<void> Function(WidgetRef) onReverseTrack;
   final VoidCallback onImportPressed;
   final ValueChanged<bool> onSidebarReorderDragStateChanged;
+  final ValueChanged<bool> onSidebarHoverChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -426,6 +428,7 @@ class MainEditorLayout extends ConsumerWidget {
                   onImportPressed: onImportPressed,
                   onSidebarReorderDragStateChanged:
                       onSidebarReorderDragStateChanged,
+                  onSidebarHoverChanged: onSidebarHoverChanged,
                 );
               }
             },

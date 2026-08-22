@@ -23,6 +23,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     required this.onReverseTrack,
     required this.onImportPressed,
     required this.onSidebarReorderDragStateChanged,
+    required this.onSidebarHoverChanged,
   });
 
   final AppLocalizations t;
@@ -33,6 +34,7 @@ class TrackioHorizontalLayout extends ConsumerWidget {
   final Future<void> Function(WidgetRef) onReverseTrack;
   final VoidCallback onImportPressed;
   final ValueChanged<bool> onSidebarReorderDragStateChanged;
+  final ValueChanged<bool> onSidebarHoverChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -460,32 +462,36 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                   top: 12,
                   bottom: 12,
                   left: 12,
-                  child: Container(
-                    width: 320,
-                    decoration: BoxDecoration(
-                      color: AppColors.starTrekGold,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 16,
-                          offset: const Offset(4, 4),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: SafeArea(
-                        top: false,
-                        bottom: true,
-                        child: EditorSidebarWidget(
-                          state: editorState,
-                          t: t,
-                          onPaintTracks: onPaintTracks,
-                          onReverseTrack: onReverseTrack,
-                          onImportPressed: onImportPressed,
-                          onReorderDragStateChanged:
-                              onSidebarReorderDragStateChanged,
+                  child: MouseRegion(
+                    onEnter: (_) => onSidebarHoverChanged(true),
+                    onExit: (_) => onSidebarHoverChanged(false),
+                    child: Container(
+                      width: 320,
+                      decoration: BoxDecoration(
+                        color: AppColors.starTrekGold,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 16,
+                            offset: const Offset(4, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: SafeArea(
+                          top: false,
+                          bottom: true,
+                          child: EditorSidebarWidget(
+                            state: editorState,
+                            t: t,
+                            onPaintTracks: onPaintTracks,
+                            onReverseTrack: onReverseTrack,
+                            onImportPressed: onImportPressed,
+                            onReorderDragStateChanged:
+                                onSidebarReorderDragStateChanged,
+                          ),
                         ),
                       ),
                     ),

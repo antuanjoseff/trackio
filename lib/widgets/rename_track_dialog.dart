@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 
@@ -62,10 +63,15 @@ class _RenameTrackDialogState extends State<RenameTrackDialog> {
       ),
       actions: [
         TextButton(
+          style: AppColors.dialogCancelButtonStyle,
           onPressed: () => Navigator.of(context).pop(),
           child: Text(widget.t.cancel),
         ),
-        FilledButton(onPressed: _save, child: Text(widget.t.save)),
+        FilledButton(
+          style: AppColors.dialogActionButtonStyle,
+          onPressed: _save,
+          child: Text(widget.t.save),
+        ),
       ],
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/geo_utils.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
@@ -117,6 +118,7 @@ class TrackPropertiesDialog extends StatelessWidget {
       ),
       actions: [
         TextButton(
+          style: AppColors.dialogCancelButtonStyle,
           onPressed: () => Navigator.of(context).pop(),
           child: Text(t.cancel),
         ),

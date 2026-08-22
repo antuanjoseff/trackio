@@ -53,6 +53,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isReverseAnimating = false;
   bool _isDraggingMap = false;
   bool _isSidebarReordering = false;
+  bool _isSidebarHovered = false;
   bool _isWebGeometryNodeDragging = false;
   bool _isImportingExternalFile = false;
   bool _isWaypointDialogOpen = false;
@@ -498,6 +499,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     setState(() => _isSidebarReordering = isDragging);
   }
 
+  // 🖱️ Mentre el punter estigui sobre la targeta flotant del sidebar (Web),
+  // desactivem els gestos del mapa perquè el doble clic / drag / scroll no li arribin.
+  void _handleSidebarHoverChanged(bool isHovered) {
+    if (_isSidebarHovered == isHovered) return;
+    setState(() => _isSidebarHovered = isHovered);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
@@ -601,6 +609,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           cursor: mapCursor,
           panEnabled:
               !_isSidebarReordering &&
+              !_isSidebarHovered &&
               !_isWebGeometryNodeDragging &&
               _activeRangeMapHandle == null &&
               !ref.watch(gpxEditorProvider.select((s) => s.isModalOpen)),
@@ -1207,6 +1216,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           onImportPressed: () => _importGpxFiles(context, ref),
           onSidebarReorderDragStateChanged:
               _handleSidebarReorderDragStateChanged,
+          onSidebarHoverChanged: _handleSidebarHoverChanged,
         ),
       ),
     );
@@ -1596,14 +1606,17 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           ),
           actions: [
             TextButton(
+              style: AppColors.dialogActionButtonStyle,
               onPressed: () => Navigator.pop(dialogContext, 'delete'),
               child: Text(t.deleteWaypoint),
             ),
             TextButton(
+              style: AppColors.dialogActionButtonStyle,
               onPressed: () => Navigator.pop(dialogContext, 'edit'),
               child: Text(t.editWaypointName),
             ),
             TextButton(
+              style: AppColors.dialogCancelButtonStyle,
               onPressed: () => Navigator.pop(dialogContext, 'close'),
               child: Text(t.cancel),
             ),
@@ -1663,10 +1676,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         content: Text('${t.confirmDeleteWaypointMessage}\n$waypointName'),
         actions: [
           TextButton(
+            style: AppColors.dialogCancelButtonStyle,
             onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(t.cancel),
           ),
           TextButton(
+            style: AppColors.dialogActionButtonStyle,
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(t.deleteWaypoint),
           ),

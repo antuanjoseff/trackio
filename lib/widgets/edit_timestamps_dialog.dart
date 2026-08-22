@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 
@@ -137,11 +138,13 @@ class _EditTimestampsDialogState extends State<EditTimestampsDialog> {
       ),
       actions: [
         TextButton(
+          style: AppColors.dialogCancelButtonStyle,
           onPressed: () => Navigator.of(context).pop(),
           child: Text(widget.t.cancel),
         ),
         if (hasTimestamps)
           FilledButton(
+            style: AppColors.dialogActionButtonStyle,
             onPressed: () {
               Navigator.of(context).pop((_firstTimestamp!, _lastTimestamp!));
             },

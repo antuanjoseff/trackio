@@ -235,6 +235,28 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                         ),
                       ),
                       const SizedBox(width: 6),
+                      // 👁️ Alterna visibilitat del track directament des de la primera línia
+                      InkWell(
+                        onTap: () async {
+                          ref
+                              .read(gpxEditorProvider.notifier)
+                              .toggleTrackVisibility(track.id);
+                          await widget.onPaintTracks(
+                            ref.read(gpxEditorProvider).tracks,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Icon(
+                          track.isVisible
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 17,
+                          color: track.isVisible
+                              ? trackBaseColor
+                              : Colors.grey.shade400,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           track.name,
@@ -283,49 +305,6 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                     children: [
                       Row(
                         children: [
-                          InkWell(
-                            onTap: () async {
-                              ref
-                                  .read(gpxEditorProvider.notifier)
-                                  .toggleTrackVisibility(track.id);
-                              await widget.onPaintTracks(
-                                ref.read(gpxEditorProvider).tracks,
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(6),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 6.0,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    track.isVisible
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    size: 17,
-                                    color: track.isVisible
-                                        ? trackBaseColor
-                                        : Colors.grey.shade400,
-                                  ),
-                                  if (!isMobile) ...[
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      track.isVisible
-                                          ? widget.t.visible
-                                          : widget.t.hidden,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 2),
                           // Text "més/menys" que desplega les accions extra
                           InkWell(
                             onTap: () => _toggleExpanded(track.id),

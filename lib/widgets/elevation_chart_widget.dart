@@ -794,7 +794,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             _buildHandleMarker(
                               x: graphX,
                               chartHeight: currentChartHeight,
-                              color: AppColors.starTrekGold,
+                              color: AppColors.starTrekGreen,
                               y: _getHandleYForIndex(
                                 snappedIdx,
                                 chartHeight: currentChartHeight,
@@ -1167,7 +1167,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       child: _buildFlutterTooltip(
                         "${(_distances[snappedIdx] / 1000).toStringAsFixed(2)} km | ${_validPoints[snappedIdx].elevation?.toStringAsFixed(0)} m",
                         _getRealSpeedKmh(snappedIdx),
-                        AppColors.starTrekGold,
+                        AppColors.starTrekGreen,
                         showSpeed,
                       ),
                     ),

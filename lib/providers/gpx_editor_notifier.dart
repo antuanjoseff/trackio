@@ -339,7 +339,18 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       );
       updatedTracks[trackIndex] = track.copyWith(points: updatedPoints);
 
-      state = state.copyWith(tracks: updatedTracks);
+      // 🛡️ Evitem que aquest ajust automàtic d'elevació es confongui amb un
+      // moviment manual de l'usuari sobre el node just afegit.
+      if (_moveOriginTrackId == trackId && _moveOriginIndex == insertIndex) {
+        _moveOriginPoint = _clonePoint(updatedPoint);
+      }
+      final bool isSnappedSameNode =
+          state.geometryMoveNodeIndex == insertIndex &&
+          state.snappedPointIndex == insertIndex;
+
+      state = isSnappedSameNode
+          ? state.copyWith(tracks: updatedTracks, snappedPoint: updatedPoint)
+          : state.copyWith(tracks: updatedTracks);
     } catch (_) {
       // Fora cobertura MDT (o error de servei): mantenim la interpolació local.
     }
@@ -771,11 +782,20 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     final double insertedLat = state.snappedPoint!.latitude!;
     final double insertedLon = state.snappedPoint!.longitude!;
     final int insertedTrackId = targetTrack.id;
+    final TrackPointModel insertedPoint = updatedPoints[insertIndex];
+
+    // 🆕 El node acabat d'afegir passa directament a mode "move" seleccionat,
+    // així es pot arrossegar tot seguit sense haver de canviar d'eina.
+    _moveOriginTrackId = insertedTrackId;
+    _moveOriginIndex = insertIndex;
+    _moveOriginPoint = _clonePoint(insertedPoint);
 
     state = state.copyWith(
       tracks: updatedTracks,
-      snappedPoint: null,
-      snappedPointIndex: null,
+      geometryEditMode: 'move',
+      geometryMoveNodeIndex: insertIndex,
+      snappedPoint: insertedPoint,
+      snappedPointIndex: insertIndex,
       geometryInsertIndex: null,
       isMapIdle: false,
     );

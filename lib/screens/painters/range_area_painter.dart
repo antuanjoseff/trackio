@@ -95,8 +95,8 @@ class RangeAreaPainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..shader = LinearGradient(
         colors: [
-          AppColors.starTrekGold.withOpacity(0.12),
-          AppColors.starTrekGold.withOpacity(0.32),
+          AppColors.starTrekGold.withAlpha(70),
+          AppColors.starTrekGold.withAlpha(230),
         ],
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,

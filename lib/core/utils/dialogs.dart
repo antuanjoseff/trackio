@@ -152,10 +152,12 @@ Future<Map<String, dynamic>?> askTrackNameDialog({
             ),
             actions: [
               TextButton(
+                style: AppColors.dialogCancelButtonStyle,
                 onPressed: () => Navigator.pop(context, null),
                 child: Text(t.cancel),
               ),
               TextButton(
+                style: AppColors.dialogActionButtonStyle,
                 onPressed: () {
                   final text = nameController.text.trim();
                   Navigator.pop(context, {
@@ -206,10 +208,12 @@ Future<String?> askWaypointNameDialog(
       ),
       actions: [
         TextButton(
+          style: AppColors.dialogCancelButtonStyle,
           onPressed: () => Navigator.pop(context, null),
           child: Text(t.cancel),
         ),
         TextButton(
+          style: AppColors.dialogActionButtonStyle,
           onPressed: () => Navigator.pop(context, controller.text.trim()),
           child: const Text("OK"),
         ),

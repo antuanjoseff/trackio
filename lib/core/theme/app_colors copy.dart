@@ -4,17 +4,15 @@ class AppColors {
   // ===== Nova paleta Trackio =====
 
   // ===== Editor branding (single source of truth) =====
-  // ===== Nova paleta Trackio (variant groga) =====
-
-  static const Color editorPrimary = Color(0xFFD4A017); // Mustard
-  static const Color editorSidebarBackground = Color(0xFFF8E8A0); // Pastel
-  static const Color editorTrackCardBackground = Color(0xFFFCD96B); // Sun
+  static const Color editorPrimary = Color(0xFF76A812);
+  static const Color editorSidebarBackground = Color(0xFFE8F4DA);
+  static const Color editorTrackCardBackground = Color(0xFFF5F5F5);
   static const Color editorOnPrimary = Colors.white;
 
   // Base UI
-  static const Color techBlue = Color(0xFFFFE45C); // Illuminating
-  static const Color accentOrange = Color(0xFFFDF3C0); // Pale
-  static const Color cleanLightGray = Color(0xFFFFD633); // Corn
+  static const Color techBlue = Color(0xFF0066FF);
+  static const Color accentOrange = Color(0xFFFF6B00);
+  static const Color cleanLightGray = Color(0xFFF8F9FA);
   static const Color slateGray = Color(0xFF1E222B);
 
   // Mapa i tracks
@@ -29,7 +27,7 @@ class AppColors {
   static const Color effortRed = Color(0xFFEF4444);
 
   // Compatibilitat amb codi existent
-  static const Color starTrekRed = editorPrimary;
+  static const Color starTrekRed = slopeGreen;
   static const Color starTrekGold = accentOrange;
   static const Color starTrekBlue = activeTrackCyan;
   static const Color starTrekPurple = secondaryTrackViolet;
@@ -43,17 +41,6 @@ class AppColors {
   static const Color appBarForeground = editorOnPrimary;
   static const Color mapToolActiveBackground = Colors.white;
   static const Color mapToolActiveForeground = appBarBackground;
-
-  // Botons de diàleg: "cancel·lar" -> color del sidebar, resta -> color de l'appBar
-  static final ButtonStyle dialogCancelButtonStyle = TextButton.styleFrom(
-    backgroundColor: editorSidebarBackground,
-    foregroundColor: slateGray,
-  );
-
-  static final ButtonStyle dialogActionButtonStyle = TextButton.styleFrom(
-    backgroundColor: appBarBackground,
-    foregroundColor: appBarForeground,
-  );
 
   static const Color lightBackground = cleanLightGray;
   static const Color darkBackground = slateGray;
