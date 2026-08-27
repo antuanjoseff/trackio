@@ -57,6 +57,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
   bool _isWebGeometryNodeDragging = false;
   bool _isImportingExternalFile = false;
   bool _isWaypointDialogOpen = false;
+  bool _isGeometryNodeDialogOpen = false;
   DateTime? _suppressMapClickUntil;
   String? _activeRangeMapHandle;
   int? _mapScaleMeters;
@@ -193,10 +194,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         ? devicePixelRatio
         : 1.0;
 
-    final List<TrackPointModel> visibleNodes = [];
+    final List<({int index, TrackPointModel point})> visibleNodes = [];
     math.Point<num>? lastAcceptedPoint;
 
-    for (final point in activeTrack.points) {
+    for (int i = 0; i < activeTrack.points.length; i++) {
+      final point = activeTrack.points[i];
       if (point.latitude == null || point.longitude == null) continue;
 
       final screenPoint = await _controller!.toScreenLocation(
@@ -215,7 +217,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         if (distancePx < minNodeSpacingPx) continue;
       }
 
-      visibleNodes.add(point);
+      visibleNodes.add((index: i, point: point));
       lastAcceptedPoint = math.Point<num>(x, y);
     }
 
@@ -390,6 +392,94 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     );
 
     return true;
+  }
+
+  Future<void> _handleGeometryNodeFeatureTap(math.Point<num> point) async {
+    if (_controller == null || _isGeometryNodeDialogOpen) return;
+
+    final state = ref.read(gpxEditorProvider);
+    if (state.activeTool != 'edit_geometry' ||
+        state.geometryEditMode != null ||
+        state.selectedTrackId == null) {
+      return;
+    }
+
+    final math.Point<double> queryPoint = math.Point<double>(
+      point.x.toDouble(),
+      point.y.toDouble(),
+    );
+
+    final features = await _controller!.queryRenderedFeatures(queryPoint, [
+      'layer_geometry_nodes',
+    ], null);
+
+    if (features.isEmpty) return;
+
+    final dynamic props = features.first['properties'];
+    final int? nodeIndex = _parseFeatureInt(props?['index']);
+    if (nodeIndex == null) return;
+
+    final int trackIndex = state.tracks.indexWhere(
+      (t) => t.id == state.selectedTrackId,
+    );
+    if (trackIndex == -1) return;
+
+    final TrackModel track = state.tracks[trackIndex];
+    if (nodeIndex < 0 || nodeIndex >= track.points.length) return;
+
+    _suppressMapClickUntil = DateTime.now().add(
+      const Duration(milliseconds: 250),
+    );
+
+    await _showGeometryNodeInfoDialog(track, nodeIndex);
+  }
+
+  Future<void> _showGeometryNodeInfoDialog(
+    TrackModel track,
+    int nodeIndex,
+  ) async {
+    if (_isGeometryNodeDialogOpen) return;
+    _isGeometryNodeDialogOpen = true;
+
+    try {
+      final t = AppLocalizations.of(context)!;
+      final TrackPointModel node = track.points[nodeIndex];
+
+      final String elevationText = node.elevation != null
+          ? '${node.elevation!.toStringAsFixed(0)} m'
+          : '-';
+      final String timestampText = node.timestamp != null
+          ? node.timestamp!.toLocal().toString()
+          : t.nodeInfoNoTimestamp;
+
+      await showModalGuarded<void>(
+        context: context,
+        ref: ref,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(t.nodeInfoTitle(nodeIndex + 1)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${t.nodeInfoIndex}: ${nodeIndex + 1}'),
+              const SizedBox(height: 8),
+              Text('${t.nodeInfoElevation}: $elevationText'),
+              const SizedBox(height: 8),
+              Text('${t.nodeInfoTimestamp}: $timestampText'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              style: AppColors.dialogCancelButtonStyle,
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(t.cancel),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _isGeometryNodeDialogOpen = false;
+    }
   }
 
   int? _parseFeatureInt(dynamic raw) {
@@ -628,6 +718,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                   '[WP TAP] onFeatureTapped layer=$layerId featureId=$featureId lat=${latLng.latitude} lon=${latLng.longitude}',
                 );
               }
+
+              if (layerId == 'layer_geometry_nodes') {
+                unawaited(_handleGeometryNodeFeatureTap(point));
+                return;
+              }
+
               unawaited(_handleWaypointFeatureTap(point, layerId, latLng));
             });
           },

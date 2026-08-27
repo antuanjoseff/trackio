@@ -65,6 +65,16 @@
   "waypointInfoElevation": "Alçada",
   "waypointInfoElapsedTime": "Temps acumulat",
   "waypointInfoDistanceFromStart": "Distància des de l'inici",
+  "nodeInfoTitle": "Node {index}",
+  "@nodeInfoTitle": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "nodeInfoTimestamp": "Timestamp",
+  "nodeInfoElevation": "Alçada",
+  "nodeInfoIndex": "Número de node",
+  "nodeInfoNoTimestamp": "Sense timestamp",
   "editWaypointName": "Editar nom",
   "deleteWaypoint": "Eliminar waypoint",
   "confirmDeleteWaypointTitle": "Eliminar waypoint",

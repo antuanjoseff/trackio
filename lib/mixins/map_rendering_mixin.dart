@@ -36,17 +36,20 @@ mixin MapRenderingMixin {
     controller!.setGeoJsonSource("source_geometry_nodes", emptyCollection);
   }
 
-  void setGeometryNodesOverlay(List<TrackPointModel> points) {
+  void setGeometryNodesOverlay(
+    List<({int index, TrackPointModel point})> nodes,
+  ) {
     if (controller == null) return;
 
-    final features = points
-        .where((p) => p.latitude != null && p.longitude != null)
+    final features = nodes
+        .where((n) => n.point.latitude != null && n.point.longitude != null)
         .map(
-          (p) => {
+          (n) => {
             "type": "Feature",
+            "properties": {"index": n.index},
             "geometry": {
               "type": "Point",
-              "coordinates": [p.longitude!, p.latitude!],
+              "coordinates": [n.point.longitude!, n.point.latitude!],
             },
           },
         )

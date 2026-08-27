@@ -481,6 +481,36 @@ abstract class AppLocalizations {
   /// **'Distance from start'**
   String get waypointInfoDistanceFromStart;
 
+  /// No description provided for @nodeInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Node {index}'**
+  String nodeInfoTitle(Object index);
+
+  /// No description provided for @nodeInfoTimestamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Timestamp'**
+  String get nodeInfoTimestamp;
+
+  /// No description provided for @nodeInfoElevation.
+  ///
+  /// In en, this message translates to:
+  /// **'Elevation'**
+  String get nodeInfoElevation;
+
+  /// No description provided for @nodeInfoIndex.
+  ///
+  /// In en, this message translates to:
+  /// **'Node number'**
+  String get nodeInfoIndex;
+
+  /// No description provided for @nodeInfoNoTimestamp.
+  ///
+  /// In en, this message translates to:
+  /// **'No timestamp'**
+  String get nodeInfoNoTimestamp;
+
   /// No description provided for @editWaypointName.
   ///
   /// In en, this message translates to:

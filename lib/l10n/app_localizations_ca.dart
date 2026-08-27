@@ -201,6 +201,23 @@ class AppLocalizationsCa extends AppLocalizations {
   String get waypointInfoDistanceFromStart => 'Distància des de l\'inici';
 
   @override
+  String nodeInfoTitle(Object index) {
+    return 'Node $index';
+  }
+
+  @override
+  String get nodeInfoTimestamp => 'Timestamp';
+
+  @override
+  String get nodeInfoElevation => 'Alçada';
+
+  @override
+  String get nodeInfoIndex => 'Número de node';
+
+  @override
+  String get nodeInfoNoTimestamp => 'Sense timestamp';
+
+  @override
   String get editWaypointName => 'Editar nom';
 
   @override

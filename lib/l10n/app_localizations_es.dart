@@ -201,6 +201,23 @@ class AppLocalizationsEs extends AppLocalizations {
   String get waypointInfoDistanceFromStart => 'Distancia desde el inicio';
 
   @override
+  String nodeInfoTitle(Object index) {
+    return 'Nodo $index';
+  }
+
+  @override
+  String get nodeInfoTimestamp => 'Timestamp';
+
+  @override
+  String get nodeInfoElevation => 'Altura';
+
+  @override
+  String get nodeInfoIndex => 'Número de nodo';
+
+  @override
+  String get nodeInfoNoTimestamp => 'Sin timestamp';
+
+  @override
   String get editWaypointName => 'Editar nombre';
 
   @override

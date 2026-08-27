@@ -65,6 +65,16 @@
   "waypointInfoElevation": "Elevation",
   "waypointInfoElapsedTime": "Elapsed time",
   "waypointInfoDistanceFromStart": "Distance from start",
+  "nodeInfoTitle": "Node {index}",
+  "@nodeInfoTitle": {
+    "placeholders": {
+      "index": {}
+    }
+  },
+  "nodeInfoTimestamp": "Timestamp",
+  "nodeInfoElevation": "Elevation",
+  "nodeInfoIndex": "Node number",
+  "nodeInfoNoTimestamp": "No timestamp",
   "editWaypointName": "Edit name",
   "deleteWaypoint": "Delete waypoint",
   "confirmDeleteWaypointTitle": "Delete waypoint",
