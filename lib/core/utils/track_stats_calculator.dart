@@ -3,36 +3,29 @@ import 'package:latlong2/latlong.dart' as geo;
 
 /// 🏎️ MOTOR MATEMÁTICO EN MEMORIA PARA LAS MÉTRICAS DEL TRACK O TRAMO
 class TrackStatsCalculator {
+  static const double elevationWindowMeters = 80.0;
+  static const int elevationWindowPoints = 15;
+  static const double elevationThreshold = 4.0;
+
   static Map<String, dynamic> compute(List<TrackPointModel> points) {
     if (points.isEmpty) return _emptyResult();
 
     double totalDistance = 0.0;
-    double gain = 0.0;
-    double loss = 0.0;
     double maxAlt = -double.infinity;
     double minAlt = double.infinity;
 
     const geo.Distance distanceCalculator = geo.Distance();
     final int len = points.length;
-    final List<double> smoothedElevations = _smoothElevations(
-      points
-          .where((p) => p.elevation != null)
-          .map((p) => p.elevation!)
-          .toList(),
-    );
 
-    // 1. Cálculo de Distancia acumulada, Desniveles y Cotas extremas
+    final List<double> validElevations = [];
+    final List<double> validDistances = [];
+
+    // 1. Cálculo de Distancia acumulada y Cotas extremas
     for (int i = 0; i < len; i++) {
       final p = points[i];
       if (p.latitude == null || p.longitude == null) continue;
 
-      // Evaluar cota máxima y mínima
-      if (p.elevation != null) {
-        if (p.elevation! > maxAlt) maxAlt = p.elevation!;
-        if (p.elevation! < minAlt) minAlt = p.elevation!;
-      }
-
-      // Comparar con el punto anterior para distancia y desniveles
+      // Comparar con el punto anterior para distancia
       if (i > 0) {
         final prev = points[i - 1];
         if (prev.latitude != null && prev.longitude != null) {
@@ -43,23 +36,18 @@ class TrackStatsCalculator {
           );
         }
       }
-    }
 
-    if (smoothedElevations.length >= 2) {
-      double lastValid = smoothedElevations.first;
-      for (int i = 1; i < smoothedElevations.length; i++) {
-        final double diff = smoothedElevations[i] - lastValid;
-        if (diff.abs() < 3.5) {
-          continue;
-        }
-        if (diff > 0) {
-          gain += diff;
-        } else {
-          loss += diff.abs();
-        }
-        lastValid = smoothedElevations[i];
+      // Evaluar cota máxima y mínima
+      if (p.elevation != null) {
+        final ele = p.elevation!;
+        if (ele > maxAlt) maxAlt = ele;
+        if (ele < minAlt) minAlt = ele;
+        validElevations.add(ele);
+        validDistances.add(totalDistance);
       }
     }
+
+    final (gain, loss) = _computeGainAndLoss(validElevations, validDistances);
 
     // Corrección por si el track no tuviera datos de altitud válidos
     if (minAlt == double.infinity) minAlt = 0.0;
@@ -103,24 +91,92 @@ class TrackStatsCalculator {
     };
   }
 
-  static List<double> _smoothElevations(
-    List<double> elevations, {
-    int windowSize = 5,
+  static (double gain, double loss) _computeGainAndLoss(
+    List<double> elevations,
+    List<double> distances, {
+    double windowMeters = elevationWindowMeters,
+    double threshold = elevationThreshold,
   }) {
     if (elevations.length < 2) {
-      return List<double>.from(elevations);
+      return (0.0, 0.0);
     }
 
-    final List<double> smoothed = <double>[];
-    for (int i = 0; i < elevations.length; i++) {
-      final int start = i - windowSize + 1;
-      final int safeStart = start < 0 ? 0 : start;
-      final int end = i + 1;
-      double sum = 0.0;
-      for (int j = safeStart; j < end; j++) {
-        sum += elevations[j];
+    final smoothed = _smoothElevations(
+      elevations,
+      distances: distances,
+      windowMeters: windowMeters,
+    );
+
+    double gain = 0.0;
+    double loss = 0.0;
+    double lastValid = smoothed.first;
+
+    for (int i = 1; i < smoothed.length; i++) {
+      final double diff = smoothed[i] - lastValid;
+      if (diff.abs() >= threshold) {
+        if (diff > 0) {
+          gain += diff;
+        } else {
+          loss += diff.abs();
+        }
+        lastValid = smoothed[i];
       }
-      smoothed.add(sum / (end - safeStart));
+    }
+
+    return (gain, loss);
+  }
+
+  static List<double> _smoothElevations(
+    List<double> elevations, {
+    List<double>? distances,
+    double windowMeters = elevationWindowMeters,
+    int windowPoints = elevationWindowPoints,
+  }) {
+    final int n = elevations.length;
+    if (n < 2) return List<double>.from(elevations);
+
+    if (distances != null && distances.length == n && windowMeters > 0) {
+      final List<double> smoothed = List<double>.filled(n, 0.0);
+      final double halfWindow = windowMeters / 2.0;
+      int start = 0;
+      int end = 0;
+
+      for (int i = 0; i < n; i++) {
+        final double d = distances[i];
+        while (start < n && distances[start] < d - halfWindow) {
+          start++;
+        }
+        while (end < n && distances[end] <= d + halfWindow) {
+          end++;
+        }
+
+        final int count = end - start;
+        if (count <= 0) {
+          smoothed[i] = elevations[i];
+        } else {
+          double sum = 0.0;
+          for (int j = start; j < end; j++) {
+            sum += elevations[j];
+          }
+          smoothed[i] = sum / count;
+        }
+      }
+      return smoothed;
+    }
+
+    // Fallback por ventana de puntos simétrica
+    final List<double> smoothed = List<double>.filled(n, 0.0);
+    final int r = (windowPoints < 1 ? 1 : windowPoints) ~/ 2;
+    for (int i = 0; i < n; i++) {
+      final int start = (i - r) < 0 ? 0 : (i - r);
+      final int end = (i + r + 1) > n ? n : (i + r + 1);
+      double sum = 0.0;
+      int count = 0;
+      for (int j = start; j < end; j++) {
+        sum += elevations[j];
+        count++;
+      }
+      smoothed[i] = sum / count;
     }
 
     return smoothed;

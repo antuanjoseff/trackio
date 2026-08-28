@@ -33,43 +33,49 @@ class GeoCalculations {
     if (points.length < 2) return (0.0, 0.0);
 
     double distance = 0.0;
-    double gain = 0.0;
+    final List<double> validElevations = [];
+    final List<double> validDistances = [];
 
-    final List<double> smoothedElevations = _smoothElevations(
-      points
-          .where((p) => p.elevation != null)
-          .map((p) => p.elevation!)
-          .toList(),
-    );
+    for (int i = 0; i < points.length; i++) {
+      final p = points[i];
+      if (i > 0) {
+        final prev = points[i - 1];
+        if (p.latitude != null &&
+            p.longitude != null &&
+            prev.latitude != null &&
+            prev.longitude != null) {
+          distance += distanceBetween(
+            prev.latitude!,
+            prev.longitude!,
+            p.latitude!,
+            p.longitude!,
+          );
+        }
+      }
 
-    for (int i = 0; i < points.length - 1; i++) {
-      final p1 = points[i];
-      final p2 = points[i + 1];
-
-      if (p1.latitude != null &&
-          p1.longitude != null &&
-          p2.latitude != null &&
-          p2.longitude != null) {
-        distance += distanceBetween(
-          p1.latitude!,
-          p1.longitude!,
-          p2.latitude!,
-          p2.longitude!,
-        );
+      if (p.elevation != null) {
+        validElevations.add(p.elevation!);
+        validDistances.add(distance);
       }
     }
 
-    if (smoothedElevations.length >= 2) {
-      double lastValid = smoothedElevations.first;
-      for (int i = 1; i < smoothedElevations.length; i++) {
-        final double diff = smoothedElevations[i] - lastValid;
-        if (diff.abs() < 3.5) {
-          continue;
+    double gain = 0.0;
+    if (validElevations.length >= 2) {
+      final smoothed = _smoothElevations(
+        validElevations,
+        distances: validDistances,
+        windowMeters: 80.0,
+      );
+
+      double lastValid = smoothed.first;
+      for (int i = 1; i < smoothed.length; i++) {
+        final double diff = smoothed[i] - lastValid;
+        if (diff.abs() >= 4.0) {
+          if (diff > 0) {
+            gain += diff;
+          }
+          lastValid = smoothed[i];
         }
-        if (diff > 0) {
-          gain += diff;
-        }
-        lastValid = smoothedElevations[i];
       }
     }
 
@@ -78,22 +84,54 @@ class GeoCalculations {
 
   static List<double> _smoothElevations(
     List<double> elevations, {
-    int windowSize = 5,
+    List<double>? distances,
+    double windowMeters = 80.0,
+    int windowPoints = 15,
   }) {
-    if (elevations.length < 2) {
-      return List<double>.from(elevations);
+    final int n = elevations.length;
+    if (n < 2) return List<double>.from(elevations);
+
+    if (distances != null && distances.length == n && windowMeters > 0) {
+      final List<double> smoothed = List<double>.filled(n, 0.0);
+      final double halfWindow = windowMeters / 2.0;
+      int start = 0;
+      int end = 0;
+
+      for (int i = 0; i < n; i++) {
+        final double d = distances[i];
+        while (start < n && distances[start] < d - halfWindow) {
+          start++;
+        }
+        while (end < n && distances[end] <= d + halfWindow) {
+          end++;
+        }
+
+        final int count = end - start;
+        if (count <= 0) {
+          smoothed[i] = elevations[i];
+        } else {
+          double sum = 0.0;
+          for (int j = start; j < end; j++) {
+            sum += elevations[j];
+          }
+          smoothed[i] = sum / count;
+        }
+      }
+      return smoothed;
     }
 
-    final List<double> smoothed = <double>[];
-    for (int i = 0; i < elevations.length; i++) {
-      final int start = i - windowSize + 1;
-      final int safeStart = start < 0 ? 0 : start;
-      final int end = i + 1;
+    final List<double> smoothed = List<double>.filled(n, 0.0);
+    final int r = (windowPoints < 1 ? 1 : windowPoints) ~/ 2;
+    for (int i = 0; i < n; i++) {
+      final int start = (i - r) < 0 ? 0 : (i - r);
+      final int end = (i + r + 1) > n ? n : (i + r + 1);
       double sum = 0.0;
-      for (int j = safeStart; j < end; j++) {
+      int count = 0;
+      for (int j = start; j < end; j++) {
         sum += elevations[j];
+        count++;
       }
-      smoothed.add(sum / (end - safeStart));
+      smoothed[i] = sum / count;
     }
 
     return smoothed;
