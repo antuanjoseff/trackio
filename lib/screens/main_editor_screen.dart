@@ -22,6 +22,7 @@ import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/screens/main_editor_layout.dart';
 import 'package:trackio/widgets/reactive_draw_button.dart';
 import 'package:trackio/widgets/reactive_geometry_edit_toolbar.dart';
+import 'package:trackio/widgets/map_full_screen_reticle.dart';
 import 'package:trackio/widgets/static_editor_map_widget.dart';
 import 'package:trackio/mixins/map_rendering_mixin.dart';
 import 'package:trackio/widgets/reactive_editor_buttons.dart';
@@ -1126,11 +1127,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         ),
 
         if (showReticle)
-          const Center(
-            child: Icon(
-              Icons.add_circle_outline,
-              size: 40,
-              color: AppColors.starTrekRed,
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: MapFullScreenReticle(color: AppColors.starTrekRed),
             ),
           ),
 
@@ -2091,15 +2090,15 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       // 🔒 Alliberem el control de moviment per permetre noves deteccions al següent drag
       _isDraggingMap = false;
 
-      ref
-          .read(gpxEditorProvider.notifier)
-          .updateRangeSelectionLiveFromReticle(
-            pos.target.latitude,
-            pos.target.longitude,
-            pos.zoom,
-          );
+      final notifier = ref.read(gpxEditorProvider.notifier);
+      notifier.updateRangeSelectionLiveFromReticle(
+        pos.target.latitude,
+        pos.target.longitude,
+        pos.zoom,
+      );
+      await _centerMapOnSnappedPoint(pos.target);
       // Notifiquem el repòs perquè el ReactiveRangeButton s'activi a la pantalla de forma estable
-      ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+      notifier.setMapIdle(true);
       paintLiveOverlays(ref.read(gpxEditorProvider));
       return;
     }
@@ -2132,11 +2131,29 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     _throttleTimer?.cancel();
     final target = pos.target;
-    ref
-        .read(gpxEditorProvider.notifier)
-        .calculateSnapping(target.latitude, target.longitude, pos.zoom);
-    ref.read(gpxEditorProvider.notifier).setMapIdle(true);
+    final notifier = ref.read(gpxEditorProvider.notifier);
+    notifier.calculateSnapping(target.latitude, target.longitude, pos.zoom);
+    await _centerMapOnSnappedPoint(target);
+    notifier.setMapIdle(true);
     paintLiveOverlays(ref.read(gpxEditorProvider));
+  }
+
+  Future<void> _centerMapOnSnappedPoint(LatLng currentCenter) async {
+    final snappedPoint = ref.read(gpxEditorProvider).snappedPoint;
+    final latitude = snappedPoint?.latitude;
+    final longitude = snappedPoint?.longitude;
+
+    if (_controller == null || latitude == null || longitude == null) return;
+
+    const coordinateTolerance = 0.0000001;
+    if ((currentCenter.latitude - latitude).abs() < coordinateTolerance &&
+        (currentCenter.longitude - longitude).abs() < coordinateTolerance) {
+      return;
+    }
+
+    await _controller!.animateCamera(
+      CameraUpdate.newLatLng(LatLng(latitude, longitude)),
+    );
   }
 
   Future<void> _focusTrack(int? trackId, List<TrackModel> tracks) async {
