@@ -74,7 +74,7 @@ void main() {
       expect(state.isSelectingRange, true);
     });
 
-    test('live map reticle updates both map and chart range indexes', () {
+    test('live map reticle previews a point without fixing range indexes', () {
       final notifier = GpxEditor();
       final track = TrackModel(
         id: 9,
@@ -100,9 +100,11 @@ void main() {
       notifier.updateRangeSelectionLiveFromReticle(41.02, 2.02, 15.0);
 
       final state = notifier.state;
-      expect(state.selectionStartIndex, 2);
+      expect(state.snappedPointIndex, 2);
+      expect(state.snappedPoint?.latitude, 41.02);
+      expect(state.selectionStartIndex, null);
       expect(state.selectionEndIndex, null);
-      expect(state.chartRangeStartIndex, 2);
+      expect(state.chartRangeStartIndex, null);
       expect(state.chartRangeEndIndex, null);
     });
 

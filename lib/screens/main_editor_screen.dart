@@ -634,6 +634,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     final bool showReticle =
         !hasMouse &&
+        !editorState.forceHideReticle &&
         ([
               'split',
               'range_map',
@@ -1407,6 +1408,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           targetCoords.latitude,
           targetCoords.longitude,
           currentZoom,
+          isWebHover: true,
         );
       } else {
         // Executa el snapping clàssic per a Split i Merge
@@ -2087,6 +2089,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
     // 📐 REPARACIÓ CRÍTICA RANGE_MAP: El mapa s'atura, s'activa l'idle i es mostra el botó flotant natiu de Senda
     if (state.activeTool == 'range_map') {
+      // En web el cursor ja actualitza el snap; el pan no ha de recentrar
+      // el mapa cap a un extrem fixat del tram.
+      if (!_isMobileApp) {
+        paintLiveOverlays(state);
+        return;
+      }
+
       // 🔒 Alliberem el control de moviment per permetre noves deteccions al següent drag
       _isDraggingMap = false;
 

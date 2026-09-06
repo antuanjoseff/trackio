@@ -2308,8 +2308,9 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   void updateRangeSelectionLiveFromReticle(
     double centerLat,
     double centerLng,
-    double currentZoom,
-  ) {
+    double currentZoom, {
+    bool isWebHover = false,
+  }) {
     if (state.tracks.isEmpty ||
         state.selectedTrackId == null ||
         state.activeTool != 'range_map')
@@ -2323,46 +2324,32 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       centerLng,
       currentZoom,
     );
-    if (bestIndex == null) return;
+    if (bestIndex == null) {
+      state = state.copyWith(snappedPointIndex: null, snappedPoint: null);
+      return;
+    }
 
     final TrackPointModel? snappedPoint =
         bestIndex >= 0 && bestIndex < track.points.length
         ? track.points[bestIndex]
         : null;
 
-    if (state.selectionStartIndex == null) {
+    if (isWebHover) {
+      // En web el cursor només previsualitza el punt; el clic el fixa.
       state = state.copyWith(
-        selectionStartIndex: bestIndex,
-        selectionEndIndex: null,
-        chartRangeStartIndex: bestIndex,
-        chartRangeEndIndex: null,
         snappedPointIndex: bestIndex,
         snappedPoint: snappedPoint,
         chartSelectionMode: 'range',
       );
-    } else if (state.selectionStartIndex != null && state.isSelectingRange) {
-      final int start = state.selectionStartIndex!;
-      int visualEnd = start < bestIndex ? bestIndex : start;
-
-      state = state.copyWith(
-        selectionStartIndex: start,
-        selectionEndIndex: visualEnd,
-        // Mantenim l'ordre temporal de fixació pels colors del mapa:
-        // primer punt (verd) = start, segon punt (vermell) = bestIndex.
-        chartRangeStartIndex: start,
-        chartRangeEndIndex: bestIndex,
-        snappedPointIndex: bestIndex,
-        snappedPoint: snappedPoint,
-        chartSelectionMode: 'range',
-      );
-    } else {
-      // Amb el tram ja tancat, mantenim el preview del punt actual de retícula
-      // perquè el següent "Fixar Inici" comenci al punt realment visible.
-      state = state.copyWith(
-        snappedPointIndex: bestIndex,
-        snappedPoint: snappedPoint,
-      );
+      return;
     }
+
+    // A l'app la retícula només previsualitza. Els botons fixen els índexs.
+    state = state.copyWith(
+      snappedPointIndex: bestIndex,
+      snappedPoint: snappedPoint,
+      chartSelectionMode: 'range',
+    );
   }
 
   void updateRangeSelectionHandleFromMap(
@@ -2476,6 +2463,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       chartRangeEndIndex: null,
       isSelectingRange: false,
       forceHideReticle: false,
+      chartSelectionMode: 'range',
     );
   }
 
@@ -2520,7 +2508,7 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       snappedPoint: point,
       isSelectingRange: false,
       chartSelectionMode: 'range',
-      forceHideReticle: false,
+      forceHideReticle: true,
     );
   }
 

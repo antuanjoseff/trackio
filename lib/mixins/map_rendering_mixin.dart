@@ -220,14 +220,19 @@ mixin MapRenderingMixin {
 
     // ------------------ RANGE_MAP UNIFICAT I DINÀMIC ------------------
     if (state.activeTool == 'range_map' || state.activeTool == 'range_chart') {
-      final int? rawStart =
+      final int? fixedStart =
           state.chartRangeStartIndex ?? state.selectionStartIndex;
-      final int? rawEnd = state.chartRangeEndIndex ?? state.selectionEndIndex;
+      final int? fixedEnd = state.chartRangeEndIndex ?? state.selectionEndIndex;
+      final bool showPreview =
+          state.activeTool == 'range_map' && state.snappedPointIndex != null;
 
       // Respectem l'ordre temporal de fixació:
       // start = primer punt fixat (verd), end = segon punt fixat (vermell).
-      final int? startPointToPaint = rawStart;
-      final int? endPointToPaint = rawEnd;
+      final int? startPointToPaint =
+          fixedStart ?? (showPreview ? state.snappedPointIndex : null);
+      final int? endPointToPaint =
+          fixedEnd ??
+          (showPreview && fixedStart != null ? state.snappedPointIndex : null);
 
       // 🟢 1. Pintar cercle verd (Inici del Rang)
       if (startPointToPaint != null &&

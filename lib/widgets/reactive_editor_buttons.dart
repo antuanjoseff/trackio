@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
@@ -80,32 +81,69 @@ class ReactiveRangeButton extends ConsumerWidget {
     final isSelectingRange = ref.watch(
       gpxEditorProvider.select((s) => s.isSelectingRange),
     );
+    final hasCompletedRange = ref.watch(
+      gpxEditorProvider.select(
+        (s) =>
+            !kIsWeb &&
+            s.selectionStartIndex != null &&
+            s.selectionEndIndex != null,
+      ),
+    );
 
     // 🌟 REPARACIÓ: El botó només s'ha d'aixecar si l'eina del mapa està activa i el mapa s'ha aturat
     if (activeTool != 'range_map' || !isMapIdle) {
       return const SizedBox.shrink(); // S'amaga transparentment si es mou o és una altra eina
     }
 
+    final notifier = ref.read(gpxEditorProvider.notifier);
+    if (hasCompletedRange) {
+      return Positioned(
+        bottom: _floatingButtonsBottom,
+        left: 0,
+        right: 0,
+        child: Center(
+          child: ElevatedButton.icon(
+            onPressed: notifier.resetRangeSelectionForNewStart,
+            icon: const Icon(Icons.restart_alt, size: 18),
+            label: const Text('Reset'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.starTrekRed,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Positioned(
       bottom: _floatingButtonsBottom,
-      left: 32,
-      right: 32,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isSelectingRange
-              ? AppColors.starTrekRed
-              : AppColors.starTrekGreen,
-          foregroundColor: Colors.white,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isSelectingRange
+                ? AppColors.starTrekRed
+                : AppColors.starTrekGreen,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+          onPressed: () {
+            if (!isSelectingRange) {
+              notifier.fixRangeStartIndex();
+            } else {
+              notifier.fixRangeEndIndex();
+            }
+          },
+          child: Text(isSelectingRange ? "Fixar Final" : "Fixar Inici"),
         ),
-        onPressed: () {
-          final notifier = ref.read(gpxEditorProvider.notifier);
-          if (!isSelectingRange) {
-            notifier.fixRangeStartIndex();
-          } else {
-            notifier.fixRangeEndIndex();
-          }
-        },
-        child: Text(isSelectingRange ? "Fixar Final" : "Fixar Inici"),
       ),
     );
   }
