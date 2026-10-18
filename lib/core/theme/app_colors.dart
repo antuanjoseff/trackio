@@ -6,15 +6,15 @@ class AppColors {
   // ===== Editor branding (single source of truth) =====
   // ===== Nova paleta Trackio (variant groga) =====
 
-  static const Color editorPrimary = Color(0xFFD4A017); // Mustard
-  static const Color editorSidebarBackground = Color(0xFFF8E8A0); // Pastel
-  static const Color editorTrackCardBackground = Color(0xFFFCD96B); // Sun
+  static const Color editorPrimary = Color(0xFFF5820D); // Principal
+  static const Color editorSidebarBackground = Color(0xFFFDE6CF); // Principal 20%
+  static const Color editorTrackCardBackground = Color(0xFFFBD3A8); // Principal 35%
   static const Color editorOnPrimary = Colors.white;
 
   // Base UI
-  static const Color techBlue = Color(0xFFFFE45C); // Illuminating
-  static const Color accentOrange = Color(0xFFFDF3C0); // Pale
-  static const Color cleanLightGray = Color(0xFFFFD633); // Corn
+  static const Color techBlue = Color(0xFFF5820D); // Principal
+  static const Color accentOrange = Color(0xFFFCE0C2); // Principal 28%
+  static const Color cleanLightGray = Color(0xFFFFF6EE); // Principal 7%
   static const Color slateGray = Color(0xFF1E222B);
 
   // Mapa i tracks
