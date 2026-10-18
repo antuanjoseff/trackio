@@ -916,6 +916,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             final zoom = _controller?.cameraPosition?.zoom ?? 13.0;
             final activeTool = state.activeTool;
 
+            if (state.isModalOpen) return;
+
             const blockedTapTools = {
               'draw',
               'split',
@@ -1067,6 +1069,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                 waypointCoords.longitude,
               );
               notifier.setMapIdle(true);
+              await showWaypointPreview(waypointCoords);
 
               final selectedTrackId = state.selectedTrackId;
               if (selectedTrackId == null) return;
@@ -1082,7 +1085,11 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                 context,
                 defaultName,
               );
-              if (name == null || name.isEmpty) return;
+              if (name == null || name.isEmpty) {
+                notifier.clearWaypointPosition();
+                await clearWaypointPreview();
+                return;
+              }
 
               // 4. Modifiquem la crida del notifier per assegurar-nos que insereixi la coordenada capturada:
               notifier.updateWaypointPosition(

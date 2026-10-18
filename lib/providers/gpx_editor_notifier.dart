@@ -1792,6 +1792,10 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     state = state.copyWith(waypointCameraPosition: LatLng(latitude, longitude));
   }
 
+  void clearWaypointPosition() {
+    state = state.copyWith(waypointCameraPosition: null, isMapIdle: false);
+  }
+
   // 📍 2. Inserció del waypoint al track seleccionat actiu en aquell moment
   void addWaypointToSelectedTrack({
     String name = 'Waypoint',
@@ -1822,10 +1826,8 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
       return track;
     }).toList();
 
-    // Actualitzem l'estat global, tanquem l'eina i netegem variables
     state = state.copyWith(
       tracks: updatedTracks,
-      activeTool: 'none',
       waypointCameraPosition: null,
       isMapIdle: false,
     );

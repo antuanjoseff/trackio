@@ -241,6 +241,14 @@ class ReactiveWaypointButton extends ConsumerWidget {
                 .captureVisibleReticleLatLng();
             if (reticleCoords == null) return;
 
+            final notifier = ref.read(gpxEditorProvider.notifier);
+            notifier.updateWaypointPosition(
+              reticleCoords.latitude,
+              reticleCoords.longitude,
+            );
+            notifier.setMapIdle(true);
+            await screenState.showWaypointPreview(reticleCoords);
+
             final state = ref.read(gpxEditorProvider);
             final track = state.tracks.firstWhere(
               (t) => t.id == state.selectedTrackId,
@@ -252,7 +260,11 @@ class ReactiveWaypointButton extends ConsumerWidget {
               context,
               defaultName,
             );
-            if (name == null || name.isEmpty) return;
+            if (name == null || name.isEmpty) {
+              notifier.clearWaypointPosition();
+              await screenState.clearWaypointPreview();
+              return;
+            }
 
             await screenState.addWaypointAtVisibleReticle(
               name: name,

@@ -217,6 +217,7 @@ class _StaticEditorMapWidgetState extends State<StaticEditorMapWidget> {
             onCameraMove: widget.onCameraMove,
             onCameraIdle: widget.onCameraIdle,
             onMapClick: (point, coordinates) {
+              if (!widget.panEnabled) return;
               final suppressUntil = _suppressNativeMapClickUntil;
               if (suppressUntil != null &&
                   DateTime.now().isBefore(suppressUntil))

@@ -86,6 +86,30 @@ mixin MapRenderingMixin {
     });
   }
 
+  Future<void> showWaypointPreview(LatLng waypoint) async {
+    if (controller == null) return;
+    await controller!.setGeoJsonSource("source_snapped_point", {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [waypoint.longitude, waypoint.latitude],
+          },
+        },
+      ],
+    });
+  }
+
+  Future<void> clearWaypointPreview() async {
+    if (controller == null) return;
+    await controller!.setGeoJsonSource("source_snapped_point", const {
+      "type": "FeatureCollection",
+      "features": [],
+    });
+  }
+
   // 🌟 REPARACIÓ: Eliminem el 'async' de la capçalera per fer el flux síncron i fluid
   void paintLiveOverlays(GpxEditorState state, {LatLng? reticleLatLng}) {
     if (controller == null) {
@@ -175,8 +199,15 @@ mixin MapRenderingMixin {
     if (state.activeTool == 'range_map') {
       controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
     } else {
-      if (state.snappedPoint != null) {
-        final p = state.snappedPoint!;
+      final LatLng? pointToPaint = state.activeTool == 'add_waypoint'
+          ? state.waypointCameraPosition
+          : state.snappedPoint == null
+          ? null
+          : LatLng(
+              state.snappedPoint!.latitude!,
+              state.snappedPoint!.longitude!,
+            );
+      if (pointToPaint != null) {
         // 🌟 SENSE AWAIT: El cercle blau rep les dades de cop i llisca sense parpellejar
         controller!.setGeoJsonSource("source_snapped_point", {
           "type": "FeatureCollection",
@@ -185,7 +216,7 @@ mixin MapRenderingMixin {
               "type": "Feature",
               "geometry": {
                 "type": "Point",
-                "coordinates": [p.longitude!, p.latitude!],
+                "coordinates": [pointToPaint.longitude, pointToPaint.latitude],
               },
             },
           ],
