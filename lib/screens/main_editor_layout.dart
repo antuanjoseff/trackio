@@ -7,6 +7,7 @@ import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
 import 'package:trackio/screens/trackio_horizontal_layout.dart';
 import 'package:trackio/screens/trackio_vertical_layout.dart';
+import 'package:trackio/widgets/compass_widget.dart';
 import 'package:trackio/widgets/editor_sidebar_widget.dart';
 import 'package:trackio/widgets/range_track_selection.dart';
 import 'package:trackio/widgets/trackio_icons.dart';
@@ -25,6 +26,7 @@ class MainEditorLayout extends ConsumerWidget {
     required this.onImportPressed,
     required this.onSidebarReorderDragStateChanged,
     required this.onSidebarHoverChanged,
+    required this.onResetNorth,
   });
 
   final AppLocalizations t;
@@ -37,6 +39,7 @@ class MainEditorLayout extends ConsumerWidget {
   final VoidCallback onImportPressed;
   final ValueChanged<bool> onSidebarReorderDragStateChanged;
   final ValueChanged<bool> onSidebarHoverChanged;
+  final VoidCallback onResetNorth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -150,6 +153,8 @@ class MainEditorLayout extends ConsumerWidget {
                       : null,
                   title: Text(t.appTitle),
                   actions: [
+                    CompassScalePanel(onTapCompass: onResetNorth),
+                    const SizedBox(width: 12),
                     // 🌐 ACCIONS FILTRADES: Si som a la Web (!isMobile) pintem totes les eines horitzontals
                     if (!isMobile) ...[
                       // 🔄 1. INVERTIR TRACK

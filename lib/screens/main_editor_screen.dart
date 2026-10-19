@@ -19,6 +19,7 @@ import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
+import 'package:trackio/providers/map_view_provider.dart';
 import 'package:trackio/screens/main_editor_layout.dart';
 import 'package:trackio/widgets/reactive_draw_button.dart';
 import 'package:trackio/widgets/reactive_geometry_edit_toolbar.dart';
@@ -574,7 +575,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         _mapScaleMeters = bestMeters;
         _mapScaleWidthPx = bestWidth;
       });
+      ref.read(mapScaleMetersProvider.notifier).state = bestMeters;
+      ref.read(mapScaleWidthPxProvider.notifier).state = bestWidth;
     }
+  }
+
+  void _resetNorth() {
+    _controller?.animateCamera(CameraUpdate.bearingTo(0));
   }
 
   String _formatScaleLabel(int meters) {
@@ -609,6 +616,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final bool hasMouse = _hasMouseConnected;
     final bool isSmallMobileLayout =
         _isMobileApp || MediaQuery.sizeOf(context).width <= 800;
+    // Ha de coincidir amb la condició de l'AppBar a MainEditorLayout
+    final bool appBarVisible =
+        MediaQuery.sizeOf(context).width > 800 ||
+        MediaQuery.orientationOf(context) == Orientation.portrait;
     final bool isGeometryAddMode =
         editorState.activeTool == 'edit_geometry' &&
         editorState.geometryEditMode == 'add';
@@ -741,6 +752,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
 
           onCameraMove: (pos) {
             _updateMapScaleFromCamera(pos);
+            ref.read(mapBearingProvider.notifier).state = pos.bearing;
             _handleCameraMove(pos, ref.read(gpxEditorProvider));
           },
           onCameraIdle: _handleCameraIdle,
@@ -1195,7 +1207,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                   ),
                 ),
                 const SizedBox(width: 8),
-                if (_mapScaleMeters != null && _mapScaleWidthPx != null)
+                if (!appBarVisible &&
+                    _mapScaleMeters != null &&
+                    _mapScaleWidthPx != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
@@ -1230,7 +1244,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
               ],
             ),
           )
-        else if (_mapScaleMeters != null && _mapScaleWidthPx != null)
+        else if (!appBarVisible &&
+            _mapScaleMeters != null &&
+            _mapScaleWidthPx != null)
           Positioned(
             left: 12,
             bottom: 12,
@@ -1328,6 +1344,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           onSidebarReorderDragStateChanged:
               _handleSidebarReorderDragStateChanged,
           onSidebarHoverChanged: _handleSidebarHoverChanged,
+          onResetNorth: _resetNorth,
         ),
       ),
     );
