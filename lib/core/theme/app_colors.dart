@@ -7,8 +7,12 @@ class AppColors {
   // ===== Nova paleta Trackio (variant groga) =====
 
   static const Color editorPrimary = Color(0xFFF5820D); // Principal
-  static const Color editorSidebarBackground = Color(0xFFFDE6CF); // Principal 20%
-  static const Color editorTrackCardBackground = Color(0xFFFBD3A8); // Principal 35%
+  static const Color editorSidebarBackground = Color(
+    0xFFFDE6CF,
+  ); // Principal 20%
+  static const Color editorTrackCardBackground = Color(
+    0xFFFBD3A8,
+  ); // Principal 35%
   static const Color editorOnPrimary = Colors.white;
 
   // Base UI
@@ -43,6 +47,10 @@ class AppColors {
   static const Color appBarForeground = editorOnPrimary;
   static const Color mapToolActiveBackground = Colors.white;
   static const Color mapToolActiveForeground = appBarBackground;
+  // Icones desactivades: gris clar
+  static const double mapToolDisabledOpacity = 1.0;
+  static const Color mapToolDisabledForeground = Color(0xB3FFFFFF);
+  static const Color mapToolDisabledBackground = Color(0xFFB0B0B0);
 
   // Botons de diàleg: "cancel·lar" -> color del sidebar, resta -> color de l'appBar
   static final ButtonStyle dialogCancelButtonStyle = TextButton.styleFrom(

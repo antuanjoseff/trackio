@@ -157,7 +157,7 @@ class MainEditorLayout extends ConsumerWidget {
                         tooltip: t.toolInverse,
                         icon: TrackioIcons.reverseDirection(
                           color: isDisabled
-                              ? Colors.grey.shade400
+                              ? AppColors.mapToolDisabledForeground
                               : AppColors.appBarForeground,
                         ),
                         onPressed: isDisabled
@@ -175,7 +175,7 @@ class MainEditorLayout extends ConsumerWidget {
                         ),
                         icon: TrackioIcons.cutGpx(
                           color: isDisabled
-                              ? Colors.grey.shade400
+                              ? AppColors.mapToolDisabledForeground
                               : AppColors.appBarForeground,
                         ),
                         style: IconButton.styleFrom(
@@ -203,7 +203,7 @@ class MainEditorLayout extends ConsumerWidget {
                         ),
                         icon: TrackioIcons.joinGpx(
                           color: isDisabled
-                              ? Colors.grey.shade400
+                              ? AppColors.mapToolDisabledForeground
                               : AppColors.appBarForeground,
                         ),
                         style: IconButton.styleFrom(
@@ -235,7 +235,7 @@ class MainEditorLayout extends ConsumerWidget {
                         icon: TrackioLargeIcon(
                           child: TrackRangeSelection(
                             color: isDisabled
-                                ? Colors.grey.shade400
+                                ? AppColors.mapToolDisabledForeground
                                 : AppColors.appBarForeground,
                           ),
                         ),
@@ -264,7 +264,7 @@ class MainEditorLayout extends ConsumerWidget {
                         ),
                         icon: TrackioIcons.addWaypoint(
                           color: isDisabled
-                              ? Colors.grey.shade400
+                              ? AppColors.mapToolDisabledForeground
                               : AppColors.appBarForeground,
                         ),
                         style: IconButton.styleFrom(
@@ -319,7 +319,7 @@ class MainEditorLayout extends ConsumerWidget {
                         icon: Icon(
                           Icons.hub_rounded,
                           color: isDisabled
-                              ? Colors.grey.shade400
+                              ? AppColors.mapToolDisabledForeground
                               : AppColors.appBarForeground,
                         ),
                         style: IconButton.styleFrom(

@@ -105,7 +105,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                       Icons.undo,
                       color: pointsCount > 0
                           ? AppColors.appBarForeground
-                          : Colors.grey.shade400,
+                          : AppColors.mapToolDisabledForeground,
                     ),
                   ),
                   Badge(
@@ -121,7 +121,7 @@ class ReactiveDrawButton extends ConsumerWidget {
                         Icons.check_circle,
                         color: pointsCount > 0
                             ? AppColors.appBarForeground
-                            : Colors.grey.shade300,
+                            : AppColors.mapToolDisabledForeground,
                       ),
                     ),
                   ),

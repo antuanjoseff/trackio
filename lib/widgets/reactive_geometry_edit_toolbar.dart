@@ -119,7 +119,7 @@ class ReactiveGeometryEditToolbar extends ConsumerWidget {
                     Icons.undo,
                     color: canUndoGeometry
                         ? AppColors.appBarForeground
-                        : Colors.grey.shade400,
+                        : AppColors.mapToolDisabledForeground,
                   ),
                 ),
                 IconButton(

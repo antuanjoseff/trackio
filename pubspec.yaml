@@ -39,6 +39,7 @@ dev_dependencies:
   riverpod_generator:
   change_app_package_name: ^1.5.0
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true
@@ -46,9 +47,23 @@ flutter:
 
   assets:
     - assets/map/style.json
-    - assets/trackio_icon.png
+    - assets/trackio_gears_icon.png
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/trackio_icon.png"
+  image_path: "assets/trackio_gears_icon.png"
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/trackio_gears_icon.png"
+    background_color: "#FFFFFF"
+    theme_color: "#FFFFFF"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/trackio_gears_icon.png
+  android_12:
+    color: "#FFFFFF"
+    image: assets/trackio_gears_icon.png
+  web: true

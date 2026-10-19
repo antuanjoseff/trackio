@@ -189,7 +189,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                                 Icons.undo,
                                 color: canUndoGeometry
                                     ? AppColors.starTrekRed
-                                    : Colors.grey.shade400,
+                                    : AppColors.mapToolDisabledForeground,
                                 size: 20,
                               ),
                               tooltip: t.undoGeometryEdit,
@@ -218,7 +218,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                               icon: TrackioLargeIcon(
                                 child: TrackioIcons.reverseDirection(
                                   color: isDisabled
-                                      ? Colors.grey.shade400
+                                      ? AppColors.mapToolDisabledForeground
                                       : AppColors.starTrekRed,
                                 ),
                               ),
@@ -234,7 +234,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                               icon: TrackioLargeIcon(
                                 child: TrackioIcons.cutGpx(
                                   color: isDisabled
-                                      ? Colors.grey.shade400
+                                      ? AppColors.mapToolDisabledForeground
                                       : AppColors.starTrekRed,
                                 ),
                               ),
@@ -256,7 +256,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                               icon: TrackioLargeIcon(
                                 child: TrackioIcons.joinGpx(
                                   color: isDisabled
-                                      ? Colors.grey.shade400
+                                      ? AppColors.mapToolDisabledForeground
                                       : AppColors.starTrekRed,
                                 ),
                               ),
@@ -278,7 +278,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                               icon: TrackioLargeIcon(
                                 child: TrackRangeSelection(
                                   color: isDisabled
-                                      ? Colors.grey.shade400
+                                      ? AppColors.mapToolDisabledForeground
                                       : AppColors.starTrekRed,
                                 ),
                               ),
@@ -300,7 +300,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                               icon: TrackioLargeIcon(
                                 child: TrackioIcons.addWaypoint(
                                   color: isDisabled
-                                      ? Colors.grey.shade400
+                                      ? AppColors.mapToolDisabledForeground
                                       : AppColors.starTrekRed,
                                 ),
                               ),
@@ -338,7 +338,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                               icon: Icon(
                                 Icons.hub_rounded,
                                 color: isDisabled
-                                    ? Colors.grey.shade400
+                                    ? AppColors.mapToolDisabledForeground
                                     : AppColors.starTrekRed,
                                 size: 20,
                               ),
@@ -423,7 +423,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                               Icons.undo,
                               color: canUndoGeometry
                                   ? AppColors.starTrekRed
-                                  : Colors.grey.shade400,
+                                  : AppColors.mapToolDisabledForeground,
                               size: 20,
                             ),
                             tooltip: t.undoGeometryEdit,
@@ -452,7 +452,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             icon: TrackioLargeIcon(
                               child: TrackioIcons.reverseDirection(
                                 color: isDisabled
-                                    ? Colors.grey.shade400
+                                    ? AppColors.mapToolDisabledForeground
                                     : AppColors.starTrekRed,
                               ),
                             ),
@@ -469,7 +469,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             icon: TrackioLargeIcon(
                               child: TrackioIcons.cutGpx(
                                 color: isDisabled
-                                    ? Colors.grey.shade400
+                                    ? AppColors.mapToolDisabledForeground
                                     : (liveActiveTool == 'split'
                                           ? AppColors.starTrekRed
                                           : AppColors.starTrekRed),
@@ -494,7 +494,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             icon: TrackioLargeIcon(
                               child: TrackioIcons.joinGpx(
                                 color: isDisabled
-                                    ? Colors.grey.shade400
+                                    ? AppColors.mapToolDisabledForeground
                                     : (liveActiveTool == 'merge'
                                           ? AppColors.starTrekRed
                                           : AppColors.starTrekRed),
@@ -519,7 +519,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             icon: TrackioLargeIcon(
                               child: TrackRangeSelection(
                                 color: isDisabled
-                                    ? Colors.grey.shade400
+                                    ? AppColors.mapToolDisabledForeground
                                     : (liveActiveTool == 'range_map'
                                           ? AppColors.starTrekRed
                                           : AppColors.starTrekRed),
@@ -544,7 +544,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             icon: TrackioLargeIcon(
                               child: TrackioIcons.addWaypoint(
                                 color: isDisabled
-                                    ? Colors.grey.shade400
+                                    ? AppColors.mapToolDisabledForeground
                                     : (liveActiveTool == 'add_waypoint'
                                           ? AppColors.starTrekRed
                                           : AppColors.starTrekRed),
@@ -588,7 +588,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             icon: Icon(
                               Icons.hub_rounded,
                               color: isDisabled
-                                  ? Colors.grey.shade400
+                                  ? AppColors.mapToolDisabledForeground
                                   : (liveActiveTool == 'edit_geometry'
                                         ? AppColors.starTrekRed
                                         : AppColors.starTrekRed),
@@ -642,45 +642,50 @@ class TrackioVerticalLayout extends ConsumerWidget {
     bool isActive = false,
   }) {
     final bool isDisabled = onPressed == null;
-    final Widget effectiveIcon = isDisabled
-        ? icon
-        : ColorFiltered(
-            colorFilter: ColorFilter.mode(
-              isActive
-                  ? AppColors.mapToolActiveForeground
-                  : AppColors.appBarForeground,
-              BlendMode.srcIn,
-            ),
-            child: icon,
-          );
+    final Widget effectiveIcon = ColorFiltered(
+      colorFilter: ColorFilter.mode(
+        isDisabled
+            ? AppColors.mapToolDisabledForeground
+            : isActive
+            ? AppColors.mapToolActiveForeground
+            : AppColors.appBarForeground,
+        BlendMode.srcIn,
+      ),
+      child: icon,
+    );
 
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: isActive
-            ? AppColors.mapToolActiveBackground
-            : AppColors.appBarBackground,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isActive
+    return Opacity(
+      opacity: isDisabled ? AppColors.mapToolDisabledOpacity : 1,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: isDisabled
+              ? AppColors.mapToolDisabledBackground
+              : isActive
               ? AppColors.mapToolActiveBackground
               : AppColors.appBarBackground,
-          width: isActive ? 1.4 : 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isActive ? 0.2 : 0.1),
-            blurRadius: isActive ? 7 : 4,
-            offset: const Offset(0, 2),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isDisabled
+                ? AppColors.mapToolDisabledBackground
+                : isActive
+                ? AppColors.mapToolActiveBackground
+                : AppColors.appBarBackground,
+            width: isActive ? 1.4 : 1.0,
           ),
-        ],
-      ),
-      child: Opacity(
-        opacity: isDisabled ? 0.45 : 1,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isActive ? 0.2 : 0.1),
+              blurRadius: isActive ? 7 : 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: IconButton(
           tooltip: tooltip,
           icon: effectiveIcon,
+          disabledColor: AppColors.mapToolDisabledForeground,
           onPressed: onPressed,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),

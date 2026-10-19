@@ -1145,20 +1145,24 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
           Positioned(
             left: 12,
             bottom: 7,
-            child: Column(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: showElevationChart
+                    color: editorState.selectedTrackId == null
+                        ? AppColors.mapToolDisabledBackground
+                        : showElevationChart
                         ? Colors.white
                         : AppColors.appBarBackground,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.appBarBackground,
+                      color: editorState.selectedTrackId == null
+                          ? AppColors.mapToolDisabledBackground
+                          : AppColors.appBarBackground,
                       width: 1.4,
                     ),
                     boxShadow: [
@@ -1173,20 +1177,24 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                     tooltip: 'Perfil d’elevacions',
                     icon: Icon(
                       Icons.terrain,
-                      color: showElevationChart
+                      color: editorState.selectedTrackId == null
+                          ? AppColors.mapToolDisabledForeground
+                          : showElevationChart
                           ? AppColors.appBarBackground
                           : Colors.white,
                       size: 18,
                     ),
-                    onPressed: () => ref
-                        .read(gpxEditorProvider.notifier)
-                        .toggleElevationChart(),
+                    onPressed: editorState.selectedTrackId == null
+                        ? null
+                        : () => ref
+                              .read(gpxEditorProvider.notifier)
+                              .toggleElevationChart(),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     splashRadius: 20,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(width: 8),
                 if (_mapScaleMeters != null && _mapScaleWidthPx != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
