@@ -48,6 +48,7 @@ flutter:
   assets:
     - assets/map/style.json
     - assets/trackio_gears_icon.png
+    - assets/trackio_gears_splash.png
 
 flutter_launcher_icons:
   android: true
@@ -61,9 +62,9 @@ flutter_launcher_icons:
     theme_color: "#FFFFFF"
 
 flutter_native_splash:
-  color: "#FFFFFF"
-  image: assets/trackio_gears_icon.png
+  color: "#E87618"
+  image: assets/trackio_gears_splash.png
   android_12:
-    color: "#FFFFFF"
-    image: assets/trackio_gears_icon.png
+    color: "#E87618"
+    image: assets/trackio_gears_splash.png
   web: true

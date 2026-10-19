@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/providers/map_view_provider.dart';
 
 /// Brúixola amb escala gràfica opcional col·locada al costat.
@@ -102,31 +101,33 @@ class CompassScalePanel extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        compass,
-        const SizedBox(width: 10),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              _formatMeters(scaleMeters),
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: AppColors.appBarForeground,
+        SizedBox(
+          width: 57,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatMeters(scaleMeters),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Container(
-              width: scaleWidthPx.clamp(8.0, 45.0),
-              height: 2,
-              decoration: BoxDecoration(
-                color: AppColors.appBarForeground,
-                borderRadius: BorderRadius.circular(1),
+              const SizedBox(height: 3),
+              Container(
+                width: scaleWidthPx.clamp(8.0, 45.0),
+                height: 2,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(1),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        const SizedBox(width: 20),
+        compass,
       ],
     );
   }
