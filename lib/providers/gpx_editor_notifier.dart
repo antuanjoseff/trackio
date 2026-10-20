@@ -1194,12 +1194,19 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
   void toggleElevationChart() {
     final bool nextShowChart = !state.showElevationChart;
 
-    // netegem immediatament l'agulla blava i el cercle de l'estat en el mateix frame
+    // Netegem immediatament l'agulla blava, el cercle i el tram seleccionat en el mateix frame
     if (!nextShowChart) {
       state = state.copyWith(
         showElevationChart: nextShowChart,
         snappedPointIndex: null,
         snappedPoint: null,
+
+        // 🌟 REPARACIÓ: Purguem el tram de selecció a fons
+        chartSelectionMode: 'simple',
+        chartRangeStartIndex: null,
+        chartRangeEndIndex: null,
+        chartNeedleIndex:
+            null, // Opcional: neteja també l'agulla interna si cal
       );
     } else {
       state = state.copyWith(showElevationChart: nextShowChart);

@@ -1160,30 +1160,111 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       });
                     },
 
-                    onLongPressStart: kIsWeb
-                        ? null
-                        : (details) {
-                            startRangeSelectionAtDx(details.localPosition.dx);
-                          },
+                    onLongPressStart: (details) {
+                      if (_validPoints.isEmpty) return;
 
-                    onLongPressMoveUpdate: kIsWeb
-                        ? null
-                        : (details) {
-                            final idx = _metersToIndex(
-                              dxToMeters(details.localPosition.dx),
+                      // 📐 CALCULEM ELS ÍNDEXS COMPROVATS AL 25% I 75% DE LA RUTA
+                      final int rangeStartChartIdx =
+                          (_validPoints.length * 0.25).floor().clamp(
+                            0,
+                            _validPoints.length - 1,
+                          );
+                      final int rangeEndChartIdx = (_validPoints.length * 0.75)
+                          .floor()
+                          .clamp(0, _validPoints.length - 1);
+
+                      final int finalStartTrackIdx = _chartToTrackIndex(
+                        rangeStartChartIdx,
+                      );
+                      final int finalEndTrackIdx = _chartToTrackIndex(
+                        rangeEndChartIdx,
+                      );
+
+                      // 🗺️ TRANSFORMEM LES COORDENADES DE DISTÀNCIA EN PÍXELS (X) HORITZONTALS PER A LA PANTALLA
+                      final double xStart = mapX(
+                        _distances[rangeStartChartIdx],
+                      );
+                      final double xEnd = mapX(_distances[rangeEndChartIdx]);
+
+                      // 1. Configurem l'estat local del gràfic per dibuixar les nanses separades i els tooltips
+                      setState(() {
+                        _draggingHandle =
+                            -1; // En repòs pur perquè l'usuari les mogui després fent Pan
+                        _hideBlueNeedle = true;
+                        _displayStartTrackIdx = finalStartTrackIdx;
+                        _displayEndTrackIdx = finalEndTrackIdx;
+                        _displayStartX = xStart;
+                        _displayEndX = xEnd;
+                        _displayNeedleX = null;
+                      });
+
+                      // 2. Indiquem al Notifier que desi els camps del 25%-75% a l'estat global
+                      ref
+                          .read(gpxEditorProvider.notifier)
+                          .startChartRangeSelection(
+                            startIdx: finalStartTrackIdx,
+                            endIdx: finalEndTrackIdx,
+                            activateRangeTool:
+                                false, // Es queda en 'none' per pintar el tram net al mapa
+                          );
+
+                      SchedulerBinding.instance.scheduleFrame();
+                    },
+
+                    onLongPressMoveUpdate: (details) {
+                      if (_draggingHandle == -1) return;
+
+                      final double x = details.localPosition.dx;
+                      final chartIdx = _metersToIndex(dxToMeters(x));
+                      final int trackIdx = _chartToTrackIndex(chartIdx);
+
+                      final int currentStartTrackIdx =
+                          _displayStartTrackIdx ??
+                          ref.read(gpxEditorProvider).chartRangeStartIndex ??
+                          0;
+
+                      // 3. Calculem l'expansió del tram sincronitzant píxels gràfics i coordenades del mapa
+                      if (trackIdx >= currentStartTrackIdx) {
+                        ref
+                            .read(gpxEditorProvider.notifier)
+                            .updateIndividualRangeHandle(
+                              newStartIdx: currentStartTrackIdx,
+                              newEndIdx: trackIdx,
                             );
-                            ref
-                                .read(gpxEditorProvider.notifier)
-                                .updateIndividualRangeHandle(
-                                  newEndIdx: _chartToTrackIndex(idx),
-                                );
-                          },
+                        setState(() {
+                          _displayEndTrackIdx = trackIdx;
+                          _displayEndX = x;
+                        });
+                      } else {
+                        ref
+                            .read(gpxEditorProvider.notifier)
+                            .updateIndividualRangeHandle(
+                              newStartIdx: trackIdx,
+                              newEndIdx: currentStartTrackIdx,
+                            );
+                        setState(() {
+                          _displayStartTrackIdx = trackIdx;
+                          _displayStartX = x;
+                        });
+                      }
+                      SchedulerBinding.instance.scheduleFrame();
+                    },
 
-                    onLongPressEnd: kIsWeb
-                        ? null
-                        : (_) {
-                            finalizeRangeSelectionIfNeeded();
-                          },
+                    onLongPressEnd: (_) {
+                      // 4. Consolidem la selecció a la memòria i alliberem les variables de l'overlay gràfic
+                      finalizeRangeSelectionIfNeeded();
+                      setState(() {
+                        _draggingHandle = -1;
+                        _hideBlueNeedle = false;
+                        _displayStartTrackIdx = null;
+                        _displayEndTrackIdx = null;
+                        _displayNeedleTrackIdx = null;
+                        _displayStartX = null;
+                        _displayEndX = null;
+                        _displayNeedleX = null;
+                      });
+                    },
+
                     // El giny fill del detector és només un full buit transparent
                     child: Container(color: Colors.transparent),
                   ),

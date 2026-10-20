@@ -196,7 +196,9 @@ mixin MapRenderingMixin {
     int hi = snappedIndex ?? 0;
 
     // ------------------ GESTIÓ EXCLUSIVA DEL PUNT BLAU MÒBIL ------------------
-    if (state.activeTool == 'range_map') {
+    if (state.activeTool == 'range_map' ||
+        state.activeTool == 'range_chart' ||
+        state.chartSelectionMode == 'range') {
       controller!.setGeoJsonSource("source_snapped_point", emptyCollection);
     } else {
       final LatLng? pointToPaint = state.activeTool == 'add_waypoint'
@@ -250,7 +252,9 @@ mixin MapRenderingMixin {
     }
 
     // ------------------ RANGE_MAP UNIFICAT I DINÀMIC ------------------
-    if (state.activeTool == 'range_map' || state.activeTool == 'range_chart') {
+    if (state.activeTool == 'range_map' ||
+        state.activeTool == 'range_chart' ||
+        state.chartSelectionMode == 'range') {
       final int? fixedStart =
           state.chartRangeStartIndex ?? state.selectionStartIndex;
       final int? fixedEnd = state.chartRangeEndIndex ?? state.selectionEndIndex;
