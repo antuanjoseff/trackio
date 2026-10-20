@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
+import 'package:trackio/widgets/elevation_chart_controls.dart';
 import 'package:trackio/widgets/add_track_label.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
@@ -554,6 +555,13 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                     ),
                   ),
                 ),
+
+              // Controls del gràfic: a baix a l'esquerra, es desplacen amb el sidebar
+              Positioned(
+                bottom: 12,
+                left: liveShowSidebar ? 344 : 12,
+                child: const ElevationChartControls(),
+              ),
 
               // Botó flotant del Menú Web (S'alinea automàticament a la vora del menú)
               Positioned(

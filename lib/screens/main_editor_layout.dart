@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
-import 'package:trackio/widgets/add_track_label.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
@@ -63,9 +62,6 @@ class MainEditorLayout extends ConsumerWidget {
     );
     final selectedTrackId = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId),
-    );
-    final liveShowChart = ref.watch(
-      gpxEditorProvider.select((s) => s.showElevationChart),
     );
     final canUndoAction = ref.watch(
       gpxEditorProvider.select((s) => s.canUndoAction),
@@ -382,57 +378,6 @@ class MainEditorLayout extends ConsumerWidget {
                                   .undoLastAction()
                             : null,
                       ),
-
-                      const VerticalDivider(
-                        indent: 12,
-                        endIndent: 12,
-                        width: 16,
-                        color: Colors.white,
-                      ),
-                    ],
-
-                    // ↕️ 6. GRÀFIC D'ELEVACIONS (només a web)
-                    if (!isMobile) ...[
-                      IconButton(
-                        tooltip: t.elevationProfile,
-                        icon: Icon(
-                          liveShowChart
-                              ? Icons.insert_chart
-                              : Icons.insert_chart_outlined,
-                          color: liveShowChart
-                              ? AppColors.mapToolActiveForeground
-                              : Colors.white70,
-                        ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: liveShowChart
-                              ? AppColors.mapToolActiveBackground
-                              : null,
-                        ),
-                        onPressed: () => ref
-                            .read(gpxEditorProvider.notifier)
-                            .toggleElevationChart(),
-                      ),
-                      if (liveShowChart)
-                        IconButton(
-                          tooltip: editorState.showSpeedInChart
-                              ? t.hideSpeed
-                              : t.showSpeed,
-                          icon: Icon(
-                            Icons.speed,
-                            color: editorState.showSpeedInChart
-                                ? AppColors.mapToolActiveForeground
-                                : Colors.white70,
-                          ),
-                          style: IconButton.styleFrom(
-                            backgroundColor: editorState.showSpeedInChart
-                                ? AppColors.mapToolActiveBackground
-                                : null,
-                          ),
-                          onPressed: () => ref
-                              .read(gpxEditorProvider.notifier)
-                              .toggleSpeedChart(),
-                        ),
-                      if (liveShowChart) const AddTrackLabel(),
 
                       const VerticalDivider(
                         indent: 12,
