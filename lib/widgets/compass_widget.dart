@@ -12,8 +12,7 @@ class CompassScalePanel extends ConsumerWidget {
     this.showScale = true,
   });
 
-  static String _formatMeters(int m) =>
-      m >= 1000 ? '${m ~/ 1000} km' : '$m m';
+  static String _formatMeters(int m) => m >= 1000 ? '${m ~/ 1000} km' : '$m m';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

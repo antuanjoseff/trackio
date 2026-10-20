@@ -43,8 +43,8 @@ class RangeAreaPainter extends CustomPainter {
       return;
     }
 
-    const double topOffset = 0.0;
-    const double bottomOffset = 22.0;
+    const double topOffset = 24.0;
+    const double bottomOffset = 24.0;
 
     final double xAxisY = chartHeight - bottomOffset;
     final double usableChartHeight = xAxisY - topOffset;

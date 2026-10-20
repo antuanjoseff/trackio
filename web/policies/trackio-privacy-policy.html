@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Trackio</title>
+
+    <style>
+        :root {
+            --primary: #F5820D;
+            --primary-dark: #B85E05;
+            --soft: #FCE0C2;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --muted: #5b5f68;
+            --border: rgba(245, 130, 13, 0.25);
+            --shadow: 0 18px 40px rgba(184, 94, 5, 0.12);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: linear-gradient(180deg, #fffaf4 0%, #fdeedd 100%);
+        }
+
+        .page {
+            width: min(860px, calc(100% - 32px));
+            margin: 24px auto 40px;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            border-radius: 28px;
+            padding: 28px 24px 22px;
+            box-shadow: var(--shadow);
+        }
+
+        .eyebrow {
+            display: inline-block;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .hero h1 {
+            margin: 16px 0 6px;
+            font-size: clamp(2rem, 4vw, 3rem);
+            line-height: 1.1;
+        }
+
+        .hero p { margin: 0; color: rgba(255, 255, 255, 0.92); }
+
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        nav button {
+            padding: 10px 18px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--primary-dark);
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+
+        nav button.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        .policy-card {
+            display: none;
+            margin-top: 16px;
+            padding: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .policy-card.active { display: block; }
+
+        .policy-card h2 { margin-top: 0; color: var(--primary-dark); }
+
+        .policy-card h3 {
+            margin: 24px 0 8px;
+            padding-left: 10px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .policy-card ul { padding-left: 20px; }
+        .policy-card li { margin-bottom: 8px; }
+
+        .updated { color: var(--muted); font-size: 0.9rem; }
+
+        a { color: var(--primary-dark); }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <header class="hero">
+            <span class="eyebrow">GPX · Editor · Privacy</span>
+            <h1>Trackio</h1>
+            <p>Privacy Policy · Política de privacitat · Política de privacidad</p>
+        </header>
+
+        <nav>
+            <button type="button" data-lang="ca" class="active">Català</button>
+            <button type="button" data-lang="es">Español</button>
+            <button type="button" data-lang="en">English</button>
+        </nav>
+
+        <!-- CATALÀ -->
+        <main id="ca" class="policy-card active">
+            <h2>Política de Privacitat</h2>
+            <p class="updated">Actualització: 19/10/2026</p>
+            <p>El Desenvolupador protegeix la privacitat dels usuaris de l'aplicació <strong>Trackio</strong>, un editor de tracks i waypoints en format GPX.</p>
+
+            <h3>1. Dades que tractem</h3>
+            <ul>
+                <li><strong>Fitxers GPX:</strong> els fitxers que importes o dibuixes a l'app (tracks i waypoints) es processen al teu dispositiu per poder-los visualitzar i editar. No es pugen a cap servidor.</li>
+                <li><strong>Coordenades per a l'altitud:</strong> per obtenir dades d'altitud, l'app envia a <em>trackio.es</em> les coordenades (latitud i longitud) del punt que s'està consultant, per descarregar el fragment corresponent del Model Digital del Terreny (MDT). No s'associa a cap identitat personal.</li>
+                <li><strong>Mapa de fons:</strong> les imatges del mapa es descarreguen d'OpenStreetMap, que pot rebre la teva adreça IP i les àrees del mapa que consultes d'acord amb la seva pròpia política de privacitat.</li>
+            </ul>
+
+            <h3>2. Permisos</h3>
+            <p>L'app no accedeix a la teva ubicació GPS, ni en primer ni en segon pla, i no requereix cap compte d'usuari. Només accedeix a l'emmagatzematge o al selector de fitxers per importar i exportar els teus fitxers GPX quan tu ho demanes.</p>
+
+            <h3>3. Tercers i emmagatzematge</h3>
+            <p>No es comparteixen ni es venen dades a tercers, i l'app no inclou publicitat ni analítiques. Els tracks es mantenen només al teu dispositiu mentre l'app està oberta. Quan comparteixes o exportes un fitxer, ets tu qui tria la destinació.</p>
+
+            <h3>4. Contacte</h3>
+            <p>Pots contactar amb el desenvolupador a través dels canals oficials de suport de la botiga d'aplicacions o a <a href="https://trackio.es">trackio.es</a>.</p>
+        </main>
+
+        <!-- ESPAÑOL -->
+        <main id="es" class="policy-card">
+            <h2>Política de Privacidad</h2>
+            <p class="updated">Actualización: 19/10/2026</p>
+            <p>El Desarrollador protege la privacidad de los usuarios de la aplicación <strong>Trackio</strong>, un editor de tracks y waypoints en formato GPX.</p>
+
+            <h3>1. Datos que tratamos</h3>
+            <ul>
+                <li><strong>Archivos GPX:</strong> los archivos que importas o dibujas en la app (tracks y waypoints) se procesan en tu dispositivo para poder visualizarlos y editarlos. No se suben a ningún servidor.</li>
+                <li><strong>Coordenadas para la altitud:</strong> para obtener datos de altitud, la app envía a <em>trackio.es</em> las coordenadas (latitud y longitud) del punto consultado, para descargar el fragmento correspondiente del Modelo Digital del Terreno (MDT). No se asocia a ninguna identidad personal.</li>
+                <li><strong>Mapa de fondo:</strong> las imágenes del mapa se descargan de OpenStreetMap, que puede recibir tu dirección IP y las áreas del mapa que consultas según su propia política de privacidad.</li>
+            </ul>
+
+            <h3>2. Permisos</h3>
+            <p>La app no accede a tu ubicación GPS, ni en primer ni en segundo plano, y no requiere ninguna cuenta de usuario. Solo accede al almacenamiento o al selector de archivos para importar y exportar tus archivos GPX cuando tú lo solicitas.</p>
+
+            <h3>3. Terceros y almacenamiento</h3>
+            <p>No se comparten ni se venden datos a terceros, y la app no incluye publicidad ni analíticas. Los tracks se mantienen solo en tu dispositivo mientras la app está abierta. Cuando compartes o exportas un archivo, eres tú quien elige el destino.</p>
+
+            <h3>4. Contacto</h3>
+            <p>Puedes contactar con el desarrollador a través de los canales oficiales de soporte de la tienda de aplicaciones o en <a href="https://trackio.es">trackio.es</a>.</p>
+        </main>
+
+        <!-- ENGLISH -->
+        <main id="en" class="policy-card">
+            <h2>Privacy Policy</h2>
+            <p class="updated">Updated: 10/19/2026</p>
+            <p>The Developer protects the privacy of the users of the <strong>Trackio</strong> application, an editor for tracks and waypoints in GPX format.</p>
+
+            <h3>1. Data we process</h3>
+            <ul>
+                <li><strong>GPX files:</strong> the files you import or draw in the app (tracks and waypoints) are processed on your device so you can view and edit them. They are not uploaded to any server.</li>
+                <li><strong>Coordinates for elevation:</strong> to obtain elevation data, the app sends the coordinates (latitude and longitude) of the queried point to <em>trackio.es</em> in order to download the matching Digital Terrain Model (DTM) fragment. This is not linked to any personal identity.</li>
+                <li><strong>Base map:</strong> map images are downloaded from OpenStreetMap, which may receive your IP address and the map areas you view, under its own privacy policy.</li>
+            </ul>
+
+            <h3>2. Permissions</h3>
+            <p>The app does not access your GPS location, in the foreground or in the background, and does not require a user account. It only accesses storage or the file picker to import and export your GPX files when you ask it to.</p>
+
+            <h3>3. Third parties and storage</h3>
+            <p>Data is not shared or sold to third parties, and the app contains no advertising or analytics. Tracks are kept only on your device while the app is open. When you share or export a file, you choose the destination.</p>
+
+            <h3>4. Contact</h3>
+            <p>You can contact the developer through the official support channels in the app store or at <a href="https://trackio.es">trackio.es</a>.</p>
+        </main>
+    </div>
+
+    <script>
+        const buttons = document.querySelectorAll('nav button');
+        const sections = document.querySelectorAll('.policy-card');
+
+        function setLang(lang) {
+            document.documentElement.lang = lang;
+            buttons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+            sections.forEach(s => s.classList.toggle('active', s.id === lang));
+        }
+
+        buttons.forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+
+        const browserLang = (navigator.language || 'ca').slice(0, 2);
+        if (['ca', 'es', 'en'].includes(browserLang)) setLang(browserLang);
+    </script>
+</body>
+</html>

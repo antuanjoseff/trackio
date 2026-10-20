@@ -86,7 +86,8 @@ class ReactiveRangeButton extends ConsumerWidget {
         (s) =>
             !kIsWeb &&
             s.selectionStartIndex != null &&
-            s.selectionEndIndex != null,
+            s.selectionEndIndex != null &&
+            s.selectionEndIndex != -1,
       ),
     );
 
@@ -96,28 +97,8 @@ class ReactiveRangeButton extends ConsumerWidget {
     }
 
     final notifier = ref.read(gpxEditorProvider.notifier);
-    if (hasCompletedRange) {
-      return Positioned(
-        bottom: _floatingButtonsBottom,
-        left: 0,
-        right: 0,
-        child: Center(
-          child: ElevatedButton.icon(
-            onPressed: notifier.resetRangeSelectionForNewStart,
-            icon: const Icon(Icons.restart_alt, size: 18),
-            label: const Text('Reset'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.starTrekRed,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(0, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        ),
-      );
-    }
+    // El reinici es fa des de la icona de l'eina range_map
+    if (hasCompletedRange) return const SizedBox.shrink();
 
     return Positioned(
       bottom: _floatingButtonsBottom,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
+import 'package:trackio/widgets/add_track_label.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
@@ -41,6 +42,16 @@ class TrackioHorizontalLayout extends ConsumerWidget {
     // Selectors optimitzats de Riverpod
     final liveActiveTool = ref.watch(
       gpxEditorProvider.select((s) => s.activeTool),
+    );
+    final liveRangeFixed = ref.watch(
+      gpxEditorProvider.select(
+        (s) =>
+            s.activeTool == 'range_map' &&
+            s.selectionStartIndex != null &&
+            s.selectionEndIndex != null &&
+            s.selectionEndIndex != -1 &&
+            !s.isSelectingRange,
+      ),
     );
     final selectedTrackId = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId),
@@ -135,6 +146,27 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                       .read(gpxEditorProvider.notifier)
                                       .toggleElevationChart(),
                                 ),
+                                if (liveShowChart) ...[
+                                  const SizedBox(height: 6),
+                                  _buildCompactBtn(
+                                    context,
+                                    isActive: editorState.showSpeedInChart,
+                                    icon: Icon(
+                                      Icons.speed,
+                                      color: editorState.showSpeedInChart
+                                          ? AppColors.starTrekRed
+                                          : Colors.grey.shade600,
+                                    ),
+                                    tooltip: editorState.showSpeedInChart
+                                        ? t.hideSpeed
+                                        : t.showSpeed,
+                                    onPressed: () => ref
+                                        .read(gpxEditorProvider.notifier)
+                                        .toggleSpeedChart(),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  const AddTrackLabel(),
+                                ],
                                 const SizedBox(height: 6),
                                 _buildCompactBtn(
                                   context,
@@ -322,16 +354,31 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                     _buildCompactBtn(
                                       context,
                                       isActive: liveActiveTool == 'range_map',
-                                      icon: TrackioLargeIcon(
-                                        child: TrackRangeSelection(
-                                          color: isDisabled
-                                              ? AppColors
-                                                    .mapToolDisabledForeground
-                                              : (liveActiveTool == 'range_map'
-                                                    ? AppColors.starTrekRed
-                                                    : AppColors.starTrekRed),
-                                        ),
-                                      ),
+                                      icon: liveRangeFixed
+                                          ? Icon(
+                                              Icons.restart_alt,
+                                              color: isDisabled
+                                                  ? AppColors
+                                                        .mapToolDisabledForeground
+                                                  : (liveActiveTool ==
+                                                            'range_map'
+                                                        ? AppColors.starTrekRed
+                                                        : AppColors
+                                                              .starTrekRed),
+                                            )
+                                          : TrackioLargeIcon(
+                                              child: TrackRangeSelection(
+                                                color: isDisabled
+                                                    ? AppColors
+                                                          .mapToolDisabledForeground
+                                                    : (liveActiveTool ==
+                                                              'range_map'
+                                                          ? AppColors
+                                                                .starTrekRed
+                                                          : AppColors
+                                                                .starTrekRed),
+                                              ),
+                                            ),
                                       tooltip: t.selectRange,
                                       onPressed: isDisabled
                                           ? null
@@ -340,9 +387,12 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                                                   gpxEditorProvider.notifier,
                                                 )
                                                 .setActiveTool(
-                                                  liveActiveTool == 'range_map'
-                                                      ? 'none'
-                                                      : 'range_map',
+                                                  liveRangeFixed
+                                                      ? 'range_map'
+                                                      : (liveActiveTool ==
+                                                                'range_map'
+                                                            ? 'none'
+                                                            : 'range_map'),
                                                 ),
                                     ),
                                     const SizedBox(height: 6),
@@ -445,9 +495,9 @@ class TrackioHorizontalLayout extends ConsumerWidget {
           ),
 
           // Elements inferiors de l'APK de mòbil
-          const TrackStatsPanel(),
           if (showElevationChart)
             ElevationChartPanel(editorState: editorState, height: 110),
+          SafeArea(top: false, child: const TrackStatsPanel()),
         ],
       );
     }
@@ -524,12 +574,12 @@ class TrackioHorizontalLayout extends ConsumerWidget {
           ),
         ),
 
-        // Barra inferior d'estadístiques neta per a la Web
-        const TrackStatsPanel(),
-
         // Perfil d'elevacions de la Web (Ample complet discret)
         if (showElevationChart)
           ElevationChartPanel(editorState: editorState, height: 140),
+
+        // Barra inferior d'estadístiques neta per a la Web
+        SafeArea(top: false, child: const TrackStatsPanel()),
       ],
     );
   }

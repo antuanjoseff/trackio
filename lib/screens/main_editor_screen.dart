@@ -16,6 +16,7 @@ import 'package:trackio/core/utils/modal_helper.dart';
 import 'package:trackio/core/utils/gpx_parser.dart';
 import 'package:trackio/core/utils/track_stats_calculator.dart';
 import 'package:trackio/l10n/app_localizations.dart';
+import 'package:trackio/widgets/add_track_label.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
@@ -1206,6 +1207,51 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                     splashRadius: 20,
                   ),
                 ),
+                if (showElevationChart &&
+                    editorState.selectedTrackId != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: editorState.showSpeedInChart
+                          ? Colors.white
+                          : AppColors.appBarBackground,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.appBarBackground,
+                        width: 1.4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      tooltip: editorState.showSpeedInChart
+                          ? AppLocalizations.of(context)!.hideSpeed
+                          : AppLocalizations.of(context)!.showSpeed,
+                      icon: Icon(
+                        Icons.speed,
+                        color: editorState.showSpeedInChart
+                            ? AppColors.appBarBackground
+                            : Colors.white,
+                        size: 18,
+                      ),
+                      onPressed: () => ref
+                          .read(gpxEditorProvider.notifier)
+                          .toggleSpeedChart(),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      splashRadius: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const AddTrackLabel(height: 42),
+                ],
                 const SizedBox(width: 8),
                 if (!appBarVisible &&
                     _mapScaleMeters != null &&

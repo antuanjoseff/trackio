@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/core/utils/track_stats_calculator.dart';
-import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/providers/gpx_editor_notifier.dart';
 import 'package:trackio/models/track_model.dart';
 
@@ -11,7 +10,6 @@ class TrackStatsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = AppLocalizations.of(context)!;
     final editorState = ref.watch(gpxEditorProvider);
 
     final activeTrackId = editorState.selectedTrackId;
@@ -24,7 +22,6 @@ class TrackStatsPanel extends ConsumerWidget {
     final track = editorState.tracks[trackIndex];
 
     List<TrackPointModel> pointsToProcess = track.points;
-    bool isSegment = false;
 
     final start = editorState.selectionStartIndex;
     final end = editorState.selectionEndIndex;
@@ -45,18 +42,15 @@ class TrackStatsPanel extends ConsumerWidget {
     if (editorState.activeTool == 'range_map') {
       if (rangeIsFixed && start != null && effectiveEndIndex != null) {
         pointsToProcess = track.points.sublist(start, effectiveEndIndex + 1);
-        isSegment = true;
       } else if (start != null &&
           snappedIdx != null &&
           (editorState.isSelectingRange || end == null || end == -1)) {
         int lo = start < snappedIdx ? start : snappedIdx;
         int hi = start < snappedIdx ? snappedIdx : start;
         pointsToProcess = track.points.sublist(lo, hi + 1);
-        isSegment = true;
       }
     } else if (editorState.activeTool == 'split' && snappedIdx != null) {
       pointsToProcess = track.points.sublist(0, snappedIdx + 1);
-      isSegment = true;
     }
 
     final stats = TrackStatsCalculator.compute(pointsToProcess);
@@ -80,128 +74,12 @@ class TrackStatsPanel extends ConsumerWidget {
         ? "${speed.toStringAsFixed(1)} km/h ($paceStr)"
         : "--";
 
-    // Condición exacta para saber si la etiqueta debe convertirse en el botón interactivo de acción
-    final bool canAddTrack =
-        isSegment && rangeIsFixed && editorState.activeTool == 'range_map';
-
     return Container(
       // Ajuste drástico del padding para compactar la altura
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        // Si es un tramo, se tiñe sutilmente de naranja para avisar al usuario
-        color: isSegment
-            ? AppColors.starTrekGold.withOpacity(0.25)
-            : Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade200, width: 1),
-          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
-        ),
-      ),
+      decoration: BoxDecoration(color: AppColors.editorPrimary),
       child: Row(
         children: [
-          // ⚡ BOTÓ INTEGRAT A L'ESQUERRA DEL TOT (Només si el gràfic està visible)
-          if (editorState.showElevationChart) ...[
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                tooltip: editorState.showSpeedInChart
-                    ? t.hideSpeed
-                    : t.showSpeed,
-                style: IconButton.styleFrom(
-                  backgroundColor: editorState.showSpeedInChart
-                      ? AppColors.starTrekGold.withOpacity(0.35)
-                      : Colors.grey.shade100,
-                  shape: const CircleBorder(),
-                ),
-                icon: Icon(
-                  editorState.showSpeedInChart
-                      ? Icons.speed
-                      : Icons.speed_outlined,
-                  color: editorState.showSpeedInChart
-                      ? AppColors.starTrekRed
-                      : Colors.grey.shade500,
-                  size: 15,
-                ),
-                onPressed: () =>
-                    ref.read(gpxEditorProvider.notifier).toggleSpeedChart(),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-
-          // 🌟 ETIQUETA INTELIGENTE RECONVERTIDA: RUTA, TRAM o BOTÓN AFEGIR TRACK
-          InkWell(
-            onTap: canAddTrack
-                ? () {
-                    // 1. Creamos el nuevo track a nivel de estado global de forma síncrona
-                    ref
-                        .read(gpxEditorProvider.notifier)
-                        .createTrackFromSelectedRange();
-
-                    // 2. Avisamos al usuario con un feedback visual nativo
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(t.newTrackAddedFromSelectedSegment),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                : null, // Si es el track completo o tramo elástico, se comporta como etiqueta normal
-            borderRadius: BorderRadius.circular(4),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: EdgeInsets.symmetric(
-                horizontal: canAddTrack ? 8 : 6,
-                vertical: 3,
-              ),
-              decoration: BoxDecoration(
-                // Se vuelve verde llamativo si está listo para ser guardado como un track nuevo
-                color: canAddTrack
-                    ? AppColors.starTrekRed
-                    : (isSegment
-                          ? AppColors.starTrekGold.withOpacity(0.45)
-                          : AppColors.starTrekGold.withOpacity(0.25)),
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: canAddTrack
-                    ? [
-                        const BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 2,
-                          offset: Offset(0, 1),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (canAddTrack) ...[
-                    const Icon(Icons.add, size: 10, color: Colors.white),
-                    const SizedBox(width: 4),
-                  ],
-                  Text(
-                    canAddTrack
-                        ? t.addTrack
-                        : (isSegment ? t.segment : t.route),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 9,
-                      color: canAddTrack
-                          ? Colors.white
-                          : (isSegment
-                                ? AppColors.starTrekRed
-                                : AppColors.starTrekRed),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-
           // FILA HORIZONTAL DE MÉTRICAS COMPACTAS
           Expanded(
             child: SingleChildScrollView(
@@ -239,14 +117,14 @@ class TrackStatsPanel extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppColors.starTrekRed),
+          Icon(icon, size: 13, color: Colors.white),
           const SizedBox(width: 5),
           Text(
             value,
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              color: Colors.white,
             ),
           ),
         ],
@@ -260,7 +138,7 @@ class TrackStatsPanel extends ConsumerWidget {
       height: 12,
       width: 1,
       margin: const EdgeInsets.symmetric(horizontal: 12),
-      color: Colors.grey.shade300,
+      color: Colors.white54,
     );
   }
 }

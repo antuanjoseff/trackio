@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:trackio/core/theme/app_colors.dart';
 import 'package:trackio/l10n/app_localizations.dart';
 import 'package:trackio/models/track_model.dart';
 import 'package:trackio/providers/gpx_editor_state.dart';
@@ -59,7 +60,7 @@ class ElevationChartPanel extends ConsumerWidget {
         return Container(
           height: height,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.cleanLightGray,
             border: Border(
               top: BorderSide(color: Colors.grey.shade300, width: 1),
             ),
@@ -86,7 +87,7 @@ class ElevationChartPanel extends ConsumerWidget {
       return Container(
         height: height,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.cleanLightGray,
           border: Border(
             top: BorderSide(color: Colors.grey.shade300, width: 1),
           ),
@@ -101,7 +102,7 @@ class ElevationChartPanel extends ConsumerWidget {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.cleanLightGray,
         border: Border(top: BorderSide(color: Colors.grey.shade300, width: 1)),
       ),
       child: hasNoSelection

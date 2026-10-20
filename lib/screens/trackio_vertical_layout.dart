@@ -38,6 +38,16 @@ class TrackioVerticalLayout extends ConsumerWidget {
     final liveActiveTool = ref.watch(
       gpxEditorProvider.select((s) => s.activeTool),
     );
+    final liveRangeFixed = ref.watch(
+      gpxEditorProvider.select(
+        (s) =>
+            s.activeTool == 'range_map' &&
+            s.selectionStartIndex != null &&
+            s.selectionEndIndex != null &&
+            s.selectionEndIndex != -1 &&
+            !s.isSelectingRange,
+      ),
+    );
     final selectedTrackId = ref.watch(
       gpxEditorProvider.select((s) => s.selectedTrackId),
     );
@@ -275,22 +285,32 @@ class TrackioVerticalLayout extends ConsumerWidget {
                             _btn(
                               context,
                               isActive: liveActiveTool == 'range_map',
-                              icon: TrackioLargeIcon(
-                                child: TrackRangeSelection(
-                                  color: isDisabled
-                                      ? AppColors.mapToolDisabledForeground
-                                      : AppColors.starTrekRed,
-                                ),
-                              ),
+                              icon: liveRangeFixed
+                                  ? Icon(
+                                      Icons.restart_alt,
+                                      color: isDisabled
+                                          ? AppColors.mapToolDisabledForeground
+                                          : AppColors.starTrekRed,
+                                    )
+                                  : TrackioLargeIcon(
+                                      child: TrackRangeSelection(
+                                        color: isDisabled
+                                            ? AppColors
+                                                  .mapToolDisabledForeground
+                                            : AppColors.starTrekRed,
+                                      ),
+                                    ),
                               tooltip: t.selectRange,
                               onPressed: isDisabled
                                   ? null
                                   : () => ref
                                         .read(gpxEditorProvider.notifier)
                                         .setActiveTool(
-                                          liveActiveTool == 'range_map'
-                                              ? 'none'
-                                              : 'range_map',
+                                          liveRangeFixed
+                                              ? 'range_map'
+                                              : (liveActiveTool == 'range_map'
+                                                    ? 'none'
+                                                    : 'range_map'),
                                         ),
                             ),
                             const SizedBox(width: 6),
@@ -516,24 +536,35 @@ class TrackioVerticalLayout extends ConsumerWidget {
                           _btn(
                             context,
                             isActive: liveActiveTool == 'range_map',
-                            icon: TrackioLargeIcon(
-                              child: TrackRangeSelection(
-                                color: isDisabled
-                                    ? AppColors.mapToolDisabledForeground
-                                    : (liveActiveTool == 'range_map'
-                                          ? AppColors.starTrekRed
-                                          : AppColors.starTrekRed),
-                              ),
-                            ),
+                            icon: liveRangeFixed
+                                ? Icon(
+                                    Icons.restart_alt,
+                                    color: isDisabled
+                                        ? AppColors.mapToolDisabledForeground
+                                        : (liveActiveTool == 'range_map'
+                                              ? AppColors.starTrekRed
+                                              : AppColors.starTrekRed),
+                                  )
+                                : TrackioLargeIcon(
+                                    child: TrackRangeSelection(
+                                      color: isDisabled
+                                          ? AppColors.mapToolDisabledForeground
+                                          : (liveActiveTool == 'range_map'
+                                                ? AppColors.starTrekRed
+                                                : AppColors.starTrekRed),
+                                    ),
+                                  ),
                             tooltip: t.selectRange,
                             onPressed: isDisabled
                                 ? null
                                 : () => ref
                                       .read(gpxEditorProvider.notifier)
                                       .setActiveTool(
-                                        liveActiveTool == 'range_map'
-                                            ? 'none'
-                                            : 'range_map',
+                                        liveRangeFixed
+                                            ? 'range_map'
+                                            : (liveActiveTool == 'range_map'
+                                                  ? 'none'
+                                                  : 'range_map'),
                                       ),
                           ),
                           const SizedBox(height: 6),
@@ -614,22 +645,14 @@ class TrackioVerticalLayout extends ConsumerWidget {
           ),
         ),
 
-        SafeArea(
-          top: false,
-          bottom: !showElevationChart,
-          child: const TrackStatsPanel(),
-        ),
-
         if (showElevationChart)
-          SafeArea(
-            top: false,
-            bottom: true,
-            child: ElevationChartPanel(
-              editorState: currentFullState,
-              height: 140,
-              textFontSize: 12,
-            ),
+          ElevationChartPanel(
+            editorState: currentFullState,
+            height: 140,
+            textFontSize: 12,
           ),
+
+        SafeArea(top: false, bottom: true, child: const TrackStatsPanel()),
       ],
     );
   }

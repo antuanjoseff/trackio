@@ -1898,7 +1898,11 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     state = state.copyWith(chartNeedleIndex: idx, chartSelectionMode: 'simple');
   }
 
-  void startChartRangeSelection({required int startIdx, required int endIdx}) {
+  void startChartRangeSelection({
+    required int startIdx,
+    required int endIdx,
+    bool activateRangeTool = true,
+  }) {
     if (state.selectedTrackId == null) {
       debugPrint(
         '[chart-notifier] startChartRangeSelection aborted: no selected track',
@@ -1920,7 +1924,9 @@ class GpxEditor extends StateNotifier<GpxEditorState> {
     debugPrint('[chart-notifier] startChartRangeSelection s=$s e=$e');
 
     state = state.copyWith(
-      activeTool: 'range_map',
+      activeTool: activateRangeTool
+          ? 'range_map'
+          : (state.activeTool == 'range_map' ? 'none' : state.activeTool),
       selectionStartIndex: s,
       selectionEndIndex: e,
       chartRangeStartIndex: s,

@@ -35,7 +35,12 @@ class _HandleMarkerPainter extends CustomPainter {
       ..strokeWidth = lineWidth
       ..style = PaintingStyle.stroke;
 
-    canvas.drawLine(Offset(lineX, 0), Offset(lineX, chartHeight), linePaint);
+    // La línia només ocupa la zona del perfil, sense entrar a les franges dels tooltips
+    canvas.drawLine(
+      Offset(lineX, _kTopBand),
+      Offset(lineX, chartHeight - _kBottomBand),
+      linePaint,
+    );
 
     final circlePaint = Paint()..color = color;
     final circleBorderPaint = Paint()
@@ -57,6 +62,12 @@ class _HandleMarkerPainter extends CustomPainter {
         oldDelegate.circleRadius != circleRadius;
   }
 }
+
+const Color _kSpeedNavy = Color(0xFF0B3D91);
+
+// Franges reservades ddalt (distància/altitud) i baix (velocitat) del gràfic
+const double _kTopBand = 24.0;
+const double _kBottomBand = 24.0;
 
 class ElevationChartWidget extends ConsumerStatefulWidget {
   final TrackModel track;
@@ -189,6 +200,18 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     final double finalMinAlt = (minAlt - 12.0).clamp(0, double.infinity);
     final double finalMaxAlt = maxAlt;
 
+    final double altHalfWindow = (totalDistanceMeters / 400).clamp(8.0, 120.0);
+    final List<double> smoothAlt = _smoothByDistance(
+      localDistances,
+      localFilteredAltitudes,
+      altHalfWindow,
+    );
+    for (int i = 0; i < len; i++) {
+      localSpots[i] = FlSpot(localSpots[i].x, smoothAlt[i]);
+      localFilteredAltitudes[i] = smoothAlt[i];
+    }
+
+    final List<double> rawSpeeds = List<double>.filled(len, 0.0);
     for (int i = 0; i < len; i++) {
       double speedKmh = 0.0;
       if (i > 0) {
@@ -207,15 +230,23 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
         }
       }
 
-      final double currentMeters = localDistances[i];
+      rawSpeeds[i] = speedKmh.clamp(minSpeedTarget, maxSpeedTarget);
+    }
+
+    final double speedHalfWindow = (totalDistanceMeters / 150).clamp(
+      20.0,
+      300.0,
+    );
+    final List<double> smoothSpeeds = _smoothByDistance(
+      localDistances,
+      rawSpeeds,
+      speedHalfWindow,
+    );
+    for (int i = 0; i < len; i++) {
       localSpeedSpots.add(
         FlSpot(
-          currentMeters,
-          _scaleSpeedToAlt(
-            speedKmh.clamp(minSpeedTarget, maxSpeedTarget),
-            finalMinAlt,
-            finalMaxAlt,
-          ),
+          localDistances[i],
+          _scaleSpeedToAlt(smoothSpeeds[i], finalMinAlt, finalMaxAlt),
         ),
       );
     }
@@ -227,6 +258,38 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
       _minAlt = finalMinAlt;
       _maxAlt = finalMaxAlt;
     });
+  }
+
+  // Mitjana mòbil per distància: manté el nombre de punts i les posicions X,
+  // només suavitza el valor Y que es dibuixa.
+  List<double> _smoothByDistance(
+    List<double> distances,
+    List<double> values,
+    double halfWindowMeters,
+  ) {
+    final int n = values.length;
+    if (n < 3 || halfWindowMeters <= 0) return List<double>.from(values);
+
+    final List<double> prefix = List<double>.filled(n + 1, 0.0);
+    for (int i = 0; i < n; i++) {
+      prefix[i + 1] = prefix[i] + values[i];
+    }
+
+    final List<double> out = List<double>.filled(n, 0.0);
+    int lo = 0;
+    int hi = 0;
+    for (int i = 0; i < n; i++) {
+      while (distances[i] - distances[lo] > halfWindowMeters) {
+        lo++;
+      }
+      if (hi < i) hi = i;
+      while (hi + 1 < n &&
+          distances[hi + 1] - distances[i] <= halfWindowMeters) {
+        hi++;
+      }
+      out[i] = (prefix[hi + 1] - prefix[lo]) / (hi - lo + 1);
+    }
+    return out;
   }
 
   int _chartToTrackIndex(int chartIdx) {
@@ -298,13 +361,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
   double _getHandleYForIndex(int? chartIndex, {required double chartHeight}) {
     if (chartIndex == null || _filteredAltitudes.isEmpty) {
-      return chartHeight - 22.0;
+      return chartHeight - _kBottomBand;
     }
 
     final int safeIndex = chartIndex.clamp(0, _filteredAltitudes.length - 1);
     final double realAltitude = _filteredAltitudes[safeIndex];
-    final double topOffset = 0.0;
-    final double bottomOffset = 22.0;
+    final double topOffset = _kTopBand;
+    final double bottomOffset = _kBottomBand;
     final double usableChartHeight = chartHeight - topOffset - bottomOffset;
     final double yRange = (_maxAlt - _minAlt) == 0 ? 1.0 : (_maxAlt - _minAlt);
     final double rel = (realAltitude - _minAlt) / yRange;
@@ -320,7 +383,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
   }) {
     if (x.isNaN || x.isInfinite) return const SizedBox.shrink();
 
-    final double markerY = y ?? chartHeight - 22.0;
+    final double markerY = y ?? chartHeight - _kBottomBand;
 
     return Positioned(
       left: x - 10.0,
@@ -335,8 +398,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
               color: color,
               markerY: markerY,
               chartHeight: chartHeight,
-              lineWidth: 4,
-              circleRadius: 7.5,
+              lineWidth: 1.5,
+              circleRadius: 5.4,
             ),
           ),
         ),
@@ -344,47 +407,66 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
     );
   }
 
-  Widget _buildFlutterTooltip(
-    String mainText,
-    double? speedKmh,
-    Color baseColor,
-    bool showSpeedActive,
-  ) {
+  Widget _buildFlutterTooltip(String mainText) {
+    const Color lineColor = AppColors.editorPrimary;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: baseColor.withValues(alpha: 0.9),
+        color: lineColor,
         borderRadius: BorderRadius.circular(6),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
-        ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            mainText,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10.5,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'monospace',
+      child: Text(
+        mainText,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10.5,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'monospace',
+        ),
+      ),
+    );
+  }
+
+  // Tooltip de velocitat: ocupa la franja inferior, centrat sota el tooltip principal
+  Widget _buildSpeedTooltip({
+    required double left,
+    required double width,
+    required double? speedKmh,
+  }) {
+    final String text = speedKmh != null
+        ? "${speedKmh.toStringAsFixed(1)} km/h"
+        : "-- km/h";
+    return Positioned(
+      bottom: 2,
+      left: left,
+      width: width,
+      child: IgnorePointer(
+        ignoring: true,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: _kSpeedNavy,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.speed, size: 11, color: Colors.white),
+                const SizedBox(width: 3),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
             ),
           ),
-          if (showSpeedActive && speedKmh != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              "${speedKmh.toStringAsFixed(1)} km/h",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9.5,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -490,7 +572,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
 
     return SafeArea(
       top: false,
-      bottom: true,
+      bottom: false,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // El padding fix d'alineació exacte del LineChart
@@ -639,11 +721,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
             ref
                 .read(gpxEditorProvider.notifier)
                 .updateSnappedPoint(widget.track.points[trackIdx], trackIdx);
+            // Mostra les dues agulles sense activar l'eina range_map
             ref
                 .read(gpxEditorProvider.notifier)
                 .startChartRangeSelection(
                   startIdx: _chartToTrackIndex(rangeStartChartIdx),
                   endIdx: _chartToTrackIndex(rangeEndChartIdx),
+                  activateRangeTool: false,
                 );
           }
 
@@ -695,8 +779,8 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     padding: const EdgeInsets.only(
                       left: paddingLeft,
                       right: paddingRight,
-                      top: 0,
-                      bottom: 22,
+                      top: _kTopBand,
+                      bottom: _kBottomBand,
                     ),
                     child: IgnorePointer(
                       ignoring:
@@ -731,9 +815,15 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                               isCurved: true,
                               curveSmoothness: 0.4,
                               preventCurveOverShooting: true,
-                              color: AppColors.pureRed,
+                              color: AppColors.editorPrimary,
                               barWidth: 2.5,
                               dotData: const FlDotData(show: false),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: AppColors.editorPrimary.withValues(
+                                  alpha: 0.18,
+                                ),
+                              ),
                             ),
                             if (showSpeed && _speedSpots.isNotEmpty)
                               LineChartBarData(
@@ -741,9 +831,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                                 isCurved: true,
                                 curveSmoothness: 0.4,
                                 preventCurveOverShooting: true,
-                                color: AppColors.starTrekSpeedLine.withValues(
-                                  alpha: 0.9,
-                                ),
+                                color: const Color(0xFF0B3D91),
                                 barWidth: 1.3,
                                 dotData: const FlDotData(show: false),
                               ),
@@ -835,13 +923,28 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                         if ((x - activationDx).abs() <= 18) return;
                       }
 
-                      final bool touchedStart =
+                      bool touchedStart =
                           startXRealPixel != null &&
                           (x - startXRealPixel).abs() < handleHitRadius;
 
-                      final bool touchedEnd =
+                      bool touchedEnd =
                           endXRealPixel != null &&
                           (x - endXRealPixel).abs() < handleHitRadius;
+
+                      // En mode tram sempre es mou l'agulla més propera:
+                      // mai es queda amb una sola agulla.
+                      if (isRangeModeActive &&
+                          !touchedStart &&
+                          !touchedEnd &&
+                          startXRealPixel != null &&
+                          endXRealPixel != null) {
+                        if ((x - startXRealPixel).abs() <=
+                            (x - endXRealPixel).abs()) {
+                          touchedStart = true;
+                        } else {
+                          touchedEnd = true;
+                        }
+                      }
 
                       debugPrint(
                         '[chart-widget] onPanStart touchedStart=$touchedStart touchedEnd=$touchedEnd',
@@ -887,28 +990,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                           return;
                         }
 
-                        // Si fas drag fora de les agulles, netegem el rang a l'acte
-                        final chartIdx = _metersToIndex(dxToMeters(x));
-                        final int dragTrackIdx = _chartToTrackIndex(chartIdx);
-                        setState(() {
-                          _draggingHandle = 3; // SIMPLE
-                          _hideBlueNeedle = false;
-                          _displayStartTrackIdx = startTrackIdx;
-                          _displayEndTrackIdx = endTrackIdx;
-                          _displayNeedleTrackIdx = dragTrackIdx;
-                          _displayStartX = startXRealPixel;
-                          _displayEndX = endXRealPixel;
-                          _displayNeedleX = x;
-                        });
-                        SchedulerBinding.instance.scheduleFrame();
-
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .clearChartSelection();
-
-                        ref
-                            .read(gpxEditorProvider.notifier)
-                            .updateChartNeedle(dragTrackIdx);
+                        // Tram encara sense dues agulles: no fem res
                         return;
                       }
 
@@ -1116,7 +1198,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                   Stack(
                     children: [
                       Positioned(
-                        bottom: 2,
+                        top: 2,
                         left: startTooltipLeft,
                         child: IgnorePointer(
                           ignoring: true,
@@ -1124,16 +1206,13 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             key: _startTooltipKey,
                             child: _buildFlutterTooltip(
                               "${(_distances[startPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[startPointsIndex].elevation?.toStringAsFixed(0)} m",
-                              _getRealSpeedKmh(startPointsIndex),
-                              AppColors.starTrekGreen,
-                              showSpeed,
                             ),
                           ),
                         ),
                       ),
 
                       Positioned(
-                        bottom: 2,
+                        top: 2,
                         left: endTooltipLeft,
                         child: IgnorePointer(
                           ignoring: true,
@@ -1141,13 +1220,22 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                             key: _endTooltipKey,
                             child: _buildFlutterTooltip(
                               "${(_distances[endPointsIndex] / 1000).toStringAsFixed(2)} km | ${_validPoints[endPointsIndex].elevation?.toStringAsFixed(0)} m",
-                              _getRealSpeedKmh(endPointsIndex),
-                              AppColors.pureRed,
-                              showSpeed,
                             ),
                           ),
                         ),
                       ),
+                      if (showSpeed) ...[
+                        _buildSpeedTooltip(
+                          left: startTooltipLeft,
+                          width: tooltipWidth,
+                          speedKmh: _getRealSpeedKmh(startPointsIndex),
+                        ),
+                        _buildSpeedTooltip(
+                          left: endTooltipLeft,
+                          width: tooltipWidth,
+                          speedKmh: _getRealSpeedKmh(endPointsIndex),
+                        ),
+                      ],
                     ],
                   ),
 
@@ -1157,7 +1245,7 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                     snappedIdx != null &&
                     graphX != null)
                   Positioned(
-                    bottom: 2,
+                    top: 2,
                     left: (graphX - 65).clamp(
                       4.0,
                       (chartWidth + paddingLeft + paddingRight) - 130,
@@ -1166,11 +1254,21 @@ class _ElevationChartWidgetState extends ConsumerState<ElevationChartWidget> {
                       ignoring: true,
                       child: _buildFlutterTooltip(
                         "${(_distances[snappedIdx] / 1000).toStringAsFixed(2)} km | ${_validPoints[snappedIdx].elevation?.toStringAsFixed(0)} m",
-                        _getRealSpeedKmh(snappedIdx),
-                        AppColors.starTrekGreen,
-                        showSpeed,
                       ),
                     ),
+                  ),
+                if (!isRangeModeActive &&
+                    !_hideBlueNeedle &&
+                    snappedIdx != null &&
+                    graphX != null &&
+                    showSpeed)
+                  _buildSpeedTooltip(
+                    left: (graphX - 65).clamp(
+                      4.0,
+                      (chartWidth + paddingLeft + paddingRight) - 130,
+                    ),
+                    width: 130,
+                    speedKmh: _getRealSpeedKmh(snappedIdx),
                   ),
               ],
             ),
