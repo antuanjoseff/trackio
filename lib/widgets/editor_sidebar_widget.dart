@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
@@ -62,7 +63,7 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
 
     return SizedBox.expand(
       child: Container(
-        color: AppColors.editorSidebarBackground,
+        color: kIsWeb ? Colors.transparent : AppColors.editorSidebarBackground,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 14.0),
           child: Column(
@@ -85,7 +86,7 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
+                          color: Colors.black.withAlpha(8),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -189,8 +190,8 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
             boxShadow: [
               BoxShadow(
                 color: isSelected
-                    ? trackBaseColor.withOpacity(0.12)
-                    : Colors.black.withOpacity(0.02),
+                    ? trackBaseColor.withAlpha(31)
+                    : Colors.black.withAlpha(5),
                 blurRadius: isSelected ? 8 : 4,
                 offset: const Offset(0, 2),
               ),
@@ -206,12 +207,11 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                   contentPadding: const EdgeInsets.only(left: 12.0, right: 4.0),
                   title: Row(
                     children: [
-                      // El cercle de color també obre la paleta per canviar el color
                       InkWell(
                         onTap: () => showModalGuarded(
                           context: context,
                           ref: ref,
-                          barrierColor: Colors.black.withOpacity(0.02),
+                          barrierColor: Colors.black.withAlpha(5),
                           builder: (_) => ColorPaletteDialog(
                             onColorSelected: (hex) async {
                               ref
@@ -235,7 +235,6 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      // 👁️ Alterna visibilitat del track directament des de la primera línia
                       InkWell(
                         onTap: () async {
                           ref
@@ -305,7 +304,6 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                     children: [
                       Row(
                         children: [
-                          // Text "més/menys" que desplega les accions extra
                           InkWell(
                             onTap: () => _toggleExpanded(track.id),
                             borderRadius: BorderRadius.circular(6),
@@ -407,7 +405,6 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
                     ],
                   ),
                 ),
-                // Bloc desplegable amb les accions extra del track
                 if (_expandedTrackIds.contains(track.id))
                   Container(
                     color: isSelected
@@ -456,7 +453,6 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
     );
   }
 
-  /// Fila d'acció extra (icona + text) dins del bloc desplegable
   Widget _buildExtraAction({
     required BuildContext context,
     required IconData icon,
@@ -493,7 +489,7 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
     final result = await showModalGuarded<(DateTime, DateTime)>(
       context: context,
       ref: ref,
-      barrierColor: Colors.black.withOpacity(0.02),
+      barrierColor: Colors.black.withAlpha(5),
       builder: (_) => EditTimestampsDialog(track: track, t: widget.t),
     );
     if (result != null) {
@@ -507,7 +503,7 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
     final String? newName = await showModalGuarded<String>(
       context: context,
       ref: ref,
-      barrierColor: Colors.black.withOpacity(0.02),
+      barrierColor: Colors.black.withAlpha(5),
       builder: (_) => RenameTrackDialog(track: track, t: widget.t),
     );
     if (newName != null) {
@@ -519,7 +515,7 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
     final result = await showModalGuarded<(double, bool)>(
       context: context,
       ref: ref,
-      barrierColor: Colors.black.withOpacity(0.02),
+      barrierColor: Colors.black.withAlpha(5),
       builder: (_) => NodeCountDialog(track: track, t: widget.t),
     );
     if (result != null) {
@@ -534,7 +530,7 @@ class _EditorSidebarWidgetState extends ConsumerState<EditorSidebarWidget> {
     showModalGuarded(
       context: context,
       ref: ref,
-      barrierColor: Colors.black.withOpacity(0.02),
+      barrierColor: Colors.black.withAlpha(5),
       builder: (_) => TrackPropertiesDialog(track: track, t: widget.t),
     );
   }

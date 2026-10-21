@@ -80,7 +80,7 @@ class TrackioVerticalLayout extends ConsumerWidget {
         Expanded(
           child: Stack(
             children: [
-              mapModule,
+              Positioned.fill(child: mapModule),
 
               if (!isMobile)
                 Positioned(

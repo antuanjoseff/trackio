@@ -9,6 +9,50 @@ import 'package:trackio/screens/main_editor_screen.dart';
 
 const double _floatingButtonsBottom = 16.0;
 
+Widget _buildReticleActionButton({
+  required String label,
+  required Color backgroundColor,
+  required VoidCallback onPressed,
+  IconData? icon,
+}) {
+  return Positioned.fill(
+    child: Align(
+      alignment: Alignment.center,
+      child: Transform.translate(
+        offset: const Offset(0, 24),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: backgroundColor,
+            foregroundColor: Colors.white,
+            elevation: 4,
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+          onPressed: onPressed,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 // ==========================================
 // ✂️ BOTÓ SPLIT
 // ==========================================
@@ -100,32 +144,18 @@ class ReactiveRangeButton extends ConsumerWidget {
     // El reinici es fa des de la icona de l'eina range_map
     if (hasCompletedRange) return const SizedBox.shrink();
 
-    return Positioned(
-      bottom: _floatingButtonsBottom,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isSelectingRange
-                ? AppColors.starTrekRed
-                : AppColors.starTrekGreen,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(0, 36),
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
-          ),
-          onPressed: () {
-            if (!isSelectingRange) {
-              notifier.fixRangeStartIndex();
-            } else {
-              notifier.fixRangeEndIndex();
-            }
-          },
-          child: Text(isSelectingRange ? "Fixar Final" : "Fixar Inici"),
-        ),
-      ),
+    return _buildReticleActionButton(
+      backgroundColor: isSelectingRange
+          ? AppColors.starTrekRed
+          : AppColors.starTrekGreen,
+      label: isSelectingRange ? "Fixar Final" : "Fixar Inici",
+      onPressed: () {
+        if (!isSelectingRange) {
+          notifier.fixRangeStartIndex();
+        } else {
+          notifier.fixRangeEndIndex();
+        }
+      },
     );
   }
 }
@@ -293,31 +323,18 @@ class ReactiveAddNodeButton extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    return Positioned(
-      bottom: _floatingButtonsBottom,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: FloatingActionButton.extended(
-          backgroundColor: AppColors.starTrekRed,
-          icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-          label: Text(
-            t.confirmAddNode,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          onPressed: () {
-            ref.read(gpxEditorProvider.notifier).addNodeAtCurrentSnap();
-            final screenState = context
-                .findAncestorStateOfType<MainEditorScreenState>();
-            if (screenState != null) {
-              screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
-            }
-          },
-        ),
-      ),
+    return _buildReticleActionButton(
+      backgroundColor: AppColors.starTrekRed,
+      icon: Icons.add_circle_outline,
+      label: t.confirmAddNode,
+      onPressed: () {
+        ref.read(gpxEditorProvider.notifier).addNodeAtCurrentSnap();
+        final screenState = context
+            .findAncestorStateOfType<MainEditorScreenState>();
+        if (screenState != null) {
+          screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
+        }
+      },
     );
   }
 }
@@ -344,31 +361,18 @@ class ReactiveDeleteNodeButton extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    return Positioned(
-      bottom: _floatingButtonsBottom,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: FloatingActionButton.extended(
-          backgroundColor: AppColors.starTrekRed,
-          icon: const Icon(Icons.remove_circle_outline, color: Colors.white),
-          label: Text(
-            t.deleteNode,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          onPressed: () {
-            ref.read(gpxEditorProvider.notifier).deleteNodeAtCurrentSnap();
-            final screenState = context
-                .findAncestorStateOfType<MainEditorScreenState>();
-            if (screenState != null) {
-              screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
-            }
-          },
-        ),
-      ),
+    return _buildReticleActionButton(
+      backgroundColor: AppColors.starTrekRed,
+      icon: Icons.remove_circle_outline,
+      label: t.deleteNode,
+      onPressed: () {
+        ref.read(gpxEditorProvider.notifier).deleteNodeAtCurrentSnap();
+        final screenState = context
+            .findAncestorStateOfType<MainEditorScreenState>();
+        if (screenState != null) {
+          screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
+        }
+      },
     );
   }
 }
@@ -400,44 +404,28 @@ class ReactiveMoveNodeButton extends ConsumerWidget {
 
     final bool isNodeAlreadySelected = selectedMoveNodeIndex != null;
 
-    return Positioned(
-      bottom: _floatingButtonsBottom,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: FloatingActionButton.extended(
-          backgroundColor: isNodeAlreadySelected
-              ? AppColors.starTrekRed
-              : AppColors.starTrekGold,
-          icon: Icon(
-            isNodeAlreadySelected
-                ? Icons.check_circle_outline
-                : Icons.open_with,
-            color: Colors.white,
-          ),
-          label: Text(
-            isNodeAlreadySelected ? t.confirmMoveNode : t.selectMoveNode,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          onPressed: () {
-            final notifier = ref.read(gpxEditorProvider.notifier);
-            if (isNodeAlreadySelected) {
-              notifier.confirmMoveNodePosition();
-            } else {
-              notifier.selectMoveNodeFromCurrentSnap();
-            }
+    return _buildReticleActionButton(
+      backgroundColor: isNodeAlreadySelected
+          ? AppColors.starTrekRed
+          : AppColors.starTrekGreen,
+      icon: isNodeAlreadySelected
+          ? Icons.check_circle_outline
+          : Icons.open_with,
+      label: isNodeAlreadySelected ? t.confirmMoveNode : t.selectMoveNode,
+      onPressed: () {
+        final notifier = ref.read(gpxEditorProvider.notifier);
+        if (isNodeAlreadySelected) {
+          notifier.confirmMoveNodePosition();
+        } else {
+          notifier.selectMoveNodeFromCurrentSnap();
+        }
 
-            final screenState = context
-                .findAncestorStateOfType<MainEditorScreenState>();
-            if (screenState != null) {
-              screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
-            }
-          },
-        ),
-      ),
+        final screenState = context
+            .findAncestorStateOfType<MainEditorScreenState>();
+        if (screenState != null) {
+          screenState.paintLiveOverlays(ref.read(gpxEditorProvider));
+        }
+      },
     );
   }
 }

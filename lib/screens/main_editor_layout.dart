@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
@@ -71,6 +72,15 @@ class MainEditorLayout extends ConsumerWidget {
     final bool isDisabled = selectedTrackId == null;
     final bool isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
+    final importButton = IconButton(
+      tooltip: t.importTracks,
+      icon: const Icon(
+        Icons.upload,
+        color: AppColors.appBarForeground,
+        size: 20,
+      ),
+      onPressed: onImportPressed,
+    );
 
     return Stack(
       children: [
@@ -79,6 +89,8 @@ class MainEditorLayout extends ConsumerWidget {
           // 📱 APARTAT MÒBIL: El sidebar es converteix en un menú lateral natiu (Drawer)
           drawer: isMobile
               ? Drawer(
+                  backgroundColor: kIsWeb ? Colors.transparent : null,
+                  elevation: 0,
                   width:
                       MediaQuery.of(context).size.width *
                       0.85, // Deixa veure una franja del mapa al costat
@@ -137,13 +149,16 @@ class MainEditorLayout extends ConsumerWidget {
                 )
               : null,
           // 🚀 Si és mòbil i està de costat (Landscape), eliminem la barra nativa tornant null
-          appBar: (isMobile && isLandscape)
+          appBar: (!kIsWeb && isMobile && isLandscape)
               ? null
               : AppBar(
                   automaticallyImplyLeading: false,
-                  titleSpacing: 12,
+                  leadingWidth: kIsWeb ? 48 : null,
+                  titleSpacing: kIsWeb ? 0 : 12,
                   centerTitle: false,
-                  leading: isMobile
+                  leading: kIsWeb
+                      ? importButton
+                      : isMobile
                       ? Builder(
                           builder: (ctx) => Center(
                             child: IconButton(
@@ -387,15 +402,7 @@ class MainEditorLayout extends ConsumerWidget {
                       ),
                     ],
 
-                    IconButton(
-                      tooltip: t.importTracks,
-                      icon: const Icon(
-                        Icons.upload,
-                        color: AppColors.appBarForeground,
-                        size: 20,
-                      ),
-                      onPressed: onImportPressed,
-                    ),
+                    if (!kIsWeb) importButton,
 
                     const SizedBox(width: 8),
                   ],

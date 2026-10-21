@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trackio/core/theme/app_colors.dart';
@@ -526,7 +527,9 @@ class TrackioHorizontalLayout extends ConsumerWidget {
                     child: Container(
                       width: 320,
                       decoration: BoxDecoration(
-                        color: AppColors.starTrekGold,
+                        color: kIsWeb
+                            ? Colors.transparent
+                            : AppColors.starTrekGold,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(

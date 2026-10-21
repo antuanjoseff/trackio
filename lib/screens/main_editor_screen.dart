@@ -203,6 +203,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     for (int i = 0; i < activeTrack.points.length; i++) {
       final point = activeTrack.points[i];
       if (point.latitude == null || point.longitude == null) continue;
+      // El node que s'està movent el representa el punt blau de la retícula.
+      if (i == state.geometryMoveNodeIndex) continue;
 
       final screenPoint = await _controller!.toScreenLocation(
         LatLng(point.latitude!, point.longitude!),
@@ -680,7 +682,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       if (state.loadingTrackIds.isEmpty) {
         _paintTracksWrapper(next);
       }
-      unawaited(_updateGeometryNodesOverlay());
+      if (ref.read(gpxEditorProvider).geometryMoveNodeIndex == null) {
+        unawaited(_updateGeometryNodesOverlay());
+      }
     });
 
     // 🌟 REPARACIÓ 3C: Escolta la interacció fina (agulles, moviments de retícula, canvis d'eina)
@@ -692,6 +696,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       final bool drawingChanged =
           previous?.drawingPoints != next.drawingPoints ||
           previous?.drawingLivePoint != next.drawingLivePoint;
+      final bool moveNodeChanged =
+          previous?.geometryMoveNodeIndex != next.geometryMoveNodeIndex;
       final bool rangeChanged =
           previous?.chartRangeStartIndex != next.chartRangeStartIndex ||
           previous?.chartRangeEndIndex != next.chartRangeEndIndex ||
@@ -701,7 +707,7 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       if (toolChanged || snappedChanged || drawingChanged || rangeChanged) {
         paintLiveOverlays(next);
       }
-      if (toolChanged || rangeChanged) {
+      if (toolChanged || rangeChanged || moveNodeChanged) {
         unawaited(_updateGeometryNodesOverlay());
       }
     });
@@ -868,7 +874,6 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
                 coordinates.longitude,
               );
               paintLiveOverlays(ref.read(gpxEditorProvider));
-              unawaited(_updateGeometryNodesOverlay());
             });
           },
           onMousePrimaryUpMap: () {
@@ -1154,6 +1159,13 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             ),
           ),
 
+        if (!hasMouse) ...[
+          const ReactiveRangeButton(),
+          const ReactiveAddNodeButton(),
+          const ReactiveDeleteNodeButton(),
+          const ReactiveMoveNodeButton(),
+        ],
+
         if (isSmallMobileLayout)
           Positioned(
             left: 12,
@@ -1329,12 +1341,8 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
         // 🌟 En ratolí ocultem botons contextuals, excepte el menú de dibuix
         if (!hasMouse) ...[
           const ReactiveSplitButton(),
-          const ReactiveRangeButton(),
           const ReactiveMergeButton(),
           const ReactiveWaypointButton(),
-          const ReactiveAddNodeButton(),
-          const ReactiveDeleteNodeButton(),
-          const ReactiveMoveNodeButton(),
         ],
         const ReactiveGeometryEditToolbar(),
         const ReactiveDrawButton(),
@@ -2044,7 +2052,9 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
             );
           }
         }
-        unawaited(_updateGeometryNodesOverlay());
+        if (ref.read(gpxEditorProvider).geometryMoveNodeIndex == null) {
+          unawaited(_updateGeometryNodesOverlay());
+        }
         paintLiveOverlays(ref.read(gpxEditorProvider));
       });
       return;
@@ -2121,10 +2131,10 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
     final state = ref.read(gpxEditorProvider);
 
     if (state.activeTool == 'edit_geometry') {
-      await _updateGeometryNodesOverlay();
       if (state.geometryEditMode != 'add' &&
           state.geometryEditMode != 'delete' &&
           state.geometryEditMode != 'move') {
+        await _updateGeometryNodesOverlay();
         return;
       }
 
@@ -2162,6 +2172,12 @@ class MainEditorScreenState extends ConsumerState<MainEditorScreen>
       }
       ref.read(gpxEditorProvider.notifier).setMapIdle(true);
       paintLiveOverlays(ref.read(gpxEditorProvider));
+      // El càlcul dels nodes visibles és lent en tracks llargs: no ha de
+      // retardar la selecció del node sota la retícula. Mentre es mou un node
+      // no es refresca (el punt blau el representa).
+      if (ref.read(gpxEditorProvider).geometryMoveNodeIndex == null) {
+        unawaited(_updateGeometryNodesOverlay());
+      }
       return;
     }
 
